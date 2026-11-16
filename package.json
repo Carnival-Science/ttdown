@@ -6,7 +6,7 @@
   "scripts": {
     "songs": "python3 test-songs/make_test_songs.py",
     "benchmark": "node tests/benchmark.js",
-    "test": "for t in tests/test*.js; do echo \"== $t\"; node \"$t\" | tail -1; done"
+    "test": "node tests/run-tests.js"
   },
   "devDependencies": {
     "playwright": "^1.48.0"
