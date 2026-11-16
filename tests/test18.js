@@ -45,7 +45,7 @@ const { chromium } = require('playwright'); const fs = require('fs');
   for (const f of ['pop127_Amaj.wav', 'lead120_Amin.wav']) { await p.locator('#mine').setInputFiles(`${SONGS}` + f); await p.waitForFunction(n => document.querySelector('#compare') && /Compared/.test(document.querySelector('#compare').innerText) && document.querySelector('#compare').innerText.includes(n), f, { timeout: 120000 }); }
   console.log('part stats', (await p.locator('#compare .stats').nth(1).innerText()).replace(/\n/g, ' '));
   console.log('progress', (await p.locator('#compare table').first().innerText()).replace(/\n/g, ' | ').slice(0, 300));
-  const [dl] = await Promise.all([p.waitForEvent('download'), p.locator('button:has-text("Make a review page")').click()]); await dl.saveAs('/tmp/review.html'); console.log('review', dl.suggestedFilename(), fs.statSync('/tmp/review.html').size);
+  const [dl] = await Promise.all([p.waitForEvent('download'), p.locator('button:has-text("Make a review page")').click()]); await dl.saveAs(OUT + 'review.html'); console.log('review', dl.suggestedFilename(), fs.statSync(OUT + 'review.html').size);
   // journal
   await p.evaluate(() => { location.hash = '#journal'; }); await p.waitForTimeout(500);
   console.log('journal cards', await p.locator('.jcard').count(), (await p.locator('.jcard').first().innerText()).replace(/\n/g, ' | ').slice(0, 250));
@@ -59,5 +59,5 @@ const { chromium } = require('playwright'); const fs = require('fs');
   console.log('habits', (await p.locator('section:has(h2:has-text("Producer habits")) ul').innerText()).replace(/\n/g, ' | '));
   console.log('learned saved', await p.evaluate(() => JSON.parse(localStorage.getItem('beat_journal_v1'))[0].learned));
   await p.screenshot({ path: 'journal.png', fullPage: false });
-  console.log('errors', errs); await b.close();
+  console.log('errors', errs); if (errs.length) process.exitCode = 1; await b.close();
 })();

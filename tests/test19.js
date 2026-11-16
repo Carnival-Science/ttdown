@@ -15,5 +15,5 @@ const { chromium } = require('playwright');
   await p.reload(); await p.waitForTimeout(400); await p.click('#volbtn');
   console.log('after reload sliders', await p.locator('#vol-song').inputValue(), await p.locator('#vol-sounds').inputValue(), await p.locator('#vol-mute').innerText());
   await p.screenshot({ path: 'vol.png', clip: { x: 600, y: 0, width: 600, height: 300 } });
-  console.log('errors', errs); await b.close();
+  console.log('errors', errs); if (errs.length) process.exitCode = 1; await b.close();
 })();

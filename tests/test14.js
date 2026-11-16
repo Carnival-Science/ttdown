@@ -44,7 +44,7 @@ const { chromium } = require('playwright'); const fs = require('fs');
   await p.waitForSelector('.bchart', { timeout: 90000 }); console.log('band chart:', (await p.locator('.bchart .tip').innerText()).slice(0, 110), '| rows', await p.locator('.brow').count());
   await p.locator('.bchart').screenshot({ path: 'bchart.png' });
   await p.locator('section:has(h2:has-text("Share with your mentor")) textarea').fill('Does my 808 sit right under the kick?');
-  const [dl] = await Promise.all([p.waitForEvent('download'), p.locator('button:has-text("Save as a page")').click()]); await dl.saveAs('/tmp/share.html'); console.log('share file', dl.suggestedFilename(), fs.statSync('/tmp/share.html').size);
+  const [dl] = await Promise.all([p.waitForEvent('download'), p.locator('button:has-text("Save as a page")').click()]); await dl.saveAs(OUT + 'share.html'); console.log('share file', dl.suggestedFilename(), fs.statSync(OUT + 'share.html').size);
   // session
   await p.locator('.sess button:has-text("Session")').click(); console.log('goal default:', await p.locator('.sess input').inputValue());
   await p.locator('.sess button:has-text("25 min")').click(); await p.waitForTimeout(1200); console.log('timer:', await p.locator('.sess .stime').innerText());
@@ -54,5 +54,5 @@ const { chromium } = require('playwright'); const fs = require('fs');
   await p.goto(`${ROOTURL}index.html#learn`); await p.waitForTimeout(500);
   console.log('log has timed session:', await p.locator('text=Timed session').count());
   await p.screenshot({ path: 'learn2.png' });
-  console.log('errors', errs); await b.close();
+  console.log('errors', errs); if (errs.length) process.exitCode = 1; await b.close();
 })();
