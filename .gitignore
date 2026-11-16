@@ -1,0 +1,7 @@
+node_modules/
+tests/out/
+test-songs/*.wav
+test-songs/*.json
+*.bak.html
+.DS_Store
+/*.png

@@ -1,0 +1,24 @@
+const path = require('path'), ROOTURL = 'file://' + path.resolve(__dirname, '..') + '/', SONGS = path.resolve(__dirname, '../test-songs') + '/', SAMPLES = path.resolve(__dirname, 'samples') + '/', OUT = path.resolve(__dirname, 'out') + '/'; require('fs').mkdirSync(OUT, { recursive: true });
+const { chromium } = require('playwright'); const fs = require('fs');
+(async () => {
+  const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] }); const errs = [];
+  const p = await b.newPage({ viewport: { width: 1200, height: 950 }, acceptDownloads: true }); p.on('pageerror', e => errs.push('PE ' + String(e))); p.on('console', m => { if (m.type() === 'error') errs.push('CE ' + m.text()); });
+  await p.goto(`${ROOTURL}index.html#teardown`); await p.waitForTimeout(500);
+  await p.setInputFiles('#file', `${SONGS}sections120.mp3`);
+  await p.waitForFunction(() => /ready|Couldn/.test(document.querySelector('#status').textContent), null, { timeout: 120000 });
+  await p.locator('.tdtabs button:has-text("Build it")').click(); await p.waitForTimeout(300);
+  console.log((await p.locator('#plan').innerText()).slice(0, 2600));
+  const [dl] = await Promise.all([p.waitForEvent('download'), p.locator('#plan button:has-text("Download the song as MIDI")').click()]);
+  await dl.saveAs('/tmp/song.zip'); console.log('zip', dl.suggestedFilename());
+  await p.locator('#plan').screenshot({ path: 'plan2.png' });
+  await p.locator('.tdtabs button:has-text("Song map")').click(); await p.waitForTimeout(300);
+  const ck = p.locator('button:has-text("Check by ear")'); await ck.click(); await p.waitForTimeout(1500);
+  console.log('overlay label', await p.locator('button:has-text("Stop checking")').count(), 'audio playing', await p.evaluate(() => !document.querySelector('audio').paused));
+  await p.locator('button:has-text("Stop checking")').click();
+  await p.locator('section:has(h2:has-text("Drum pattern"))').screenshot({ path: 'drumroll.png' });
+  await p.evaluate(() => document.querySelector('.ptools').scrollIntoView()); await p.screenshot({ path: 'player2.png' });
+  await p.locator('.tdtabs button:has-text("Idea generator")').click(); await p.waitForTimeout(200);
+  await p.locator('#ideas .idea').first().screenshot({ path: 'idea_roll.png' });
+  await p.goto(`${ROOTURL}index.html#learn`); await p.waitForTimeout(300);
+  console.log('errors', errs); await b.close();
+})();

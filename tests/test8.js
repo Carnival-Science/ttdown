@@ -1,0 +1,17 @@
+const path = require('path'), ROOTURL = 'file://' + path.resolve(__dirname, '..') + '/', SONGS = path.resolve(__dirname, '../test-songs') + '/', SAMPLES = path.resolve(__dirname, 'samples') + '/', OUT = path.resolve(__dirname, 'out') + '/'; require('fs').mkdirSync(OUT, { recursive: true });
+const { chromium } = require('playwright');
+(async () => { const b = await chromium.launch(); const p = await b.newPage({viewport:{width:1200,height:1500}}); const errs=[]; p.on('pageerror', e => errs.push(String(e)));
+  await p.goto(`${ROOTURL}index.html#samples`); await p.waitForTimeout(500);
+  const fs=['kick.wav','hat.wav','snare.wav','808 test.wav','pluck A4.wav','loop 140.wav'].map(f=>`${SAMPLES}`+f);
+  await p.selectOption('#lab-key','A minor');
+  await p.setInputFiles('#lab-files', fs);
+  await p.waitForFunction(() => /^Done/.test(document.querySelector('#lab-drop .status').textContent), null, { timeout: 60000 });
+  console.log(await p.textContent('#lab-drop .status'));
+  const cards = await p.$$eval('.scard', cs => cs.map(c => c.querySelector('b').textContent + ' => ' + c.querySelector('select').value + ' | ' + c.querySelector('.chips').innerText.replace(/\n/g,' ') + ' | ' + c.querySelector('.sname').textContent));
+  console.log(cards.join('\n'));
+  await p.click('.scard >> nth=0 >> text=☆ Save to shelf'); await p.waitForTimeout(200);
+  console.log('shelf:', (await p.locator('#lab-shelf').innerText()).replace(/\n/g,' | ').slice(0,200));
+  await p.screenshot({path:`${OUT}lab.png`});
+  await p.goto(`${ROOTURL}index.html#learn`); await p.waitForTimeout(300);
+  console.log('learn visible', await p.isVisible('#view-learn'), 'samples hidden', await p.isHidden('#view-samples'));
+  console.log('errors', errs); await b.close(); })();
