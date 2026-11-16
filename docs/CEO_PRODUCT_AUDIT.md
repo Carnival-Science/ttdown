@@ -105,3 +105,8 @@ Do not claim "industry-leading accuracy" or publish a single overall accuracy pe
 ## Updated strategic direction
 
 The long-term product is multi-genre with user-selected genre context. Electronic music is the first validation domain, not the permanent target-market boundary. The customer is an experienced producer who wants faster, more reliable reference-track analysis and production decisions—not a beginner seeking lessons. See docs/PRODUCT_STRATEGY.md and docs/ELECTRONIC_BENCHMARK_PROTOCOL.md.
+
+
+## Explainability and development governance
+
+A new engineering communication standard requires traceable explanations for analysis outputs and a consistent audit at the end of each meaningful development cycle. See docs/ENGINEERING_COMMUNICATION_AND_AUDIT_STANDARD.md and docs/COMPETITIVE_LANDSCAPE.md.
