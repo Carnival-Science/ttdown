@@ -6,9 +6,9 @@
 
 ## Executive decision
 
-**Keep investing, but do not market the current benchmark figures as real-world accuracy claims.** Track Teardown has a differentiated product idea: turn a reference track into a practical production-learning workflow and reconstruction blueprint. The current implementation is a promising prototype, not yet a commercially hardened product.
+**Keep investing, but do not market the current benchmark figures as real-world accuracy claims.** Track Teardown has a differentiated product idea: turn a reference track into a reliable, editable technical breakdown that helps professional producers make faster creative and production decisions. The current implementation is a promising prototype, not yet a commercially hardened product.
 
-The product's strongest potential moat is not BPM/key detection by itself. It is the complete workflow: analyze → explain → rebuild in a DAW → compare the user's work → teach the next improvement.
+The product's strongest potential moat is a rights-cleared, independently annotated evaluation corpus; reliable multi-genre analysis; a producer correction loop; and structured outputs that accelerate professional workflows.
 
 ## Findings backed by the current repository
 
@@ -54,13 +54,13 @@ This branch replaces that command with a Node runner that executes every `tests/
 
 | Area | Assessment | Why |
 |---|---|---|
-| Product concept | Strong | Distinctive analyze-to-rebuild learning workflow |
-| Current feature breadth | Strong prototype | Many useful workflows already exist |
+| Product concept | Strong | Potentially valuable professional reference-analysis workflow |
+| Current feature breadth | Broad prototype; narrow commercial MVP should focus on accurate core analysis |
 | DSP evidence | Not yet proven | Synthetic benchmark is narrow |
 | Test reliability | Needs immediate fix | Test pipeline can mask failures |
 | Maintainability | Needs investment | Large monolithic HTML/JS file |
 | Commercial readiness | Early | Account, billing, operations, privacy, and support gaps |
-| Market differentiation | Promising hypothesis | Must validate with producers and willingness-to-pay research |
+| Market differentiation | Promising hypothesis | Must validate with experienced producers and willingness-to-pay research |
 
 ## Recommended roadmap
 
@@ -100,3 +100,8 @@ Do not claim "industry-leading accuracy" or publish a single overall accuracy pe
 - Material regressions are blocked in CI.
 
 **Bottom line:** Build trust first. A smaller set of honest, verifiably strong features will sell better and retain customers longer than a large list of impressive but unproven detections.
+
+
+## Updated strategic direction
+
+The long-term product is multi-genre with user-selected genre context. Electronic music is the first validation domain, not the permanent target-market boundary. The customer is an experienced producer who wants faster, more reliable reference-track analysis and production decisions—not a beginner seeking lessons. See docs/PRODUCT_STRATEGY.md and docs/ELECTRONIC_BENCHMARK_PROTOCOL.md.
