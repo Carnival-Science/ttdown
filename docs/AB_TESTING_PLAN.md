@@ -78,3 +78,8 @@ Randomize by user/account for product A/B tests and persist assignment. Predefin
 ## North-star outcome
 
 A professional producer reaches a reliable, actionable understanding of a reference track faster than their existing workflow and uses that insight to make a better production decision. Do not optimize for tutorial completion, time in app, or feature count.
+
+
+## Required experiment reporting
+
+Every experiment report must include the hypothesis, frozen versions, dataset manifest, method, metrics, uncertainty, failure examples, limitations, self-audit, and next decision. Do not report only a winning aggregate score. See docs/ENGINEERING_COMMUNICATION_AND_AUDIT_STANDARD.md.
