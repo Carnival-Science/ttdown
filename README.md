@@ -34,6 +34,8 @@ No real-world accuracy claim should be made until a rights-cleared, expert-annot
 - [Electronic music benchmark protocol](docs/ELECTRONIC_BENCHMARK_PROTOCOL.md)
 - [CEO product and engineering audit](docs/CEO_PRODUCT_AUDIT.md)
 - [Evaluation and experiment plan](docs/AB_TESTING_PLAN.md)
+- [Engineering communication and audit standard](docs/ENGINEERING_COMMUNICATION_AND_AUDIT_STANDARD.md)
+- [Competitive landscape and transferable patterns](docs/COMPETITIVE_LANDSCAPE.md)
 
 ## Development commands
 
