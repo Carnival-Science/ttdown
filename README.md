@@ -38,7 +38,6 @@ Plus a **Sample Lab** (sort and tag your sample folders), a **Journal** (practic
 | Chords | 1.00 | 1.00 |
 | Key (correct notes) | 6/6 | |
 | Hook onsets | 0.94 | 1.00 |
-| 808 / bass onsets | 0.91 | 0.71 |
 
 *Precision = when it says there's a hit, there is one. Recall = it found the hits that are really there.*
 
@@ -71,11 +70,17 @@ npm test             # feature tests (no page errors, downloads work, plan rende
 
 | File | What it checks |
 |---|---|
-| `tests/benchmark.js` | Accuracy scorecard against songs with known answers |
+| `tests/benchmark.js` | Accuracy scorecard against synthetic songs with known answers |
+| `tests/run-tests.js` | Runs feature tests and preserves failing exit codes |
 | `tests/test21.js` | MIDI and the reference WAV start exactly on bar 1 |
 | `tests/test22.js` | Build-it plan: step order, MIDI pictures, warnings |
 | `tests/test23.js` | Chord grid and click-to-hear |
 | others | Sample Lab, idea generator, overlay, stems, the 8 coaching features, volume |
+
+## Product validation documents
+
+- [CEO product and engineering audit](docs/CEO_PRODUCT_AUDIT.md)
+- [A/B testing and evaluation plan](docs/AB_TESTING_PLAN.md)
 
 ## Habits this project follows
 
