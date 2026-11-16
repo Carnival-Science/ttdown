@@ -72,3 +72,8 @@ SaaS is the intended commercial direction, but accounts and billing do not creat
 ## North-star outcome
 
 A professional producer gets a reliable, actionable understanding of a reference track in less time than their current manual workflow and uses that insight to make a better production decision. Measure accuracy, time-to-useful-insight, repeat usage, and willingness to pay—not tutorial completion or feature count.
+
+
+## Explainability and auditability
+
+Every analysis result must have traceable evidence, method/version, preprocessing settings, genre context, confidence calibration state, alternatives, and user-correction provenance. The product should explain what it found, why, what else could be true, how certain it is, and how a producer can verify or correct it. See docs/ENGINEERING_COMMUNICATION_AND_AUDIT_STANDARD.md.
