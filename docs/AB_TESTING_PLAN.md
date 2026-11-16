@@ -1,143 +1,80 @@
-# Track Teardown — A/B Testing and Evaluation Plan
+# Track Teardown — Evaluation and Experiment Plan
 
-## Purpose
+## Priority order
 
-Prove two different things independently:
+1. Offline analyzer validation (accuracy first).
+2. Producer-assisted error review and correction capture.
+3. Workflow-value experiments with experienced producers.
+4. SaaS pricing, retention, and conversion experiments.
+5. Interface experiments only after the analysis is trusted.
 
-1. **Algorithm quality:** Does a new analyzer produce more accurate musical results on the same audio?
-2. **Product value:** Does a new workflow help producers complete useful work, return, and choose to pay?
+Do not run a user-facing A/B test that changes analyzer and interface simultaneously.
 
-Do not combine these into one experiment. Better UI cannot prove better DSP, and a better offline benchmark cannot prove customers value the product.
+## Track A — Offline analyzer bake-off
 
-## Track A — Offline analyzer bake-off (run this first)
+This is a paired technical evaluation, not a customer-facing randomized A/B test.
 
-This is a paired benchmark, not a customer-facing randomized experiment. Every candidate version analyzes the exact same files under the same environment.
+- A / Control: frozen current analyzer, commit SHA recorded.
+- B / Candidate: candidate analyzer on a separate branch/version.
+- Both analyze identical, locked files under identical settings and runtime.
+- Synthetic fixtures are regression tests only; claims require a rights-cleared, expert-annotated real-world holdout.
+- Begin with electronic music across multiple substyles, not only four-on-the-floor.
+- Split by whole recording, keep a hidden holdout, and document provenance.
 
-### Arms
+See docs/ELECTRONIC_BENCHMARK_PROTOCOL.md for strata, annotation schema, metrics, tolerances, and release gates.
 
-- **A / Control:** frozen current `main` analyzer.
-- **B / Candidate:** proposed analyzer on a separate branch or versioned engine.
-- Store the commit SHA, analyzer version, settings, browser/runtime version, and benchmark dataset version for every run.
+## Track B — Producer validation
 
-### Dataset design
+Recruit experienced electronic producers. Observe their current reference-analysis workflow and identify repeated, expensive tasks. Use tracks they have rights to analyze.
 
-1. Keep the existing synthetic songs as deterministic regression fixtures.
-2. Create a licensed, held-out real-world set with expert-verified labels.
-3. Split by recording/song, never by clips from the same song across tuning and test sets.
-4. Stratify by genre, tempo, meter, vocal density, recording quality, and arrangement complexity.
-5. Include edge cases: half/double-time ambiguity, swung timing, live drums, rubato, sparse intros, dense masters, key changes, modulations, non-diatonic chords, and non-4/4 meter.
-6. Maintain a separate tuning set. Do not tune on the final holdout.
-7. Record provenance, license, annotation method, annotator agreement, and allowed commercial use for every dataset.
+Capture:
+- task attempted and whether the output was useful;
+- time to reach a useful decision vs their normal process;
+- corrections to tempo, downbeat, meter, key, chords, drums, bass, and structure;
+- which results they trust enough to use in a session;
+- exports actually used in a DAW;
+- whether they return for another track and why.
 
-Potential research starting points include Artificial Audio Multitracks for aligned synthetic/music-production tasks. Its authors explicitly caution that generated audio does not replace evaluation on real compositions. See https://link.springer.com/article/10.1186/s13636-023-00278-7. Any dataset must be checked for its actual license and permitted use before inclusion.
+Do not lead participants toward positive feedback. Record failures and reasons.
 
-### Metrics (report separately; no vanity composite)
+## Track C — Product experiments (after technical baseline)
 
-| Task | Primary metric | Required breakdown |
-|---|---|---|
-| Tempo | Absolute BPM error and within-tolerance accuracy | Exact, half/double-time normalized, genre |
-| Beat tracking | Beat F-measure with documented timing tolerance | Meter, genre, live vs programmed |
-| Downbeat/bar-1 | Downbeat F-measure and alignment error | Intro silence, pickup, syncopation |
-| Key | Exact tonic + mode accuracy | Relative-key confusions, confidence |
-| Chords | Time-weighted chord accuracy and segment boundary F1 | Root, quality, inversion, extensions |
-| Drums | Event precision/recall/F1 with timing tolerance | Kick, snare, hats, ghost notes |
-| Bass | Onset F1, pitch accuracy, octave error, duration | Sustained vs re-triggered 808 |
-| Melody | Note precision/recall, pitch and onset error | Polyphony and vocal/instrument lead |
-| Structure | Boundary F1 and label agreement | Genre and section type |
-| Runtime | Median and p95 analysis time, peak memory | Duration, sample rate, device class |
+### Experiment 1: Analysis output
+- A: current output.
+- B: evidence-first, editable analysis with confidence, alternatives, timestamps, and separation of measurements from inference.
 
-For tempo, report both raw BPM error and a clearly labeled half/double-time-aware score. Do not silently count a 70 BPM estimate as correct for a 140 BPM track without showing that distinction.
+Primary outcome: percentage of sessions where a producer confirms at least one result was useful for a real production decision.
 
-For key, exact-key accuracy must distinguish relative major/minor even though they share pitch classes. Pitch-class-set accuracy can be a secondary diagnostic only.
+Guardrails: correction rate, analysis failure rate, time to useful insight, and abandonment.
 
-### Decision rule
+### Experiment 2: User-selected genre profile
+- A: neutral analysis profile.
+- B: explicit genre selection with electronic substyle profile.
+- Compare only when the underlying evidence layer is identical and benchmark sample sizes are adequate per style.
 
-Before opening the holdout, define a minimum practically meaningful improvement for each primary metric and the acceptable regression margin for all other important metrics. Use paired per-track comparisons and confidence intervals. Do not select a winner based on one aggregate score.
+Primary outcome: task-specific accuracy or producer-rated usefulness without reduced cross-style reliability.
 
-A candidate advances only when:
-- It improves the pre-registered primary task(s) by the required amount.
-- It does not materially regress critical tasks.
-- Its confidence estimates are calibrated (high-confidence outputs are actually more accurate).
-- Runtime and memory remain acceptable on target devices.
-- Failures are reviewed by listening, not just by a dashboard.
+### Experiment 3: Workflow handoff
+- A: results only.
+- B: structured DAW-ready exports for supported, accurate tasks.
 
-## Track B — Product experience A/B tests
+Primary outcome: percentage of users who actually use an export in a production session. Downloads alone do not prove use.
 
-Run only after the analysis version is stable enough that users are not unknowingly receiving materially different accuracy.
+## Track D — SaaS and commercial validation
 
-### Experiment 1: Results presentation
+Before extensive billing/account infrastructure:
+- validate repeated use with a small cohort of professional producers;
+- test whether the product saves meaningful time or improves decisions;
+- identify which outputs are valuable enough to pay for;
+- test transparent pricing with real offers, not hypothetical "would you pay?" questions alone;
+- understand processing costs, support burden, and storage expectations.
 
-- A: current analysis/results layout.
-- B: evidence-first layout with confidence, alternatives, uncertainty explanations, and quick corrections.
+Later measures: activation, time-to-first-useful-insight, weekly active producers, repeat analyses, export usage, paid conversion, retention/churn, cost per analyzed minute, gross margin, failure rate, and correction rate.
 
-**Primary outcome:** percentage of successful uploads that lead to a user-confirmed useful result or next action.
+## Assignment and analysis rules
 
-**Secondary outcomes:** time to first useful action, manual correction rate, MIDI export rate, and abandonment.
+Randomize by user/account for product A/B tests and persist assignment. Predefine hypothesis, eligibility, primary metric, guardrails, sample-size/power method, and stopping rule. Do not stop early because results look favorable. Analyze intention-to-treat and disclose exclusions. Segment by genre/subgenre and experience only when planned and adequately powered. Avoid collecting raw audio, exact song titles, artist names, or personal notes in analytics by default. Make audio retention and feedback use explicit and consent-based.
 
-### Experiment 2: Rebuild workflow
+## North-star outcome
 
-- A: current Build It instructions.
-- B: guided workflow with task checklist, DAW-specific steps, progress checkpoints, and contextual explanations.
-
-**Primary outcome:** completion of a first rebuild/export.
-
-**Secondary outcomes:** time to complete, number of help requests, repeat use, and user-rated usefulness.
-
-### Experiment 3: Compare experience
-
-- A: current single closeness score.
-- B: separate rhythm, harmony, arrangement, sound-balance, and dynamics diagnostics, each with evidence and recommended next action.
-
-**Primary outcome:** percentage of users who make a targeted improvement and re-run Compare.
-
-**Guardrail:** do not describe a heuristic score as an objective perceptual similarity percentage.
-
-### Experiment 4: Positioning and willingness to pay
-
-Test honest product positioning with real producers:
-- Music analysis tool.
-- FL Studio learning assistant.
-- Reference-track teardown and reconstruction platform.
-
-Use interviews and transparent landing-page/offer tests. Do not fake scarcity, pretend a payment was processed, or advertise capabilities that are not shipped. Validate willingness to pay before building a large subscription system.
-
-## Assignment and measurement rules
-
-- Randomize at the account/user level, not per page view, so a person sees the same variant.
-- Persist the assigned variant for the experiment duration.
-- Define eligibility, exclusions, primary metric, guardrails, sample-size method, and stopping rule before launch.
-- Avoid peeking and stopping as soon as a favorable result appears.
-- Use a power calculation based on baseline conversion/variance and the minimum detectable effect; do not invent a universal sample size.
-- Analyze intention-to-treat and report exclusions.
-- Segment results by new vs returning users and relevant device class only when planned and adequately powered.
-- Do not record raw audio or song titles in analytics by default. Prefer event metadata, task outcomes, app version, and consented feedback.
-- Provide clear notice and opt-out where required. Respect deletion and retention choices.
-
-## Event taxonomy (proposed)
-
-| Event | Properties (minimum) |
-|---|---|
-| `upload_started` | app_version, experiment_id, variant, file_size_bucket, duration_bucket |
-| `analysis_completed` | analyzer_version, duration_ms, success, error_category |
-| `result_corrected` | task, correction_type, confidence_bucket |
-| `midi_exported` | export_type |
-| `rebuild_completed` | workflow_version, elapsed_bucket |
-| `compare_completed` | metric_dimensions_present, corrections_made |
-| `return_session` | days_since_prior_session |
-| `subscription_started` | plan_id, offer_variant (only after payments exist) |
-
-Avoid sending audio bytes, exact song titles, artist names, or personal notes to product analytics unless there is a separately justified, consented feature requiring it.
-
-## Recommended sequence
-
-1. Fix benchmark/report mismatches and test runner reliability.
-2. Build the real-world, rights-cleared holdout.
-3. Run the A/B analyzer bake-off offline.
-4. Ship the winning analyzer behind a versioned feature flag.
-5. Run results-presentation and rebuild-workflow product experiments.
-6. Test positioning and willingness to pay.
-7. Build billing and SaaS operations after evidence of repeat value.
-
-## What a winning result means
-
-A win is not "more clicks" or "users stayed longer." A win means users get a more accurate and understandable teardown, successfully make something in their DAW, and come back because the product helped them improve.
+A professional producer reaches a reliable, actionable understanding of a reference track faster than their existing workflow and uses that insight to make a better production decision. Do not optimize for tutorial completion, time in app, or feature count.
