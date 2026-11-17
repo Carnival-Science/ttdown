@@ -25,5 +25,5 @@ const { chromium } = require('playwright');
   a = await p.evaluate(() => window.__td); console.log('after K', st(a.pattern.kick), 'S', st(a.pattern.snare), 'H', st(a.pattern.hats), 'bass', a.bassline && a.bassline.notes.map(n=>n.midi+'@'+n.t).join(' '));
   console.log('checks', JSON.stringify(a.checks), 'stems', JSON.stringify(a.stems));
   await p.locator('#accuracy').screenshot({ path: 'acc.png' });
-  console.log('errors', errs); await b.close();
+  console.log('errors', errs); if (errs.length) process.exitCode = 1; await b.close();
 })();

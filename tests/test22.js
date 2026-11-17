@@ -14,8 +14,8 @@ const { chromium } = require('playwright');
     console.log('=====', f, '\n', txt.split('\n').filter(l => /^\d+\.|⚠|Draw|draw|MIDI:|song bars/.test(l)).join('\n').slice(0, 3500));
     console.log('previews', await p.locator('#plan .midiprev').count());
     const [dl] = await Promise.all([p.waitForEvent('download'), p.locator('#plan .midiprev button').first().click()]); console.log('dl', dl.suggestedFilename());
-    await p.locator('#plan .midiprev').nth(3).screenshot({ path: `/tmp/prev_${f}.png` });
+    await p.locator('#plan .midiprev').nth(3).screenshot({ path: `${OUT}prev_${f}.png` });
     await p.close();
   }
-  console.log('errors', errs); await b.close();
+  console.log('errors', errs); if (errs.length) process.exitCode = 1; await b.close();
 })();

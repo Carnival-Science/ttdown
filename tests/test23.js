@@ -11,8 +11,8 @@ const { chromium } = require('playwright');
   const btns = await p.locator('.tdtabs button').allInnerTexts(); console.log(btns);
   for (const t of btns) { await p.locator('.tdtabs button', { hasText: t }).first().click(); await p.waitForTimeout(150); if (await p.locator('section:has(h2:has-text("Chords"))').isVisible()) { console.log('in tab', t); break; } }
   const sec = p.locator('section:has(h2:has-text("Chords"))');
-  await sec.screenshot({ path: '/tmp/chords.png' });
+  await sec.screenshot({ path: OUT + 'chords.png' });
   await sec.locator('.chcell:not(.none)').first().click(); await p.waitForTimeout(800);
   console.log('after click tab visible map?', await p.locator('.ptools').first().isVisible(), 'playing', await p.evaluate(() => !document.querySelector('audio').paused));
-  console.log('errors', errs); await b.close();
+  console.log('errors', errs); if (errs.length) process.exitCode = 1; await b.close();
 })();

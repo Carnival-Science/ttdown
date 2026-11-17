@@ -14,4 +14,4 @@ const { chromium } = require('playwright');
   await p.screenshot({path:`${OUT}lab.png`});
   await p.goto(`${ROOTURL}index.html#learn`); await p.waitForTimeout(300);
   console.log('learn visible', await p.isVisible('#view-learn'), 'samples hidden', await p.isHidden('#view-samples'));
-  console.log('errors', errs); await b.close(); })();
+  console.log('errors', errs); if (errs.length) process.exitCode = 1; await b.close(); })();

@@ -1,0 +1,55 @@
+# Runs the feature tests and the synthetic regression benchmark (with its gates) on every push and PR.
+# The benchmark's JSON record is uploaded as an artifact so every run is reproducible and auditable.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          python -m pip install numpy
+
+      - name: Generate synthetic test songs
+        run: npm run songs
+
+      - name: Feature tests
+        run: npm test
+
+      - name: Benchmark (fails below tests/benchmark-gates.json)
+        run: npm run benchmark
+
+      - name: Upload run records
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-records
+          path: tests/out/*.json
+          if-no-files-found: warn
+          retention-days: 30

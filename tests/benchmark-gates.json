@@ -1,0 +1,20 @@
+{
+  "about": "Regression floors for tests/benchmark.js (synthetic songs only). Set from the measured Version A results on 2026-11-16 (record benchmark-2026-11-16T23-28-54-396Z.json), rounded down to 3 decimals. A floor is not a target: Version A gets the key wrong on 2 of 6 songs. Raise a floor only when a change has been shown to improve the metric; never lower one without a written reason.",
+  "min": {
+    "kick.P": 0.94,
+    "kick.R": 0.982,
+    "snare.P": 1,
+    "snare.R": 0.983,
+    "hats.P": 1,
+    "hats.R": 0.931,
+    "hook.P": 0.944,
+    "hook.R": 1,
+    "chords.R": 1,
+    "key(exact).R": 0.666,
+    "grid.tempoAcc1": 1,
+    "grid.beatF": 0.993,
+    "grid.downbeatF": 0.977,
+    "grid.exportBeatF": 0.994,
+    "grid.exportDownbeatF": 0.986
+  }
+}
