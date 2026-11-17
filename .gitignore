@@ -5,3 +5,5 @@ test-songs/*.json
 *.bak.html
 .DS_Store
 /*.png
+test-songs/truth/
+bench/out/
