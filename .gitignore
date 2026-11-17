@@ -5,3 +5,4 @@ test-songs/*.json
 *.bak.html
 .DS_Store
 /*.png
+.claude/settings.local.json
