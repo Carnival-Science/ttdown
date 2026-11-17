@@ -1,50 +1,50 @@
-# Claude Code — access and workspace setup (Track Teardown)
+# Claude Code — local-first workspace setup (Track Teardown)
 
-This guide separates three systems:
-1. **GitHub** stores the private code and reviewable branches.
-2. **Claude Code** is the lead engineering environment; it reads this repository after the founder authorizes access.
-3. **ChatGPT** is the external founder/strategy/independent-review environment; it does not share Claude's live session state. Reports, commits and PR links are the handoff.
+## Current reality: Claude Code is already connected locally
 
-## Recommended: Claude Code on the web
-1. Visit **https://claude.ai/code** and sign in with an eligible Claude account. Claude Code use and limits depend on the Anthropic account plan and environment.
-2. Connect GitHub when prompted, or manage the **Claude GitHub App** at https://github.com/apps/claude . GitHub must authorize the private **`ethonnor/ttdown`** repository. Prefer **selected repositories** rather than all repositories.
-3. In the Claude Code interface, choose repository `ethonnor/ttdown`. Choose branch **`chore/claude-code-specialists-2026-11`** (until its draft PR is reviewed/merged). The `main` branch currently will not include these files.
-4. Start a new session on that branch. Ask Claude to read `CLAUDE.md` and `docs/CLAUDE_CODE_WORKFLOW.md`, list available project subagents, and run **`/track-audit`**. If command discovery isn't immediate, restart/reopen the session; ask Claude to directly read `.claude/skills/track-audit/SKILL.md` and follow it.
-5. First results should be a **read-only** code/algorithm/test audit, plus a ChatGPT handoff, **not an algorithm rewrite**. Confirm that the configuration is actually loaded before granting broader permissions.
+The founder's **existing Claude Code session runs on their own computer** and reports working Git pushes and GitHub CLI authentication as `ethonnor`. That is sufficient GitHub access for the current engineering workflow. **Do not request new web/cloud authorization, GitHub app installation, personal access tokens or API keys for the local workflow.** This document is a repo guide, not a way to manage personal credentials.
 
-This GitHub grant is the user's action: a GitHub connection in ChatGPT is **not** automatically a GitHub connection in Claude Code. Do not send access tokens, personal passwords, paid plan credentials or Anthropic keys through chat.
+Three systems share one private repository:
+1. **GitHub** stores `ethonnor/ttdown`, feature branches, tests and PR reviews.
+2. **Local Claude Code** is the lead implementation environment and can use the computer's existing Git/GitHub CLI authentication. It should load repository instructions and specialist agents from the local checkout.
+3. **ChatGPT** performs independent strategy and technical review via the existing GitHub connection. It cannot automatically see local Claude's session or files not pushed to GitHub.
 
-## Local alternative (Windows)
-Use an official supported Claude Code installation approach from https://code.claude.com/docs/en/setup rather than copying third-party installers. Use Git for Windows (or WSL, depending on how Claude Code is installed). Authenticate to Claude interactively.
+## Safely add this configuration to the existing local Claude workspace
 
-In an existing authorized local clone:
+The specialized agents and the `/track-audit` skill are on the separate **draft PR #3** branch `chore/claude-code-specialists-2026-11`. Claude's measurement work is on **PR #2** branch `g0-measurement`. Avoid switching away from the current worktree if there are uncommitted changes or an active task.
+
+**Recommended approach:** finish and review the in-flight measurement work first. Review PR #3, then merge it to `main` once the founder approves. From the local clone, Claude can fetch and incorporate the approved configuration into its next work branch, or start a fresh worktree from the updated `main`. This avoids grafting agent/config files into the in-progress measurement diff and avoids accidental changes to unrelated files.
+
+**If you want the agents immediately before PR #3 is merged:** use a *separate local worktree* from the PR #3 branch. From the correctly identified top-level repository root, after confirming `git status` and that the branch ref exists:
+
 ```bash
-git status
 git fetch origin
-git switch --track origin/chore/claude-code-specialists-2026-11
+git worktree add ../ttdown-agent-setup origin/chore/claude-code-specialists-2026-11
 ```
-If the branch already exists locally, use `git switch chore/claude-code-specialists-2026-11`. Preserve any uncommitted work *before* switching. Start a new Claude Code session from the repository root, inspect available agents and use `/track-audit`. You do **not** need a second repository.
 
-## Optional: GitHub Actions / @claude
-Automatic issue/PR mentions, CI triggers and an autonomous GitHub App coding workflow are separate from a Claude Code web session. They may need additional permissions, authentication, secrets and billing, and can run on new events. **None are enabled or configured by this branch.** Do not add a GitHub Actions secret or workflow without explicit founder approval and a cost/security review. For an initial private product, use manual Claude Code sessions and standard reviewed PRs.
+Open that worktree as a **separate Claude Code local session**. This leaves `g0-measurement` intact. The local folder name is illustrative; check for path collisions. Beware: the current codebase's engineering audit reported an **outer repository plus inner `ttdown/` clone/gitlink**. Before using any commands, Claude should verify which folder is the actual repository and which working tree owns `g0-measurement`. Never run destructive cleanup or nested git commands based on assumptions.
 
-## Recommended privacy and governance defaults
-- Keep repository **private**, use selected-repository authorization and review permissions before accepting an installation.
-- Keep Anthropic API keys, personal-access tokens, audio datasets and rights-cleared private tracks **out of git**. Never commit `.env`, credentials, audio recordings, or personal annotation datasets.
-- Never bypass permission prompts, force-push shared branches, merge/deploy or approve code that has not been reviewed.
-- Project agents are specialized research workers, **not separate owners**. Their instructions are not a substitute for access controls, code review or runtime sandboxing.
-- Default operation: review read-only specialist outputs, have the main Claude session execute known-safe diagnostics, obtain founder approval for consequential code changes, create a draft PR, run tests, and request independent ChatGPT review.
+In the separate session, read `CLAUDE.md`, verify the four named project agents under `.claude/agents/`, and invoke `/track-audit`. If Claude Code doesn't discover an agent, restart the local session and inspect agent frontmatter/installation. If the skill isn't discovered, read `.claude/skills/track-audit/SKILL.md` directly.
 
-## Verify installation
-- [ ] Claude Code can open the **private** `ethonnor/ttdown` repository with the new branch selected
-- [ ] `CLAUDE.md` is read in the project session
-- [ ] All four names in `.claude/agents/` are discoverable: `architecture-auditor`, `audio-researcher`, `benchmark-engineer`, `code-reviewer`
-- [ ] The `/track-audit` project skill is discoverable
-- [ ] A small read-only architecture task succeeds
-- [ ] No unexpected code changes, new secrets, auto-merges or external uploads occur
-- [ ] Report accurately states what was inspected, tested and not tested
+## Account/plan: only if you choose cloud sessions later
 
-## Ownership / handoff
-The founder connects the accounts and approves consequential changes. Claude Code is responsible for implementation and evidence collection. ChatGPT can inspect the resulting GitHub commits/PRs and evaluate reports, but it does not automatically receive Claude's internal context or control the Anthropic session.
+Claude Code on the web at https://claude.ai/code is **optional**. It uses an Anthropic-hosted environment, so it may require its **own** GitHub authorization, even when local GitHub CLI access works. Use the Claude GitHub App's selected-repository setting if enabling cloud access. This is unnecessary for current local development.
 
-References: https://code.claude.com/docs/en/sub-agents ; https://code.claude.com/docs/en/skills ; https://code.claude.com/docs/en/claude-code-on-the-web ; https://code.claude.com/docs/en/github-actions .
+GitHub Actions automation, an `@claude` PR assistant, or scheduled unattended sessions are **separate optional integrations**, may require secrets and billing, and are **not enabled** by PR #3. Don't add them until the founder approves the cost/security/release process.
+
+## Verification checklist
+
+- [ ] Identify real local repo root, current branch, and `git status` before touching files; avoid confusing outer/inner clones.
+- [ ] Preserve PR #2's in-progress `g0-measurement` work without uncommitted changes being overwritten.
+- [ ] The session using PR #3's configuration loads `CLAUDE.md`.
+- [ ] Claude Code discovers `architecture-auditor`, `audio-researcher`, `benchmark-engineer` and `code-reviewer`.
+- [ ] The `/track-audit` project skill is discoverable and completes a small read-only audit.
+- [ ] Benchmark specialist cannot execute commands, while the main Claude engineer can run approved known-safe diagnostics.
+- [ ] No production code, authorization settings, credentials, private tracks, deployment or merges were changed by setup verification.
+- [ ] Reports include evidence, exact test commands/results, uncertainty, self-audit and pasteable ChatGPT handoff.
+
+## Privacy and governance
+
+Keep repo private; never commit GitHub tokens, Anthropic credentials, `.env`, personal datasets or rights-cleared reference audio. Subagent instructions are **not** a security sandbox. Founder approves significant algorithm changes, merge/deploy and third-party audio services. The main Claude engineer integrates changes and ensures test exit codes are meaningful. ChatGPT reviews pushed commits/PRs, not hidden session context.
+
+Official references: https://code.claude.com/docs/en/setup , https://code.claude.com/docs/en/sub-agents , https://code.claude.com/docs/en/skills , https://code.claude.com/docs/en/claude-code-on-the-web .
