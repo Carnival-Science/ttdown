@@ -6,3 +6,10 @@ test-songs/*.json
 .DS_Store
 /*.png
 .claude/settings.local.json
+
+# Local credentials and private datasets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
