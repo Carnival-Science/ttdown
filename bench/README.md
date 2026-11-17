@@ -109,6 +109,8 @@ Every error also gets a **failure class** (`lib/classify.js`, versioned). `repor
 4. Run `node bench/score.js <predictions.json> --rescore`.
 
 Results go to `<predictions dir>/rescore-v<new>/`, so the original scores stay untouched. The report states the revision and the manifest version the predictions came from. Re-scoring without a version bump or a revision entry is refused. If tracks were added, run the analyzer again: a re-score can't invent predictions.
+- **A revision may change answers, never the audio.** A track whose audio sha256 differs from the one recorded in its prediction is not scored (`audio-changed-since-prediction`), and the run fails.
+- **A revision result is never overwritten.** If `rescore-v<N>/` already exists, scoring stops; another revision needs a new version.
 
 ## Run completeness
 

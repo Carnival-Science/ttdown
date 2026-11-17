@@ -107,5 +107,22 @@ assert.match(revised.report, /Re-scored\*\* against manifest v4 \(revision 2026-
 assert.ok(!fs.existsSync(path.join(revised.dir, "scores.json")));                 // original location untouched; results are versioned
 assert.match(revised.r.stdout, /RE-SCORED against manifest v4 \(predictions from v3\)/);
 
+// a repeat re-score must not silently overwrite an existing revision result
+const before = fs.readFileSync(path.join(revised.dir, "rescore-v4", "scores.json"));
+const again = spawnSync(process.execPath, [SCORE, path.join(revised.dir, "predictions.json"), "--manifest", path.join(revised.dir, "manifest.json"), "--rescore"], { encoding: "utf8" });
+assert.equal(again.status, 1, again.stdout + again.stderr); assert.match(again.stderr, /rescore-v4 already exists/);
+assert.ok(before.equals(fs.readFileSync(path.join(revised.dir, "rescore-v4", "scores.json"))));          // byte-identical: untouched
+
+// a revision may change answers, never the audio: old predictions can't be scored as if they came from other audio
+const swapped = scenario("swapped", () => {}, () => {}, { extraArgs: ["--rescore"], outSub: "rescore-v4", afterWrite: mp => {
+  const m = JSON.parse(fs.readFileSync(mp, "utf8")); m.tracks.find(t => t.id === "swing100_Dmin").sha256 = "e".repeat(64); // "new master" in the manifest
+  m.version = 4; m.revisions = [{ version: 4, date: "2026-12-03", reason: "replaced swing100 with the label's final master", tracks: ["swing100_Dmin"] }];
+  fs.writeFileSync(mp, JSON.stringify(m)); } });
+assert.equal(swapped.r.status, 1, swapped.r.stdout + swapped.r.stderr);
+const sw = swapped.scores.tracks.find(t => t.id === "swing100_Dmin");
+assert.equal(sw.status, "audio-changed-since-prediction"); assert.equal(sw.metrics, undefined);
+assert.deepEqual(swapped.scores.meta.completeness.missingPredictions, [{ id: "swing100_Dmin", status: "audio-changed-since-prediction" }]);
+assert.match(swapped.r.stdout, /no usable prediction: swing100_Dmin \(audio-changed-since-prediction\)/);
+
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log("score integrity tests passed");

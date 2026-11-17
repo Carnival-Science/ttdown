@@ -36,6 +36,8 @@ if (manifestChanged) {
   rescore = { fromManifestVersion: P.manifest.version, fromManifestSha256: P.manifest.sha256, toManifestVersion: manifest.version, toManifestSha256: manifestSha, revision: rev };
 }
 const OUT = rescore ? path.join(path.dirname(predPath), `rescore-v${manifest.version}`) : path.dirname(predPath);
+// a revision result is a record: never overwrite it (re-scoring again needs a new manifest version)
+if (rescore && fs.existsSync(OUT)) { console.error(`Not scoring: ${path.relative(process.cwd(), OUT)} already exists. A revision result is never overwritten; for another revision, bump manifest.version and add its revisions entry.`); process.exit(1); }
 fs.mkdirSync(OUT, { recursive: true });
 const byId = Object.fromEntries(manifest.tracks.map(t => [t.id, t]));
 const r4 = M.r4;
@@ -52,6 +54,9 @@ function scoreTrack(rec) {
   const t = byId[rec.id], out = { id: rec.id, split: rec.split, status: rec.status, tags: (t && t.tags) || {}, runtimeSec: rec.runtimeMs ? r4(rec.runtimeMs / 1000) : null, pageErrors: (rec.pageErrors || []).length,
     pageErrorSamples: (rec.pageErrors || []).slice(0, 3).map(s => String(s).slice(0, 200)), console: rec.console || null };
   if (!t) { out.status = "not-in-manifest"; return out; }
+  // the audio must be the audio the prediction was made from: a revision may change answers, never the recording
+  const audioNow = t.sha256 || (fs.existsSync(path.resolve(mdir, t.audio)) ? sha256File(path.resolve(mdir, t.audio)) : null);
+  if (rec.sha256 && audioNow && audioNow !== rec.sha256) { out.status = "audio-changed-since-prediction"; out.problems = [`${t.id}: audio sha256 ${audioNow.slice(0, 12)}… differs from the prediction's ${rec.sha256.slice(0, 12)}…; run the analyzer again`]; return out; }
   // ground truth integrity: score only against the exact annotation files the manifest pins
   const ai = annotationIntegrity(t, mdir); out.annotationSha256 = ai.hashes;
   out.annotationsChangedSincePrediction = !!rec.annotationSha256 && JSON.stringify(rec.annotationSha256) !== JSON.stringify(ai.hashes);
@@ -115,7 +120,7 @@ const reqCheck = checkRequirements(manifest, required, mdir);
 const integrityProblems = tracks.filter(t => t.status === "annotation-checksum-mismatch").flatMap(t => t.problems);
 // Run completeness: the benchmark only succeeds if every required track was analyzed and scored. Three kinds of
 // failure are kept apart because they need different owners: the analyzer, the run, or the ground truth.
-const ANALYZER = new Set(["analysis-failed", "timeout"]), INPUT = new Set(["missing-audio", "checksum-mismatch"]);
+const ANALYZER = new Set(["analysis-failed", "timeout"]), INPUT = new Set(["missing-audio", "checksum-mismatch", "audio-changed-since-prediction"]);
 const completeness = { required: required.length, scored: ok.length,
   analyzerFailures: tracks.filter(t => ANALYZER.has(t.status) || (t.pageErrors > 0)).map(t => ({ id: t.id, status: t.pageErrors > 0 && !ANALYZER.has(t.status) ? `page-errors (${t.pageErrors}); metrics kept for diagnosis` : t.status })),
   missingPredictions: tracks.filter(t => t.status === "no-prediction" || INPUT.has(t.status)).map(t => ({ id: t.id, status: t.status })),
