@@ -515,6 +515,25 @@ function transcribe(x, SR, firstDown, barSec, sections, tune) {
     return { hook: { notes: foldNotes(mel, 64, 1), from: sec.label, bar: sec.startBar + 1 }, bass: { notes: bassNotes, from: sec.label, bar: sec.startBar + 1 } };
   } catch (e) { return {}; }
 }
+/* Processing limits. Everything is analysed in the browser tab, so a file that is too large or too long can exhaust memory:
+   a decoded stereo float track is about 21 MB per minute (15 min = 318 MB, plus analysis arrays). The numbers are policy
+   choices, not measurements of any device; they are meant to be reviewed and tuned with the performance work (Phase 9). */
+const LIMITS = Object.freeze({ maxFileBytes: 200 * 1024 * 1024, maxSeconds: 900, minSeconds: 8, rhythmSeconds: 480, silentPeak: 1e-4 /* about -80 dBFS */ });
+class InputLimitError extends Error { constructor(msg) { super(msg); this.name = "InputLimitError"; } } // message is shown to the user as written
+const fmtLen = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+/* Duration from the file's own header via the browser's media pipeline, without decoding it. null when unknown. */
+function probeDuration(file) {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file), a = document.createElement("audio"); a.preload = "metadata"; let done = false, timer;
+    const finish = v => { if (done) return; done = true; clearTimeout(timer); a.onloadedmetadata = a.onerror = null; a.removeAttribute("src"); try { a.load(); } catch (e) {} URL.revokeObjectURL(url); resolve(v); };
+    a.onloadedmetadata = () => finish(Number.isFinite(a.duration) && a.duration > 0 ? a.duration : null); a.onerror = () => finish(null);
+    timer = setTimeout(() => finish(null), 4000); a.src = url;
+  });
+}
+function checkDuration(sec) {
+  if (sec > LIMITS.maxSeconds) throw new InputLimitError(`That file is ${fmtLen(sec)} long. The limit is ${fmtLen(LIMITS.maxSeconds)}, because the whole track is held in memory while it is analysed. Trim it and try again.`);
+  if (sec < LIMITS.minSeconds) throw new InputLimitError(`That file is only ${sec.toFixed(1)} s long. A teardown needs at least ${LIMITS.minSeconds} s to find a tempo and bars. For a single sound or a short loop, use Sample Lab.`);
+}
 /* Counters for tests and diagnostics: checkpoints reached, analyses stopped early. */
 const ANALYSIS_STATS = window.__analysisStats = { checkpoints: 0, aborted: 0 };
 /* `signal` (optional AbortSignal) is honoured at every checkpoint: between decoding and each analysis stage, and every
@@ -524,10 +543,16 @@ async function analyze(file, onProg, opts_compare, signal) {
   const stopIfAborted = () => { if (signal && signal.aborted) { ANALYSIS_STATS.aborted++; throw new DOMException("Analysis cancelled", "AbortError"); } };
   const gate = async () => { await tick(); ANALYSIS_STATS.checkpoints++; stopIfAborted(); };
   stopIfAborted();
+  if (file.size > LIMITS.maxFileBytes) throw new InputLimitError(`That file is ${(file.size / 1048576).toFixed(0)} MB. The limit is ${LIMITS.maxFileBytes / 1048576} MB.`);
+  if (file.size === 0) throw new InputLimitError("That file is empty.");
+  onProg(5, "Checking the file…");
+  const headerSec = await probeDuration(file); stopIfAborted(); // refuse an over-long file BEFORE decoding allocates its memory
+  if (headerSec != null && headerSec > LIMITS.maxSeconds) checkDuration(headerSec);
   onProg(5, "Decoding audio…");
   const raw = await file.arrayBuffer(); stopIfAborted();
   const ctx = new OfflineAudioContext(2, 44100, 44100);
   const ab = await ctx.decodeAudioData(raw); stopIfAborted();
+  checkDuration(ab.duration); // authoritative: the header can be missing or wrong
   const L = ab.getChannelData(0), R = ab.numberOfChannels > 1 ? ab.getChannelData(1) : L;
   const dur = ab.duration;
   // mono 22050 + stereo width
@@ -538,6 +563,7 @@ async function analyze(file, onProg, opts_compare, signal) {
   }
   for (let i = 0; i < L.length; i += 2) { const m = (L[i] + R[i]) * 0.5, s = (L[i] - R[i]) * 0.5; mm += m * m; ss += s * s; const p = Math.max(Math.abs(L[i]), Math.abs(R[i])); if (p > peak) peak = p; }
   const width = Math.sqrt(ss / (mm || 1));
+  if (peak < LIMITS.silentPeak) throw new InputLimitError("That file is silent (its loudest sample is below -80 dBFS), so there is nothing to analyse.");
   const SR = 22050;
   await gate(); onProg(18, "Finding the tempo and drum pattern…");
 
@@ -1026,7 +1052,7 @@ function render(a, opts) {
       stat(a.bpm, "BPM", "Set FL Studio's tempo to this", conf(a.bpmConf, 4, 2.5)),
       stat(a.camelot, a.key, "Relative: " + a.relKey, conf(a.keyConf, 0.12, 0.06)),
       stat(g.name.split(" /")[0], "Likely style", "From tempo, drums and tone"),
-      stat(fmtT(a.duration), "Length", a.nBars + " bars of 4/4"),
+      stat(fmtT(a.duration), "Length", a.nBars + " bars of 4/4" + (a.duration > LIMITS.rhythmSeconds ? `. Tempo, beats and drums are read from the first ${fmtLen(LIMITS.rhythmSeconds)} only` : "")),
       stat(a.crest + " dB", "Punch (crest)", a.crest < 9 ? "Crushed loud" : a.crest > 13 ? "Dynamic" : "Typical")
     ]),
     el("div", { class: "row", style: "gap:6px" }, moodTags(a).map(t => el("span", { class: "tag", text: t }))),
@@ -3143,7 +3169,7 @@ async function handle(file) {
     if (!current() || (e && e.name === "AbortError")) return; // superseded or cancelled: whoever did that has already set the status
     analysisCtl = null; setRunning(false);
     status.className = "status err";
-    status.textContent = "Couldn't read that file. Try an MP3 or WAV. (" + (e && e.message ? e.message.slice(0, 80) : "decode error") + ")";
+    status.textContent = e instanceof InputLimitError ? e.message : "Couldn't read that file. Try an MP3 or WAV. (" + (e && e.message ? e.message.slice(0, 80) : "decode error") + ")";
     prog.style.width = "0";
   } finally {
     if (!adopted) URL.revokeObjectURL(newURL);

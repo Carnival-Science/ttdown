@@ -63,7 +63,8 @@ fs.mkdirSync(OUT, { recursive: true });
   // 6. No growth across many uploads
   { const p = await open();
     for (const f of ['pop127_Amaj', 'house124_Cmin', 'swing100_Dmin', 'trap142_Fsmin']) { await p.setInputFiles('#file', path.join(SONGS, f + '.wav')); await ready(p, f); }
-    check(await live(p) === 1 && await p.evaluate(() => window.__made) === 4, `6: after 4 sequential uploads 1 URL is live (made ${await p.evaluate(() => window.__made)})`);
+    // the pre-decode duration probe makes (and revokes) a short-lived URL per file, so made = 2 per upload; only live ones matter
+    check(await live(p) === 1 && await p.evaluate(() => window.__made) >= 4, `6: after 4 sequential uploads 1 URL is live (made ${await p.evaluate(() => window.__made)}, all but one revoked)`);
     await p.close(); }
 
   console.log('errors', errs); if (errs.length || failed) process.exitCode = 1; await b.close();
