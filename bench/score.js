@@ -9,6 +9,7 @@
 "use strict";
 const path = require("node:path"), fs = require("node:fs");
 const M = require("./lib/metrics"), C = require("./lib/classify"), { loadTruth } = require("./lib/loaders"), { summarize } = require("./lib/stats"), { sha256File } = require("./lib/provenance");
+const { annotationIntegrity, checkRequirements } = require("./lib/requirements"), crypto = require("node:crypto");
 
 const ROOT = path.resolve(__dirname, "..");
 const args = process.argv.slice(2), opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
@@ -32,6 +33,10 @@ function truthSteps(T, cls) {
 function scoreTrack(rec) {
   const t = byId[rec.id], out = { id: rec.id, split: rec.split, status: rec.status, tags: (t && t.tags) || {}, runtimeSec: rec.runtimeMs ? r4(rec.runtimeMs / 1000) : null, pageErrors: (rec.pageErrors || []).length };
   if (!t) { out.status = "not-in-manifest"; return out; }
+  // ground truth integrity: score only against the exact annotation files the manifest pins
+  const ai = annotationIntegrity(t, mdir); out.annotationSha256 = ai.hashes;
+  out.annotationsChangedSincePrediction = !!rec.annotationSha256 && JSON.stringify(rec.annotationSha256) !== JSON.stringify(ai.hashes);
+  if (ai.problems.length) { out.status = "annotation-checksum-mismatch"; out.problems = ai.problems; return out; }
   if (rec.status !== "ok") return out;
   const T = loadTruth(t, mdir), p = rec.full, g = rec.grid, m = {}, cls = {}, inputs = {};
   // tempo and grid
@@ -39,7 +44,8 @@ function scoreTrack(rec) {
   if (T.beats) {
     m.beats = g ? M.events(g.beats, T.beats) : null; cls.beats = C.beatClass(g && g.beats, T.beats, cls.tempo);
     const eg = M.exportGrid(p); inputs.exportBeats = eg.beats; inputs.exportDownbeats = eg.downbeats; inputs.trackedBeats = g ? g.beats : []; inputs.trackedDownbeats = g ? g.downbeats : [];
-    m.exportBeats = M.events(eg.beats, T.beats); m.drift = M.drift(eg.beats, T.beats); cls.exportGrid = C.driftClass(m.drift);
+    // drift: phase-locked (accumulates whole-beat slips); nearest-beat kept alongside for comparison
+    m.exportBeats = M.events(eg.beats, T.beats); m.drift = M.phaseDrift(p, T.beats); m.driftNearest = M.drift(eg.beats, T.beats); cls.exportGrid = C.driftClass(m.drift);
     if (T.downbeats) { m.downbeats = g ? M.events(g.downbeats, T.downbeats) : null; m.exportDownbeats = M.events(eg.downbeats, T.downbeats); cls.downbeats = C.downbeatClass(g && g.downbeats, T); }
   }
   // key
@@ -77,12 +83,18 @@ function scoreTrack(rec) {
 }
 
 const tracks = P.tracks.map(scoreTrack), ok = tracks.filter(t => t.metrics);
+// required coverage, checked on the manifest tracks of this split (holdout tracks only for a holdout run)
+const reqCheck = checkRequirements(manifest, manifest.tracks.filter(t => HOLDOUT ? t.split === "holdout" : t.split !== "holdout"), mdir);
+const integrityProblems = tracks.filter(t => t.status === "annotation-checksum-mismatch").flatMap(t => t.problems);
+// one fingerprint for the whole answer set: any changed annotation file changes it
+const truthFingerprint = crypto.createHash("sha256").update(JSON.stringify(tracks.map(t => [t.id, t.annotationSha256 || null]).sort())).digest("hex");
 const get = (t, p) => p.split(".").reduce((o, k) => o == null ? null : o[k], t.metrics);
 const num = v => typeof v === "boolean" ? (v ? 1 : 0) : v;
 const METRICS = [
   ["tempo.acc1", "Tempo within ±4 % (Acc1)"], ["tempo.acc2", "Tempo allowing ×2/×½/×3/×⅓ (Acc2)"], ["tempo.absErr", "Tempo |error| (BPM)"],
   ["beats.f", "Tracked beats F (±70 ms)"], ["downbeats.f", "Tracked downbeats F"], ["exportBeats.f", "Exported grid beats F"], ["exportDownbeats.f", "Exported grid downbeats F"],
-  ["drift.maxAbsMs", "Exported grid max drift (ms)"], ["drift.beatsWithin", "Share of true beats with export within ±70 ms"],
+  ["drift.maxAbsMs", "Exported grid max drift, phase-locked (ms)"], ["drift.maxAbsBeats", "Exported grid max drift, phase-locked (beats)"],
+  ["drift.beatsWithin", "Share of true beats with export within ±70 ms"], ["driftNearest.maxAbsMs", "Exported grid max drift, nearest beat (ms; capped at ½ beat)"],
   ["key.exact", "Key exact"], ["key.weighted", "Key MIREX weighted"], ["chords.root", "Chords root (time-weighted)"], ["chords.majmin", "Chords maj/min (time-weighted)"],
   ["drums.kick.w50.f", "Kick F (±50 ms, exported MIDI)"], ["drums.snare.w50.f", "Snare/clap F (±50 ms)"], ["drums.hihat.w50.f", "Hi-hat F (±50 ms)"],
   ["drums.kick.w30.f", "Kick F (±30 ms)"], ["drums.snare.w30.f", "Snare/clap F (±30 ms)"], ["drums.hihat.w30.f", "Hi-hat F (±30 ms)"],
@@ -112,8 +124,9 @@ function reliability(conf, correct) {
 summary.reliability = { key: reliability(t => t.prediction.keyConf, t => t.metrics.key && t.metrics.key.scorable ? t.metrics.key.exact : null),
   tempo: reliability(t => t.prediction.bpmConf, t => t.metrics.tempo ? t.metrics.tempo.acc1 : null) };
 
-const meta = { kind: "track-teardown-scores", version: 1, scoredAt: new Date().toISOString(), classifierVersion: C.CLASSIFIER_VERSION, predictions: path.basename(predPath),
-  manifest: { ...P.manifest, changedSincePrediction: manifestChanged }, split: P.split, page: P.page, pageSha256: P.pageSha256, headSha: P.headSha, gitCommit: P.gitCommit,
+const meta = { kind: "track-teardown-scores", version: 2, scoredAt: new Date().toISOString(), classifierVersion: C.CLASSIFIER_VERSION, predictions: path.basename(predPath),
+  manifest: { ...P.manifest, changedSincePrediction: manifestChanged }, truthFingerprint, coverage: reqCheck.coverage, requirementProblems: reqCheck.problems, integrityProblems,
+  annotationsChangedSincePrediction: tracks.filter(t => t.annotationsChangedSincePrediction).map(t => t.id), split: P.split, page: P.page, pageSha256: P.pageSha256, headSha: P.headSha, gitCommit: P.gitCommit,
   testedMergeCommit: P.testedMergeCommit, gitDirty: P.gitDirty, node: P.node, browser: P.browser, os: P.os, config: { beatWindowSec: M.WINDOW, drumWindowsSec: [0.03, 0.05, 0.1], bassOnsetWindowSec: 0.05, tempoTolerance: 0.04, bootstrap: { B: 2000, seed: 20261117 } } };
 fs.writeFileSync(path.join(OUT, "scores.json"), JSON.stringify({ meta, summary, tracks }, null, 1));
 
@@ -121,7 +134,7 @@ fs.writeFileSync(path.join(OUT, "scores.json"), JSON.stringify({ meta, summary, 
 const q = v => v == null ? "" : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
 const COLS = [["id", t => t.id], ["split", t => t.split], ["status", t => t.status], ["tempo_est", t => t.prediction && t.prediction.bpm], ["tempo_ref", t => get(t, "tempo.ref")], ["tempo_class", t => clsOf(t, "tempo")],
   ["beat_f", t => get(t, "beats.f")], ["beat_class", t => clsOf(t, "beats")], ["downbeat_f", t => get(t, "downbeats.f")], ["downbeat_class", t => clsOf(t, "downbeats")],
-  ["export_beat_f", t => get(t, "exportBeats.f")], ["export_downbeat_f", t => get(t, "exportDownbeats.f")], ["drift_max_ms", t => get(t, "drift.maxAbsMs")], ["drift_class", t => clsOf(t, "exportGrid")],
+  ["export_beat_f", t => get(t, "exportBeats.f")], ["export_downbeat_f", t => get(t, "exportDownbeats.f")], ["drift_max_ms", t => get(t, "drift.maxAbsMs")], ["drift_max_beats", t => get(t, "drift.maxAbsBeats")], ["drift_class", t => clsOf(t, "exportGrid")],
   ["key_est", t => get(t, "key.est")], ["key_ref", t => get(t, "key.ref")], ["key_weighted", t => get(t, "key.weighted")], ["key_class", t => clsOf(t, "key")], ["key_conf", t => t.prediction && t.prediction.keyConf],
   ["chord_root", t => get(t, "chords.root")], ["chord_majmin", t => get(t, "chords.majmin")], ["chord_class", t => clsOf(t, "chords")],
   ["kick_f50", t => get(t, "drums.kick.w50.f")], ["snare_f50", t => get(t, "drums.snare.w50.f")], ["hihat_f50", t => get(t, "drums.hihat.w50.f")],
@@ -136,6 +149,10 @@ const L = [`# Benchmark report: ${P.manifest.name} (${P.split})`, "",
   manifest.note ? `> ${manifest.note}` : "", "",
   `${ok.length} of ${tracks.length} tracks scored.${summary.notScored.length ? " Not scored: " + summary.notScored.map(x => `${x.id} (${x.status})`).join(", ") + "." : ""} Mean over tracks, [bootstrap 95 % CI], n.`, "",
   "| Metric | Mean [95 % CI] | n |", "|---|---|---|", ...METRICS.map(([k, label]) => `| ${label} | ${fmt(summary.metrics[k])} | ${summary.metrics[k].n} |`), "",
+  "## Ground truth", "", `Annotation protocol: ${manifest.annotationProtocol || "not stated"} · truth fingerprint \`${truthFingerprint.slice(0, 16)}\` (sha256 over every track's annotation-file hashes; any changed answer file changes it)`, "",
+  "| Annotation | Tracks | Required |", "|---|---|---|", ...Object.entries(reqCheck.coverage).map(([k, c]) => `| ${k} | ${c.tracks}/${c.of} | ${c.required == null ? "–" : c.required === "all" ? "every track" : `≥ ${Math.round(c.required * 100)} %`} |`), "",
+  ...(reqCheck.problems.length || integrityProblems.length ? ["**Requirement / integrity failures (run fails):**", "", ...[...reqCheck.problems, ...integrityProblems].map(x => `- ${x}`), ""] : ["All annotation requirements met; every annotation file matches its pinned sha256.", ""]),
+  ...(meta.annotationsChangedSincePrediction.length ? [`**Annotation files changed after these predictions were made:** ${meta.annotationsChangedSincePrediction.join(", ")}`, ""] : []),
   "## Failure classes", "", "| Capability | Classes (count) |", "|---|---|", ...CAPS.map(c => `| ${c} | ${Object.entries(summary.failureClasses[c]).map(([k, v]) => `${k} ${v}`).join(", ") || "–"} |`), "",
   "## Failure atlas", "", "Failed / scored tracks per condition. Read with the n: small groups prove nothing.", "",
   `| Condition | ${CAPS.join(" | ")} |`, `|---|${CAPS.map(() => "---").join("|")}|`,
@@ -154,3 +171,6 @@ if (!HOLDOUT) for (const t of tracks) {
 console.log(METRICS.filter(([k]) => summary.metrics[k].n).map(([k]) => `${k} ${fmt(summary.metrics[k])}`).join(" | "));
 console.log(`report: ${path.relative(process.cwd(), path.join(OUT, "report.md"))}`);
 if (manifestChanged) console.log("WARNING: the manifest changed since these predictions were made.");
+if (meta.annotationsChangedSincePrediction.length) console.log(`NOTE: annotations changed after prediction for ${meta.annotationsChangedSincePrediction.length} track(s); scored against the current, pinned files.`);
+const failures = [...reqCheck.problems, ...integrityProblems];
+if (failures.length) { console.log(`FAILED: ${failures.length} requirement/integrity problem(s).` + (HOLDOUT ? " Details in report.md." : "\n  " + failures.join("\n  "))); process.exitCode = 1; }

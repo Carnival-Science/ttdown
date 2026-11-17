@@ -1,22 +1,53 @@
-// Holdout isolation rules in bench/run.js (checked before any browser starts):
-//  - a normal run never includes holdout tracks
-//  - a --holdout run refuses to write inside the repository
-//  - a --holdout run only takes holdout tracks
+// Holdout safeguards (bench/lib/holdout.js, bench/run.js, bench/check-splits.js). All checks happen before any
+// browser starts, so these tests are fast and need no audio.
 "use strict";
-const assert = require("node:assert/strict"), fs = require("node:fs"), os = require("node:os"), path = require("node:path"), { spawnSync } = require("node:child_process");
-const RUN = path.join(__dirname, "..", "bench", "run.js"), tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tt-holdout-"));
-const manifest = tracks => { const p = path.join(tmp, `m${Math.random().toString(36).slice(2)}.json`); fs.writeFileSync(p, JSON.stringify({ name: "t", version: 1, tracks })); return p; };
-const run = (...a) => spawnSync(process.execPath, [RUN, ...a], { encoding: "utf8" });
+const assert = require("node:assert/strict"), fs = require("node:fs"), os = require("node:os"), path = require("node:path"), crypto = require("node:crypto"), { spawnSync } = require("node:child_process");
+const { holdoutGuard, splitOverlap } = require("../bench/lib/holdout");
+const ROOT = path.join(__dirname, ".."), RUN = path.join(ROOT, "bench", "run.js"), SPLITS = path.join(ROOT, "bench", "check-splits.js");
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tt-holdout-"));
+const manifest = (tracks, dir = tmp) => { fs.mkdirSync(dir, { recursive: true }); const p = path.join(dir, `m${crypto.randomBytes(4).toString("hex")}.json`); fs.writeFileSync(p, JSON.stringify({ name: "t", version: 1, tracks })); return p; };
+const node = (script, ...a) => spawnSync(process.execPath, [script, ...a], { encoding: "utf8" });
+const H = { id: "h1", audio: "missing.wav", split: "holdout" }, D = { id: "d1", audio: "missing.wav", split: "dev" };
 
-const onlyHoldout = manifest([{ id: "h1", audio: "missing.wav", split: "holdout" }]);
-let r = run(onlyHoldout);
-assert.equal(r.status, 2); assert.match(r.stderr, /No tracks to run/);                      // dev run skips holdout tracks
-r = run(onlyHoldout, "--holdout", "--out", path.join(__dirname, "..", "bench", "out", "leak"));
-assert.equal(r.status, 2); assert.match(r.stderr, /outside the repository/);                 // holdout output must leave the repo
-const onlyDev = manifest([{ id: "d1", audio: "missing.wav", split: "dev" }]);
-r = run(onlyDev, "--holdout", "--out", path.join(tmp, "out"));
-assert.equal(r.status, 2); assert.match(r.stderr, /No tracks to run/);                      // holdout run ignores dev tracks
-assert.ok(!fs.existsSync(path.join(__dirname, "..", "bench", "out", "leak")));
+// ---- the decision rules themselves ----
+const base = { holdout: true, splits: new Set(["holdout"]), outsideRepo: true, operator: "custodian", gitDirty: false, pageSha256: "abc", log: [], reason: null };
+assert.equal(holdoutGuard(base).ok, true);
+assert.match(holdoutGuard({ ...base, holdout: false }).msg, /separate manifest/);                       // dev run never sees holdout tracks
+assert.equal(holdoutGuard({ ...base, holdout: false, splits: new Set(["dev"]) }).ok, true);
+assert.match(holdoutGuard({ ...base, splits: new Set(["holdout", "dev"]) }).msg, /only holdout/);
+assert.match(holdoutGuard({ ...base, outsideRepo: false }).msg, /outside the repository/);
+assert.match(holdoutGuard({ ...base, operator: undefined }).msg, /operator/);
+assert.match(holdoutGuard({ ...base, gitDirty: true }).msg, /Commit your changes/);                    // result must map to one commit
+const ran = [{ pageSha256: "abc", date: "2026-12-01T00:00:00Z" }];
+assert.match(holdoutGuard({ ...base, log: ran }).msg, /already run on this engine build/);              // one run per engine build
+assert.match(holdoutGuard({ ...base, log: ran, reason: "oops" }).msg, /already run/);                  // a real reason is required
+assert.equal(holdoutGuard({ ...base, log: ran, reason: "crashed on track 7; harness bug #12 fixed" }).ok, true);
+assert.equal(holdoutGuard({ ...base, log: [{ pageSha256: "older-engine", date: "x" }] }).ok, true);    // a new engine build may run
+
+// ---- the same rules through the command line ----
+let r = node(RUN, manifest([D, H]));
+assert.equal(r.status, 2); assert.match(r.stderr, /separate manifest/);
+r = node(RUN, manifest([H]), "--holdout", "--out", path.join(ROOT, "bench", "out", "leak"), "--operator", "x");
+assert.equal(r.status, 2); assert.match(r.stderr, /outside the repository/);
+assert.ok(!fs.existsSync(path.join(ROOT, "bench", "out", "leak")));
+r = node(RUN, manifest([H]), "--holdout", "--out", path.join(tmp, "out"));
+assert.equal(r.status, 2); assert.match(r.stderr, /operator/);
+r = node(RUN, manifest([D]), "--holdout", "--out", path.join(tmp, "out"), "--operator", "x");
+assert.equal(r.status, 2); assert.match(r.stderr, /only holdout/);
+const hdir = path.join(tmp, "holdout-set"), hm = manifest([H], hdir);                                  // custody log already has this engine
+const page = crypto.createHash("sha256").update(fs.readFileSync(path.join(ROOT, "index.html"))).digest("hex");
+fs.writeFileSync(path.join(hdir, "holdout-runs.jsonl"), JSON.stringify({ date: "2026-12-01T00:00:00Z", pageSha256: page }) + "\n");
+r = node(RUN, hm, "--holdout", "--out", path.join(tmp, "out"), "--operator", "x");
+assert.equal(r.status, 2); assert.match(r.stderr, /already run on this engine build/);
+
+// ---- leakage between dev and holdout manifests ----
+assert.deepEqual(splitOverlap([{ id: "a", sha256: "1", group: "artistX" }], [{ id: "b", sha256: "2", group: "artistY" }]), []);
+assert.equal(splitOverlap([{ id: "a", sha256: "1", group: "g" }], [{ id: "a", sha256: "1", group: "g" }]).length, 3);
+assert.match(splitOverlap([{ id: "a", sha256: "1", group: "artistX/ep1" }], [{ id: "b", sha256: "2", group: "artistX/ep1" }])[0], /^group/);
+r = node(SPLITS, manifest([{ ...D, sha256: "s1", group: "g1" }]), manifest([{ ...H, sha256: "s2", group: "g1" }]));
+assert.equal(r.status, 1); assert.match(r.stdout, /LEAKAGE: 1 overlap/);
+r = node(SPLITS, manifest([{ ...D, sha256: "s1", group: "g1" }]), manifest([{ ...H, sha256: "s2", group: "g2" }]));
+assert.equal(r.status, 0);
 
 fs.rmSync(tmp, { recursive: true, force: true });
-console.log("holdout isolation tests passed");
+console.log("holdout safeguard tests passed");

@@ -50,6 +50,24 @@ const drifting = M.drift(refB.map((t, i) => t + i * 0.01), refB);
 assert.equal(drifting.firstExceedSec, 4); assert.equal(C.driftClass(drifting), "cumulative-drift");
 assert.equal(C.driftClass(M.drift(refB.map(t => t + 0.1), refB)), "constant-offset");
 
+// phase-locked drift (review finding 2): a tempo ramp 120 -> 126 BPM against a fixed 120 BPM export grid.
+// Nearest-beat distance can't exceed half a beat (250 ms) and ends near zero; phase-locked shows ~3 slipped beats.
+const ramp = [0]; for (let k = 1; k < 128; k++) ramp.push(ramp[k - 1] + 60 / (120 + 6 * k / 127));
+const P120 = { firstDown: 0, barSec: 2, duration: 70 };
+const near = M.drift(M.exportGrid(P120).beats, ramp), ph = M.phaseDrift(P120, ramp);
+assert.ok(near.maxAbsMs <= 250 && Math.abs(near.endOffsetMs) < 50);
+assert.equal(ph.maxSlipBeats, 3); assert.ok(ph.endOffsetBeats > 2.9); assert.ok(ph.firstSlipSec > 20 && ph.firstSlipSec < 30);
+assert.equal(C.driftClass(ph), "slipped-beats");
+// steady tempo, small constant offset: both measures agree
+const steady = Array.from({ length: 64 }, (_, i) => i * 0.5 - 0.012);
+assert.equal(M.phaseDrift(P120, steady).maxAbsMs, M.drift(M.exportGrid(P120).beats, steady).maxAbsMs);
+assert.equal(C.driftClass(M.phaseDrift(P120, steady)), "ok");
+// an unannotated gap (beats 20-27 missing) is bridged, not mistaken for a slip
+const gapped = steady.filter((_, i) => i < 20 || i > 27), pg = M.phaseDrift(P120, gapped);
+assert.equal(pg.gapsBridged, 1); assert.equal(pg.maxAbsMs, 12);
+// a 100 ms constant offset is an offset, not a slip
+assert.equal(C.driftClass(M.phaseDrift(P120, steady.map(t => t - 0.088))), "constant-offset");
+
 // notes: onset, pitch and octave errors
 const n = (o, m) => ({ onset: o, offset: o + 0.2, midi: m });
 const ns = M.noteScores([n(0, 33), n(1, 45), n(2, 30)], [n(0, 33), n(1, 33), n(2, 31)]);

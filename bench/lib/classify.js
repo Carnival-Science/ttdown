@@ -2,7 +2,7 @@
 // Thresholds are first guesses to be revisited after the G1a pilot's listening review; they are versioned.
 "use strict";
 const { events, WINDOW } = require("../../tests/metrics");
-const CLASSIFIER_VERSION = "1";
+const CLASSIFIER_VERSION = "2"; // v2: export-grid class uses phase-locked drift and adds "slipped-beats"
 
 function tempoClass(t) {
   if (!t) return "n/a"; if (t.acc1) return "ok";
@@ -29,8 +29,11 @@ function downbeatClass(estDown, ref) {
   return "other";
 }
 
+// d: phase-locked drift (metrics.phaseDrift). "slipped-beats" = the grid lost at least half a beat somewhere,
+// which nearest-beat distance cannot see.
 function driftClass(d) {
   if (!d) return "n/a"; if (d.maxAbsMs <= WINDOW * 1000) return "ok";
+  if (d.maxAbsBeats != null && d.maxAbsBeats >= 0.5) return "slipped-beats";
   return Math.abs(d.endOffsetMs - d.startOffsetMs) < WINDOW * 500 ? "constant-offset" : "cumulative-drift";
 }
 

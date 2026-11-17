@@ -1,41 +1,64 @@
 #!/usr/bin/env node
 // Runs the analyzer on every track in a manifest and saves its raw predictions. No scoring here (see score.js).
 //
-//   node bench/run.js <manifest.json> [--out DIR] [--page index.html] [--holdout]
+//   node bench/run.js <manifest.json> [--out DIR] [--page index.html]
+//   node bench/run.js <holdout-manifest.json> --holdout --out <DIR outside repo> --operator NAME [--reason TEXT]
 //
-// Without --holdout, holdout tracks are skipped. With --holdout, ONLY holdout tracks run, the output folder must
-// be outside this repository, and the console shows no per-track detail, so holdout results can't leak into tuning.
+// Everything is checked BEFORE the browser starts, and any failure stops the run (exit 2):
+//   holdout rules (lib/holdout.js), the manifest's annotation requirements (lib/requirements.js), audio sha256,
+//   and annotation sha256 (so a changed answer file can't silently change results).
+// A holdout run appends to the custody log `holdout-runs.jsonl` next to the holdout manifest.
 "use strict";
 const path = require("node:path"), fs = require("node:fs"), os = require("node:os");
-const { chromium } = require("playwright");
 const { provenance, sha256File } = require("./lib/provenance");
+const { holdoutGuard } = require("./lib/holdout");
+const { checkRequirements, annotationIntegrity } = require("./lib/requirements");
 
 const ROOT = path.resolve(__dirname, "..");
-const args = process.argv.slice(2), flag = n => args.includes(n), opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
-const manifestPath = path.resolve(args.find(a => !a.startsWith("--") && !["--out", "--page"].includes(args[args.indexOf(a) - 1])) || "");
-if (!fs.existsSync(manifestPath) || !manifestPath.endsWith(".json")) { console.error("usage: node bench/run.js <manifest.json> [--out DIR] [--page index.html] [--holdout]"); process.exit(2); }
-const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")), mdir = path.dirname(manifestPath), HOLDOUT = flag("--holdout");
+const args = process.argv.slice(2), VALUED = ["--out", "--page", "--operator", "--reason"];
+const flag = n => args.includes(n), opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
+const manifestArg = args.find((a, i) => !a.startsWith("--") && !VALUED.includes(args[i - 1]));
+const stop = msg => { console.error(msg); process.exit(2); };
+if (!manifestArg || !manifestArg.endsWith(".json") || !fs.existsSync(manifestArg)) stop("usage: node bench/run.js <manifest.json> [--out DIR] [--page index.html] [--holdout --operator NAME [--reason TEXT]]");
+const manifestPath = path.resolve(manifestArg), manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")), mdir = path.dirname(manifestPath), HOLDOUT = flag("--holdout");
 const PAGE = opt("--page", "index.html"), OUT = path.resolve(opt("--out", path.join(ROOT, "bench", "out", `${manifest.name || "run"}-${HOLDOUT ? "holdout" : "dev"}`)));
-const insideRepo = !path.relative(ROOT, OUT).startsWith("..") && !path.isAbsolute(path.relative(ROOT, OUT));
-if (HOLDOUT && insideRepo) { console.error(`Holdout results must be written outside the repository (got ${OUT}).`); process.exit(2); }
+const rel = path.relative(ROOT, OUT), outsideRepo = rel.startsWith("..") || path.isAbsolute(rel);
+const prov = provenance(ROOT), pageSha256 = sha256File(path.join(ROOT, PAGE));
+const LOG = path.join(mdir, "holdout-runs.jsonl");
+const log = HOLDOUT && fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8").split("\n").filter(Boolean).map(l => JSON.parse(l)) : [];
 
-const tracks = manifest.tracks.filter(t => HOLDOUT ? t.split === "holdout" : t.split !== "holdout");
-const skipped = manifest.tracks.length - tracks.length;
-if (!tracks.length) { console.error("No tracks to run."); process.exit(2); }
-fs.mkdirSync(OUT, { recursive: true });
+// 1. holdout rules
+const g = holdoutGuard({ holdout: HOLDOUT, splits: new Set(manifest.tracks.map(t => t.split)), outsideRepo, operator: opt("--operator"), gitDirty: prov.gitDirty, pageSha256, log, reason: opt("--reason") });
+if (!g.ok) stop(g.msg);
+const tracks = manifest.tracks;
+if (!tracks.length) stop("No tracks to run.");
+// 2. required annotation coverage and checksums
+const req = checkRequirements(manifest, tracks, mdir);
+// 3. audio and annotation integrity
+const pre = [];
+for (const t of tracks) {
+  const audio = path.resolve(mdir, t.audio);
+  if (!fs.existsSync(audio)) { pre.push(`${t.id}: audio missing (${t.audio})`); continue; }
+  const sha = sha256File(audio); t.__audioSha = sha;
+  if (t.sha256 && t.sha256 !== sha) pre.push(`${t.id}: audio changed (manifest ${t.sha256.slice(0, 12)}…, file ${sha.slice(0, 12)}…)`);
+  const ai = annotationIntegrity(t, mdir); t.__annotationSha = ai.hashes; pre.push(...ai.problems);
+}
+const problems = [...req.problems, ...pre];
+if (problems.length) stop(`Not starting: ${problems.length} problem(s) found before running.\n  ` + (HOLDOUT ? `${problems.length} holdout problem(s); details withheld from the console. Check the holdout files.` : problems.join("\n  ")));
+
 const say = (...a) => { if (!HOLDOUT) console.log(...a); };
+fs.mkdirSync(OUT, { recursive: true });
 
 (async () => {
+  const { chromium } = require("playwright");
   const b = await chromium.launch(), records = [];
+  if (HOLDOUT) fs.appendFileSync(LOG, JSON.stringify({ date: new Date().toISOString(), operator: opt("--operator"), reason: opt("--reason") || null, headSha: prov.headSha, pageSha256, manifestSha256: sha256File(manifestPath), tracks: tracks.length, out: OUT }) + "\n");
   for (const t of tracks) {
-    const audio = path.resolve(mdir, t.audio), rec = { id: t.id, split: t.split, status: "ok", pageErrors: [] };
-    if (!fs.existsSync(audio)) { rec.status = "missing-audio"; records.push(rec); say(`${t.id} | MISSING ${audio}`); continue; }
-    rec.sha256 = sha256File(audio);
-    if (t.sha256 && t.sha256 !== rec.sha256) { rec.status = "checksum-mismatch"; records.push(rec); say(`${t.id} | CHECKSUM MISMATCH (manifest ${t.sha256.slice(0, 12)}…, file ${rec.sha256.slice(0, 12)}…)`); continue; }
+    const rec = { id: t.id, split: t.split, status: "ok", pageErrors: [], sha256: t.__audioSha, annotationSha256: t.__annotationSha };
     const p = await b.newPage(); p.on("pageerror", e => rec.pageErrors.push(String(e)));
     await p.goto(`file://${ROOT}/${PAGE}#teardown`); await p.waitForTimeout(300);
     const t0 = Date.now();
-    await p.setInputFiles("#file", audio);
+    await p.setInputFiles("#file", path.resolve(mdir, t.audio));
     try { await p.waitForFunction(() => /ready|Couldn/.test(document.querySelector("#status").textContent), null, { timeout: 600000 }); }
     catch (e) { rec.status = "timeout"; }
     rec.runtimeMs = Date.now() - t0;
@@ -52,11 +75,12 @@ const say = (...a) => { if (!HOLDOUT) console.log(...a); };
     records.push(rec); await p.close();
     say(`${t.id} | ${rec.status}${rec.full ? ` | ${rec.full.bpm} BPM, ${rec.full.key}` : ""} | ${(rec.runtimeMs / 1000).toFixed(1)}s${rec.pageErrors.length ? ` | PAGE ERRORS ${rec.pageErrors.length}` : ""}`);
   }
-  const out = { kind: "track-teardown-predictions", version: 1, date: new Date().toISOString(), manifest: { path: path.relative(ROOT, manifestPath).replace(/\\/g, "/"), name: manifest.name, version: manifest.version, sha256: sha256File(manifestPath) },
-    split: HOLDOUT ? "holdout" : "dev", page: PAGE, pageSha256: sha256File(path.join(ROOT, PAGE)), ...provenance(ROOT), node: process.version, browser: b.version(), os: `${os.platform()} ${os.release()}`, skippedHoldoutTracks: HOLDOUT ? 0 : skipped, tracks: records };
+  const out = { kind: "track-teardown-predictions", version: 2, date: new Date().toISOString(),
+    manifest: { path: path.relative(ROOT, manifestPath).replace(/\\/g, "/"), name: manifest.name, version: manifest.version, annotationProtocol: manifest.annotationProtocol || null, sha256: sha256File(manifestPath) },
+    split: HOLDOUT ? "holdout" : "dev", page: PAGE, pageSha256, ...prov, node: process.version, browser: b.version(), os: `${os.platform()} ${os.release()}`, coverage: req.coverage, tracks: records };
   fs.writeFileSync(path.join(OUT, "predictions.json"), JSON.stringify(out));
   await b.close();
   const bad = records.filter(r => r.status !== "ok" || r.pageErrors.length).length;
-  console.log(`${records.length} tracks run, ${bad} with problems${skipped && !HOLDOUT ? `, ${skipped} holdout tracks skipped` : ""}. Predictions: ${path.relative(process.cwd(), path.join(OUT, "predictions.json"))}`);
+  console.log(`${records.length} tracks run, ${bad} with problems. Predictions: ${path.relative(process.cwd(), path.join(OUT, "predictions.json"))}`);
   if (bad) process.exitCode = 1;
 })().catch(e => { console.error(e); process.exit(1); });
