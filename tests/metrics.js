@@ -8,14 +8,28 @@
 const WINDOW = 0.07;   // ±70 ms: standard beat F-measure tolerance
 const TEMPO_TOL = 0.04; // ±4 %: standard tempo Acc1/Acc2 tolerance
 
-// One-to-one matching of estimated to reference event times (seconds). No estimate can match two references.
-function events(est, ref, win = WINDOW) {
-  est = (est || []).slice().sort((a, b) => a - b); ref = (ref || []).slice().sort((a, b) => a - b);
-  const pairs = [];
-  for (let i = 0; i < ref.length; i++) for (let j = 0; j < est.length; j++) { const d = Math.abs(est[j] - ref[i]); if (d <= win) pairs.push([d, i, j]); }
+// One-to-one matching of estimated to reference event times (seconds): candidate pairs within ±win, closest first.
+// Returns [estIndex, refIndex, est - ref] using the caller's original indices. `allow(estIndex, refIndex)` can
+// add a condition (e.g. same pitch). Only nearby pairs are visited, so long real tracks stay fast; the pair set
+// and its order are exactly those of a full scan.
+function match(est, ref, win = WINDOW, allow = null) {
+  est = est || []; ref = ref || [];
+  const ei = est.map((_, j) => j).sort((a, b) => est[a] - est[b] || a - b), ri = ref.map((_, i) => i).sort((a, b) => ref[a] - ref[b] || a - b);
+  const E = ei.map(j => est[j]), Rf = ri.map(i => ref[i]), pairs = [];
+  let j0 = 0;
+  for (let i = 0; i < Rf.length; i++) {
+    while (j0 < E.length && Rf[i] - E[j0] > win) j0++;
+    for (let j = j0; j < E.length && E[j] - Rf[i] <= win; j++) { const d = Math.abs(E[j] - Rf[i]); if (d <= win && (!allow || allow(ei[j], ri[i]))) pairs.push([d, i, j]); }
+  }
   pairs.sort((a, b) => a[0] - b[0]);
-  const usedR = new Set(), usedE = new Set(), errs = [];
-  for (const [d, i, j] of pairs) { if (usedR.has(i) || usedE.has(j)) continue; usedR.add(i); usedE.add(j); errs.push(est[j] - ref[i]); }
+  const usedR = new Set(), usedE = new Set(), out = [];
+  for (const [, i, j] of pairs) { if (usedR.has(i) || usedE.has(j)) continue; usedR.add(i); usedE.add(j); out.push([ei[j], ri[i], E[j] - Rf[i]]); }
+  return out;
+}
+
+function events(est, ref, win = WINDOW) {
+  est = est || []; ref = ref || [];
+  const errs = match(est, ref, win).map(m => m[2]);
   const tp = errs.length, fp = est.length - tp, fn = ref.length - tp;
   const P = est.length ? tp / est.length : 0, R = ref.length ? tp / ref.length : 0;
   const f = ref.length === 0 && est.length === 0 ? 1 : (P + R ? 2 * P * R / (P + R) : 0);
@@ -31,4 +45,4 @@ function tempo(est, ref, tol = TEMPO_TOL) {
   return { est, ref, absErr: +Math.abs(est - ref).toFixed(3), relErr: +rel.toFixed(4), acc1, acc2, octaveError: !acc1 && acc2 };
 }
 
-module.exports = { events, tempo, WINDOW, TEMPO_TOL };
+module.exports = { match, events, tempo, WINDOW, TEMPO_TOL };

@@ -34,7 +34,6 @@ const S = {
 };
 
 const sha256 = f => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
-const git = c => { try { return execSync('git ' + c, { cwd: ROOT, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch (e) { return null; } };
 
 (async () => {
   const b = await chromium.launch(); const tot = {}, records = [];
@@ -97,7 +96,8 @@ const git = c => { try { return execSync('git ' + c, { cwd: ROOT, stdio: ['ignor
 
   // ---- record + regression gates ----
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const record = { date: new Date().toISOString(), kind: 'synthetic-regression', page: FILE, pageSha256: sha256(path.join(ROOT, FILE)), gitCommit: git('rev-parse HEAD'), gitDirty: !!git('status --porcelain'),
+  // headSha = the PR head on pull_request CI runs (where the checkout is a temporary merge commit), else HEAD
+  const record = { date: new Date().toISOString(), kind: 'synthetic-regression', page: FILE, pageSha256: sha256(path.join(ROOT, FILE)), ...require('../bench/lib/provenance').provenance(ROOT),
     node: process.version, browser: b.version(), config: { windowSec: M.WINDOW, tempoTolerance: M.TEMPO_TOL, songSec: SONG_SEC, trimStartSec: 0 }, summary, tracks: records };
   const outFile = path.join(OUT, `benchmark-${stamp}.json`); fs.writeFileSync(outFile, JSON.stringify(record, null, 1));
   console.log('record', path.relative(ROOT, outFile));
