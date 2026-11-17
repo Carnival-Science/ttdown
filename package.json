@@ -7,7 +7,7 @@
     "dev": "node scripts/dev-server.js",
     "songs": "python test-songs/make_test_songs.py",
     "benchmark": "node tests/benchmark.js",
-    "test": "node tests/metrics.test.js && node tests/run-tests.js"
+    "test": "node tests/metrics.test.js && node tests/dev-server.test.js && node tests/run-tests.js"
   },
   "devDependencies": {
     "playwright": "^1.48.0"
