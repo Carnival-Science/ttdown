@@ -519,7 +519,6 @@ async function analyze(file, onProg, opts_compare) {
   const raw = await file.arrayBuffer();
   const ctx = new OfflineAudioContext(2, 44100, 44100);
   const ab = await ctx.decodeAudioData(raw);
-  if (!opts_compare) lastBuffer = ab;
   const L = ab.getChannelData(0), R = ab.numberOfChannels > 1 ? ab.getChannelData(1) : L;
   const dur = ab.duration;
   // mono 22050 + stereo width
@@ -882,6 +881,9 @@ async function analyze(file, onProg, opts_compare) {
   const grid = { source: beatsF.length >= 16 ? "dp-tracker" : "dp-tracker (too few beats; downbeats not chosen)",
     beats: beatsF.map(fr2s), downbeats: downK0 == null ? [] : beatsF.filter((_, k) => ((k - downK0) % 4 + 4) % 4 === 0).map(fr2s) };
   try { Object.defineProperty(result, "grid", { value: grid, enumerable: false, configurable: true }); } catch (e) {}
+  /* The decoded audio travels with the result (non-enumerable) instead of being written to the shared `lastBuffer` here,
+     so an upload that has been superseded can never replace the buffer of the teardown on screen. */
+  if (!opts_compare) try { Object.defineProperty(result, "__buf", { value: ab, enumerable: false, configurable: true }); } catch (e) {}
   return result;
 }
 
@@ -3089,24 +3091,39 @@ function saveHist(a) {
 function showHist() {
   const h = loadHist(); const wrap = $("#hist-wrap"); if (!h.length) { wrap.hidden = true; return; }
   wrap.hidden = false;
-  $("#hist").replaceChildren(...h.map(a => el("button", { class: "btn", text: `${a.title || "Untitled"} · ${a.bpm} · ${a.camelot}`, onclick: () => { audioURL = null; render(a, {}); $("#out").scrollIntoView({ behavior: "smooth" }); } })));
+  $("#hist").replaceChildren(...h.map(a => el("button", { class: "btn", text: `${a.title || "Untitled"} · ${a.bpm} · ${a.camelot}`, onclick: () => { supersedeAnalysis("Opened a saved teardown, so the analysis in progress was stopped."); audioURL = null; render(a, {}); $("#out").scrollIntoView({ behavior: "smooth" }); } })));
 }
 
 /* ---- wiring ---- */
 const status = $("#status"), prog = $("#prog");
+/* Only the newest upload may change shared state (status, progress, audio URL, decoded buffer, saved history, the rendered teardown).
+   Every upload takes a job number; anything that finishes, fails or reports progress after a newer upload (or after the
+   user opened a saved teardown) is discarded. Analysis itself cannot be interrupted mid-computation (see the next PR for
+   cancellation), so a superseded job still runs to its next checkpoint but its results are dropped. */
+let analysisJob = 0, analysisRunning = false;
+function supersedeAnalysis(msg) {
+  analysisJob++;
+  if (analysisRunning && msg) { status.className = "status"; status.textContent = msg; prog.style.width = "0"; }
+  analysisRunning = false;
+}
 async function handle(file) {
   if (!file) return;
+  const job = ++analysisJob; analysisRunning = true;
+  const current = () => job === analysisJob;
   if (audioURL) URL.revokeObjectURL(audioURL);
   audioURL = URL.createObjectURL(file);
   status.className = "status";
   try {
-    const a = await analyze(file, (p, msg) => { prog.style.width = p + "%"; status.textContent = msg; });
+    const a = await analyze(file, (p, msg) => { if (!current()) return; prog.style.width = p + "%"; status.textContent = msg; });
+    if (!current()) return;
     a.title = $("#title").value.trim() || file.name.replace(/\.[^.]+$/, "");
-    if (lastBuffer) try { Object.defineProperty(a, "__buf", { value: lastBuffer, enumerable: false, configurable: true }); } catch (e) {}
+    lastBuffer = a.__buf || null;
     status.textContent = `Teardown ready for “${a.title}”. Scroll down.`;
-    tdTab = "overview"; render(a, {}); saveHist(a); lastTeardown = a;
+    tdTab = "overview"; render(a, {}); saveHist(a); lastTeardown = a; analysisRunning = false;
     $("#out").scrollIntoView({ behavior: "smooth" });
   } catch (e) {
+    if (!current()) return;
+    analysisRunning = false;
     status.className = "status err";
     status.textContent = "Couldn't read that file. Try an MP3 or WAV. (" + (e && e.message ? e.message.slice(0, 80) : "decode error") + ")";
     prog.style.width = "0";
