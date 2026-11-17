@@ -2,7 +2,7 @@
 // Key and chord scoring follow mir_eval 0.8.2 exactly (read from its source); bench/crosscheck_mir_eval.py checks it.
 "use strict";
 const { match, events, tempo, WINDOW } = require("../../tests/metrics");
-const { pitchClass } = require("./loaders");
+const { pitchClass, beatIntervals } = require("./loaders");
 const r4 = v => v == null || !Number.isFinite(v) ? null : +v.toFixed(4);
 
 // ---- the grid the app exports (chords, sections, MIDI, lined-up WAV): firstDown + n * barSec / 4 ----
@@ -31,18 +31,13 @@ function drift(exportBeats, refBeats, win = WINDOW) {
 // the first true beat on, so displacement keeps accumulating across tempo changes. The exported grid is linear
 // (firstDown + n * q, q = barSec / 4), so the k-th beat of a continuous annotated segment should sit on export beat
 // n0 + k. Beats are never interpolated: at a declared gap (or an unexplained hole, counted as undeclaredGaps) the
-// count restarts with a new anchor, because how many beats passed inside the gap is unknown.
-function phaseDrift(p, refBeats, gaps = [], win = WINDOW) {
+// count restarts with a new anchor, because how many beats passed inside the gap is unknown. A declared tempo change
+// does NOT restart it: the beats are continuous, and the fixed export grid really does drift away there.
+function phaseDrift(p, refBeats, gaps = [], tempoChanges = [], win = WINDOW) {
   if (!refBeats || refBeats.length < 2) return null;
   const q = p.barSec / 4, R = refBeats.slice().sort((a, b) => a - b), med = a => a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)];
-  const I = R.slice(1).map((t, i) => t - R[i]);
   const segStarts = [0]; let undeclared = 0;
-  for (let k = 1; k < R.length; k++) {
-    const declared = (gaps || []).some(g => g.start >= R[k - 1] - 1e-6 && g.end <= R[k] + 1e-6);
-    const local = med(I.slice(Math.max(0, k - 9), k - 1).concat(I.slice(k, k + 8))) || I[k - 1];
-    const hole = I[k - 1] > 1.75 * local;
-    if (declared || hole) { segStarts.push(k); if (hole && !declared) undeclared++; }
-  }
+  beatIntervals(R, gaps || [], tempoChanges || []).forEach((h, i) => { if (h.declaredGap || h.hole) { segStarts.push(i + 1); if (h.hole && !h.declaredGap) undeclared++; } });
   const off = [];
   segStarts.forEach((s, j) => { const e = j + 1 < segStarts.length ? segStarts[j + 1] : R.length, n0 = Math.round((R[s] - p.firstDown) / q);
     for (let k = s; k < e; k++) off.push((p.firstDown + (n0 + k - s) * q - R[k]) / q); }); // beats; + = export late

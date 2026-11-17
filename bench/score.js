@@ -2,10 +2,16 @@
 // Scores saved predictions against the manifest's annotations: per-track metrics, failure classes, bootstrap
 // confidence intervals, a failure atlas by condition tag, and a confidence reliability table.
 //
-//   node bench/score.js <predictions.json> [--manifest manifest.json]
+//   node bench/score.js <predictions.json> [--manifest manifest.json] [--rescore]
 //
 // Writes scores.json, tracks.csv and report.md next to the predictions. For a holdout run the console shows
 // aggregates only.
+//
+// The manifest must be byte-identical to the one the predictions were made with (sha256 recorded by run.js);
+// otherwise scoring stops (exit 1) and writes nothing. To score against an intentional ground-truth revision:
+//   1. bump manifest.version above the version recorded in the predictions,
+//   2. add  revisions: [{ "version": <new>, "date": "YYYY-MM-DD", "reason": "<what changed and why>", "tracks": [...] }],
+//   3. run with --rescore. Results go to <predictions dir>/rescore-v<new>/ so the original scores are kept.
 "use strict";
 const path = require("node:path"), fs = require("node:fs");
 const M = require("./lib/metrics"), C = require("./lib/classify"), { loadTruth } = require("./lib/loaders"), { summarize } = require("./lib/stats"), { sha256File } = require("./lib/provenance");
@@ -14,11 +20,23 @@ const { annotationIntegrity, checkRequirements } = require("./lib/requirements")
 const ROOT = path.resolve(__dirname, "..");
 const args = process.argv.slice(2), opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
 const predPath = path.resolve(args.find(a => !a.startsWith("--") && args[args.indexOf(a) - 1] !== "--manifest") || "");
-if (!fs.existsSync(predPath)) { console.error("usage: node bench/score.js <predictions.json> [--manifest manifest.json]"); process.exit(2); }
-const P = JSON.parse(fs.readFileSync(predPath, "utf8")), OUT = path.dirname(predPath), HOLDOUT = P.split === "holdout";
+if (!fs.existsSync(predPath)) { console.error("usage: node bench/score.js <predictions.json> [--manifest manifest.json] [--rescore]"); process.exit(2); }
+const P = JSON.parse(fs.readFileSync(predPath, "utf8")), HOLDOUT = P.split === "holdout";
 const manifestPath = path.resolve(opt("--manifest", path.join(ROOT, P.manifest.path)));
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")), mdir = path.dirname(manifestPath);
-const manifestChanged = sha256File(manifestPath) !== P.manifest.sha256;
+const manifestSha = sha256File(manifestPath), manifestChanged = manifestSha !== P.manifest.sha256;
+// Reproducibility: same manifest, or an explicit, versioned revision. Never a silent mix.
+let rescore = null;
+if (manifestChanged) {
+  const fail = msg => { console.error(`Not scoring: the manifest differs from the one these predictions were made with (predictions: v${P.manifest.version} ${String(P.manifest.sha256).slice(0, 12)}…, now: v${manifest.version} ${manifestSha.slice(0, 12)}…).\n${msg}`); process.exit(1); };
+  if (!args.includes("--rescore")) fail("If the ground truth was revised on purpose, follow the re-scoring procedure (bench/README.md) and pass --rescore.");
+  if (!(Number(manifest.version) > Number(P.manifest.version))) fail(`--rescore needs manifest.version above v${P.manifest.version}.`);
+  const rev = (manifest.revisions || []).find(r => Number(r.version) === Number(manifest.version));
+  if (!rev || !rev.reason || String(rev.reason).trim().length < 10 || !rev.date) fail(`--rescore needs a revisions entry for v${manifest.version} with a date and a reason (10+ characters).`);
+  rescore = { fromManifestVersion: P.manifest.version, fromManifestSha256: P.manifest.sha256, toManifestVersion: manifest.version, toManifestSha256: manifestSha, revision: rev };
+}
+const OUT = rescore ? path.join(path.dirname(predPath), `rescore-v${manifest.version}`) : path.dirname(predPath);
+fs.mkdirSync(OUT, { recursive: true });
 const byId = Object.fromEntries(manifest.tracks.map(t => [t.id, t]));
 const r4 = M.r4;
 
@@ -31,7 +49,8 @@ function truthSteps(T, cls) {
 }
 
 function scoreTrack(rec) {
-  const t = byId[rec.id], out = { id: rec.id, split: rec.split, status: rec.status, tags: (t && t.tags) || {}, runtimeSec: rec.runtimeMs ? r4(rec.runtimeMs / 1000) : null, pageErrors: (rec.pageErrors || []).length };
+  const t = byId[rec.id], out = { id: rec.id, split: rec.split, status: rec.status, tags: (t && t.tags) || {}, runtimeSec: rec.runtimeMs ? r4(rec.runtimeMs / 1000) : null, pageErrors: (rec.pageErrors || []).length,
+    pageErrorSamples: (rec.pageErrors || []).slice(0, 3).map(s => String(s).slice(0, 200)), console: rec.console || null };
   if (!t) { out.status = "not-in-manifest"; return out; }
   // ground truth integrity: score only against the exact annotation files the manifest pins
   const ai = annotationIntegrity(t, mdir); out.annotationSha256 = ai.hashes;
@@ -48,9 +67,10 @@ function scoreTrack(rec) {
     m.beats = g ? M.events(tb, T.beats) : null; cls.beats = C.beatClass(tb, T.beats, cls.tempo);
     inputs.exportBeats = eg.beats; inputs.exportDownbeats = eg.downbeats; inputs.trackedBeats = tb || []; inputs.trackedDownbeats = td || [];
     // drift: phase-locked within each continuous annotated segment; nearest-beat kept alongside for comparison
-    m.exportBeats = M.events(eg.beats, T.beats); m.drift = M.phaseDrift(p, T.beats, G); m.driftNearest = M.drift(eg0.beats, T.beats); cls.exportGrid = C.driftClass(m.drift);
+    m.exportBeats = M.events(eg.beats, T.beats); m.drift = M.phaseDrift(p, T.beats, G, T.tempoChanges || []); m.driftNearest = M.drift(eg0.beats, T.beats); cls.exportGrid = C.driftClass(m.drift);
     if (T.downbeats) { m.downbeats = g ? M.events(td, T.downbeats) : null; m.exportDownbeats = M.events(eg.downbeats, T.downbeats); cls.downbeats = C.downbeatClass(td, T); }
     if (G.length) m.declaredGaps = { count: G.length, seconds: r4(G.reduce((s, x) => s + x.end - x.start, 0)) };
+    if ((T.tempoChanges || []).length) m.declaredTempoChanges = T.tempoChanges.length;
   }
   // key
   if (T.key) { m.key = M.keyScore(p.key, T.key); m.key.confidence = p.keyConf; cls.key = C.keyClass(m.key); inputs.key = p.key; }
@@ -140,8 +160,8 @@ function reliability(conf, correct) {
 summary.reliability = { key: reliability(t => t.prediction.keyConf, t => t.metrics.key && t.metrics.key.scorable ? t.metrics.key.exact : null),
   tempo: reliability(t => t.prediction.bpmConf, t => t.metrics.tempo ? t.metrics.tempo.acc1 : null) };
 
-const meta = { kind: "track-teardown-scores", version: 2, scoredAt: new Date().toISOString(), classifierVersion: C.CLASSIFIER_VERSION, predictions: path.basename(predPath),
-  manifest: { ...P.manifest, changedSincePrediction: manifestChanged }, completeness, truthFingerprint, coverage: reqCheck.coverage, requirementProblems: reqCheck.problems, integrityProblems,
+const meta = { kind: "track-teardown-scores", version: 3, scoredAt: new Date().toISOString(), classifierVersion: C.CLASSIFIER_VERSION, predictions: path.relative(OUT, predPath).replace(/\\/g, "/"),
+  manifest: { path: P.manifest.path, name: manifest.name, version: manifest.version, annotationProtocol: manifest.annotationProtocol || null, sha256: manifestSha }, predictionManifest: P.manifest, rescore, completeness, truthFingerprint, coverage: reqCheck.coverage, requirementProblems: reqCheck.problems, integrityProblems,
   annotationsChangedSincePrediction: tracks.filter(t => t.annotationsChangedSincePrediction).map(t => t.id), split: P.split, page: P.page, pageSha256: P.pageSha256, headSha: P.headSha, gitCommit: P.gitCommit,
   testedMergeCommit: P.testedMergeCommit, gitDirty: P.gitDirty, node: P.node, browser: P.browser, os: P.os, config: { beatWindowSec: M.WINDOW, drumWindowsSec: [0.03, 0.05, 0.1], bassOnsetWindowSec: 0.05, tempoTolerance: 0.04, bootstrap: { B: 2000, seed: 20261117 } } };
 fs.writeFileSync(path.join(OUT, "scores.json"), JSON.stringify({ meta, summary, tracks }, null, 1));
@@ -161,7 +181,8 @@ fs.writeFileSync(path.join(OUT, "tracks.csv"), [COLS.map(c => c[0]).join(","), .
 // ---- report.md ----
 const fmt = s => s.mean == null ? "–" : `${s.mean}${s.ci95 ? ` [${s.ci95[0]}, ${s.ci95[1]}]` : ""}`;
 const L = [`# Benchmark report: ${P.manifest.name} (${P.split})`, "",
-  `Head \`${P.headSha}\`${P.testedMergeCommit ? ` (tested as merge commit \`${P.testedMergeCommit}\`)` : ""}${P.gitDirty ? " **(uncommitted changes)**" : ""} · page \`${P.page}\` sha256 \`${String(P.pageSha256).slice(0, 12)}\` · ${P.browser} · ${P.os} · manifest v${P.manifest.version}${manifestChanged ? " **(manifest changed since prediction)**" : ""} · classifier v${C.CLASSIFIER_VERSION}`, "",
+  `Head \`${P.headSha}\`${P.testedMergeCommit ? ` (tested as merge commit \`${P.testedMergeCommit}\`)` : ""}${P.gitDirty ? " **(uncommitted changes)**" : ""} · page \`${P.page}\` sha256 \`${String(P.pageSha256).slice(0, 12)}\` · ${P.browser} · ${P.os} · manifest v${manifest.version} sha256 \`${manifestSha.slice(0, 12)}\` · classifier v${C.CLASSIFIER_VERSION}`, "",
+  rescore ? `> **Re-scored** against manifest v${rescore.toManifestVersion} (revision ${rescore.revision.date}: ${rescore.revision.reason}). The predictions were made with manifest v${rescore.fromManifestVersion} (\`${String(rescore.fromManifestSha256).slice(0, 12)}\`). The original scores are unchanged in the parent folder.` : "", "",
   manifest.note ? `> ${manifest.note}` : "", "",
   `${ok.length} of ${tracks.length} tracks scored.${summary.notScored.length ? " Not scored: " + summary.notScored.map(x => `${x.id} (${x.status})`).join(", ") + "." : ""} Mean over tracks, [bootstrap 95 % CI], n.`, "",
   "| Metric | Mean [95 % CI] | n |", "|---|---|---|", ...METRICS.map(([k, label]) => `| ${label} | ${fmt(summary.metrics[k])} | ${summary.metrics[k].n} |`), "",
@@ -170,6 +191,10 @@ const L = [`# Benchmark report: ${P.manifest.name} (${P.split})`, "",
   ...[["Analyzer failures (crash, timeout or page errors)", completeness.analyzerFailures], ["No usable prediction (not run, missing or changed audio)", completeness.missingPredictions],
       ["Unscorable ground truth (answer files changed)", completeness.unscorableAnnotations], ["Predictions for tracks not in the manifest", completeness.unknownTracks]]
     .filter(([, l]) => l.length).flatMap(([h, l]) => [`- ${h}: ` + (HOLDOUT ? `${l.length} track(s)` : l.map(x => `${x.id} (${x.status})`).join(", "))]), "",
+  "### Browser console (diagnostic only; does not fail the run)", "",
+  (() => { const w = tracks.filter(t => t.console && (t.console.warning || t.console.error));
+    return !w.length ? "No console warnings or errors." : HOLDOUT ? `${w.length} track(s) logged console warnings/errors.` :
+      w.map(t => `- ${t.id}: ${t.console.warning} warning(s), ${t.console.error} console error(s)${t.console.samples.length ? ` · e.g. \`${t.console.samples[0].replace(/`/g, "'")}\`` : ""}`).join("\n"); })(), "",
   "## Ground truth", "", `Annotation protocol: ${manifest.annotationProtocol || "not stated"} · truth fingerprint \`${truthFingerprint.slice(0, 16)}\` (sha256 over every track's annotation-file hashes; any changed answer file changes it)`, "",
   "| Annotation | Tracks | Required |", "|---|---|---|", ...Object.entries(reqCheck.coverage).map(([k, c]) => `| ${k} | ${c.tracks}/${c.of} | ${c.required == null ? "–" : c.required === "all" ? "every track" : `≥ ${Math.round(c.required * 100)} %`} |`), "",
   ...(reqCheck.problems.length || integrityProblems.length ? ["**Requirement / integrity failures (run fails):**", "", ...[...reqCheck.problems, ...integrityProblems].map(x => `- ${x}`), ""] : ["All annotation requirements met; every annotation file matches its pinned sha256.", ""]),
@@ -191,7 +216,7 @@ if (!HOLDOUT) for (const t of tracks) {
 }
 console.log(METRICS.filter(([k]) => summary.metrics[k].n).map(([k]) => `${k} ${fmt(summary.metrics[k])}`).join(" | "));
 console.log(`report: ${path.relative(process.cwd(), path.join(OUT, "report.md"))}`);
-if (manifestChanged) console.log("WARNING: the manifest changed since these predictions were made.");
+if (rescore) console.log(`RE-SCORED against manifest v${rescore.toManifestVersion} (predictions from v${rescore.fromManifestVersion}): ${rescore.revision.reason}`);
 if (meta.annotationsChangedSincePrediction.length) console.log(`NOTE: annotations changed after prediction for ${meta.annotationsChangedSincePrediction.length} track(s); scored against the current, pinned files.`);
 const failures = [...reqCheck.problems, ...integrityProblems,
   ...completeness.analyzerFailures.map(x => `analyzer failure: ${x.id} (${x.status})`),

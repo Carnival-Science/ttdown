@@ -49,6 +49,33 @@ assert.match(bad[0], /gap 2\.1-3\.9: give a reason/); assert.deepEqual(bad.slice
 const trackGap = { id: "g", audio, split: "dev", annotations: { beats: "hole.beats.txt" } };
 assert.match(checkRequirements({ requirements: { continuousBeats: true } }, [trackGap], tmp).problems[0], /^g: undeclared gap/);
 assert.equal(checkRequirements({ requirements: { continuousBeats: true } }, [{ ...trackGap, annotations: { beats: "gap.beats.txt" } }], tmp).ok, true);
+// A real tempo change is not a gap. A lasting change (e.g. 128 BPM for the rest of the track at 64 BPM) isn't flagged
+// at all: the local median adapts. The false positive is a SHORT passage at another tempo: here 4 beats of a 64 BPM
+// halftime fill inside a 128 BPM track. Its doubled intervals look like missing beats until declared.
+const tcTimes = []; for (let i = 0; i < 24; i++) tcTimes.push(i * 60 / 128);
+for (let i = 1; i <= 4; i++) tcTimes.push(tcTimes[23] + i * 60 / 64);
+const back = tcTimes[27]; for (let i = 1; i <= 16; i++) tcTimes.push(back + i * 60 / 128);
+const tcLines = tcTimes.map(t => t.toFixed(4)).join("\n"), decl = `tempo-change ${tcTimes[23].toFixed(4)} 128 -> 64 BPM, halftime fill\ntempo-change ${back.toFixed(4)} back to 128 BPM\n`;
+put("tc-undeclared.beats.txt", tcLines + "\n");
+const flagged = L.validateBeats(L.beats(path.join(tmp, "tc-undeclared.beats.txt")));
+assert.equal(flagged.length, 4); assert.match(flagged[0], /2\.0x the local beat interval.*or, if the tempo really changes here, declare "tempo-change/); // the false positive to record
+put("tc-declared.beats.txt", tcLines + "\n" + decl);
+const TCB = L.beats(path.join(tmp, "tc-declared.beats.txt"));
+assert.deepEqual(TCB.tempoChanges.map(c => c.note), ["128 -> 64 BPM, halftime fill", "back to 128 BPM"]);
+assert.deepEqual(L.validateBeats(TCB), []);
+assert.equal(TCB.beats.length, 44);                                                  // tempo-change lines are not beats
+// declarations can't hide a real missing beat at the (unchanged) tempo after the fill
+put("tc-hole.beats.txt", tcTimes.filter((_, i) => i !== 36).map(t => t.toFixed(4)).join("\n") + "\n" + decl);
+assert.match(L.validateBeats(L.beats(path.join(tmp, "tc-hole.beats.txt")))[0], /undeclared gap/);
+put("tc-nonote.beats.txt", tcLines + `\ntempo-change ${tcTimes[23].toFixed(4)}\ntempo-change ${back.toFixed(4)} back\n`);
+assert.match(L.validateBeats(L.beats(path.join(tmp, "tc-nonote.beats.txt")))[0], /tempo-change .*: give a note/);
+// drift keeps counting through declared tempo changes (no restart), so the real slip shows: 4 halftime beats = 8 grid beats
+const Mx = require("../bench/lib/metrics"), P128 = { firstDown: 0, barSec: 240 / 128, duration: 30 };
+const pd = Mx.phaseDrift(P128, TCB.beats, [], TCB.tempoChanges);
+assert.deepEqual([pd.segments, pd.undeclaredGaps, pd.maxSlipBeats], [1, 0, 4]);
+const pdNo = Mx.phaseDrift(P128, TCB.beats);
+assert.equal(pdNo.undeclaredGaps, 4);                                               // undeclared, they'd be treated as holes and the slip hidden by restarts
+
 // identity required on real manifests
 assert.match(checkRequirements({ requirements: { identity: true } }, [trackA], tmp).problems[0], /a: missing leakage identifier\(s\) artists, release, songFamily/);
 assert.equal(checkRequirements({ requirements: { identity: true } }, [{ ...trackA, artists: ["X"], release: "R", songFamily: "S" }], tmp).ok, true);

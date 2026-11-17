@@ -56,7 +56,7 @@ Annotation formats (plain text, mir_eval/Sonic Visualiser style; `#` at line sta
 
 | File | Line format |
 |---|---|
-| beats | `time [beat-in-bar]` (1 = downbeat; without positions, downbeats are "not annotated"). Must be continuous in scorable regions; declare uncertain spans as `gap <start> <end> <reason>`. Gaps are never interpolated: predictions inside them are not scored, and drift restarts after them. |
+| beats | `time [beat-in-bar]` (1 = downbeat; without positions, downbeats are "not annotated"). Must be continuous in scorable regions; declare uncertain spans as `gap <start> <end> <reason>`. Gaps are never interpolated: predictions inside them are not scored, and drift restarts after them. A **real tempo change** is not a gap: keep the beats continuous and declare `tempo-change <time> <note>`. |
 | key | `F# minor` (also `dorian`, `phrygian`, …, `atonal`, `ambiguous`: kept, not scored as major/minor) |
 | chords | `start end label` (Harte: `A:min`, `C:maj7/3`, `N`, `X`) |
 | drums | `time class` (`kick`/`bd`, `snare`/`sd`/`clap`/`cp`/`rim`, `hihat`/`hh`/`chh`/`ohh`) |
@@ -100,7 +100,15 @@ Every error also gets a **failure class** (`lib/classify.js`, versioned). `repor
 - It notes any track whose answers changed after its predictions were made.
 - It writes a coverage table to the report.
 
-To correct an annotation, edit the file, update its hash, bump the manifest `version`, and re-score. The old report keeps the old fingerprint.
+**The manifest must not change between prediction and scoring.** `run.js` records the manifest's sha256. If `score.js` is given a different manifest, it stops with exit 1 and writes nothing.
+
+**Re-scoring after an intentional ground-truth revision:**
+1. Correct the answer file(s) and update their `annotationSha256`.
+2. Bump `manifest.version`.
+3. Add `revisions: [{ "version": <new>, "date": "YYYY-MM-DD", "reason": "<what changed and why>", "tracks": [...] }]`.
+4. Run `node bench/score.js <predictions.json> --rescore`.
+
+Results go to `<predictions dir>/rescore-v<new>/`, so the original scores stay untouched. The report states the revision and the manifest version the predictions came from. Re-scoring without a version bump or a revision entry is refused. If tracks were added, run the analyzer again: a re-score can't invent predictions.
 
 ## Run completeness
 
@@ -115,11 +123,20 @@ Every manifest track of the split is required. `score.js` exits 1 unless **every
 
 Aggregate metrics in an incomplete run cover only the scored tracks, and the report says so at the top of its completeness section.
 
+**Uncaught page errors** (exceptions in the app) fail the run, and the track's metrics are kept for diagnosis. **Ordinary console warnings and `console.error` lines** (e.g. a font that can't load offline) are counted, with a few sample lines, in a separate report section and do **not** fail the run.
+
 ## Exported-grid drift
 
 `drift` is **phase-locked**: exported beat *n* is tied to true beat *n* from the first true beat, so a grid that slips by whole beats on a tempo-changing track keeps accumulating error. The class is `slipped-beats` once it is half a beat or more off. `driftNearest` (distance to the nearest exported beat) is kept for comparison; it can never exceed half a beat.
 
 Beats are **never interpolated**. At a declared gap the count restarts with a new anchor, because how many beats passed inside the gap is unknown. An unexplained hole also restarts the count; it is reported as `undeclaredGaps`, and it fails validation when `continuousBeats` is required.
+
+**Tempo changes.** A declared `tempo-change` does **not** restart the count: the beats are continuous, and the fixed export grid really does drift there. The continuity check compares each interval only with intervals at the same tempo, i.e. on the same side of every declared change.
+- **A lasting change** isn't flagged even without a declaration, because the local median adapts.
+- **The likely false positive** is a *short* passage at another tempo, such as a few half-time beats in a fill. It looks like missing beats until declared.
+- **No masking:** a declaration can't hide a genuinely missing beat at an unchanged tempo.
+
+The 1.75× threshold is provisional for G1a. Every flagged hole and its resolution (gap, tempo change, or annotation fix) goes in the annotation QA log, so false positives can be counted.
 
 ## Holdout safeguards
 
@@ -130,6 +147,17 @@ Beats are **never interpolated**. At a declared gap the count restarts with a ne
 4. The working tree must be **clean**, so each result maps to one commit.
 5. **One run per engine build.** If the log already has a run for this `index.html`, another run needs `--reason "<why>"`, which is logged.
 6. `node bench/check-splits.js dev.json holdout.json` fails on any shared track id, audio file, **artist**, **release** or **song family**, compared ignoring case, accents and punctuation. It also fails if any track lacks those identifiers, since leakage can't then be ruled out. The legacy `group` field is still compared if present.
+
+**Artist IDs.** Prefer stable internal IDs (`artistIds: ["art-0007"]`) kept in an artist registry outside the repo, passed with `--registry artists.json`:
+
+```json
+{ "artists": { "art-0007": { "name": "Bicep", "aliases": ["…"], "external": { "musicbrainz": "…" } } } }
+```
+
+- Credited names are resolved through the registry's names and aliases, so one artist under different names collides.
+- An alias that maps to two IDs fails the check, as does an `artistIds` value missing from the registry.
+- External IDs are optional.
+- Without a registry, names are still compared after normalization, but aliases can't be resolved, and the output says so.
 7. The 12-track G1a pilot and all development tracks are dev data. Nothing from them (track, artist, release or song family) may enter the final holdout.
 
 **Procedure** (people, not code):

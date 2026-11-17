@@ -2,6 +2,7 @@
 // Formats follow mir_eval / Sonic Visualiser exports so annotators can use standard tools.
 //   beats   : time [beat-in-bar]           (beat-in-bar 1 = downbeat; without it, downbeats are "not annotated")
 //             gap start end reason          (declared uncertain span; see beats() below)
+//             tempo-change time note        (a real tempo change; beats stay continuous)
 //   key     : "<Tonic> <mode>"             (major/minor scored; dorian, phrygian, ... , atonal, ambiguous kept as labels)
 //   chords  : start end label              (Harte syntax, N = no chord, X = unknown)
 //   drums   : time class                   (kick|bd, snare|sd|clap|cp|rim, hihat|hh|chh|ohh|openhat|closedhat)
@@ -17,28 +18,46 @@ const num = (v, file) => { const x = Number(v); if (!Number.isFinite(x)) throw n
 // free-time intro, ambiguous metre) the annotator declares it:   gap <start> <end> <reason...>
 // Gaps are never filled with interpolated beats: beat-based metrics restart after a gap, and predictions inside a
 // gap are not scored. An unexplained hole between beats is an annotation error (validateBeats), not a gap.
+// A legitimate tempo change is NOT a gap: the beats stay continuous. The annotator declares where it happens:
+//   tempo-change <time> <note...>
+// so the continuity check compares each beat interval only with intervals at the same tempo.
+const special = (file, word) => fs.readFileSync(file, "utf8").split(/\r?\n/).map(l => l.replace(/(^|\s)#.*/, "").trim()) // re-read raw text so notes keep punctuation
+  .map(l => new RegExp(`^${word}[\\s,]+(.*)$`, "i").exec(l)).filter(Boolean).map(m => m[1]);
 function beats(file) {
-  const all = rows(file);
-  // gap lines are re-read from the raw text so the reason keeps its punctuation (rows() splits on commas)
-  const gaps = fs.readFileSync(file, "utf8").split(/\r?\n/).map(l => l.replace(/(^|\s)#.*/, "").trim()).map(l => /^gap[\s,]+(\S+?)[\s,]+(\S+?)(?:[\s,]+(.*))?$/i.exec(l)).filter(Boolean)
-    .map(m => ({ start: num(m[1], file), end: num(m[2], file), reason: (m[3] || "").trim() || null })).sort((a, b) => a.start - b.start);
-  const R = all.filter(r => r[0].toLowerCase() !== "gap").map(r => ({ t: num(r[0], file), pos: r[1] != null ? Number(r[1]) : null })).sort((a, b) => a.t - b.t);
+  const all = rows(file), isData = r => !/^(gap|tempo-change)$/i.test(r[0]);
+  const gaps = special(file, "gap").map(s => /^(\S+?)[\s,]+(\S+?)(?:[\s,]+(.*))?$/.exec(s) || []).map(m => ({ start: num(m[1], file), end: num(m[2], file), reason: (m[3] || "").trim() || null })).sort((a, b) => a.start - b.start);
+  const tempoChanges = special(file, "tempo-change").map(s => /^(\S+?)(?:[\s,]+(.*))?$/.exec(s)).map(m => ({ t: num(m[1], file), note: (m[2] || "").trim() || null })).sort((a, b) => a.t - b.t);
+  const R = all.filter(isData).map(r => ({ t: num(r[0], file), pos: r[1] != null ? Number(r[1]) : null })).sort((a, b) => a.t - b.t);
   const hasPos = R.length > 0 && R.every(r => Number.isFinite(r.pos));
-  return { beats: R.map(r => r.t), positions: hasPos ? R.map(r => r.pos) : null, downbeats: hasPos ? R.filter(r => r.pos === 1).map(r => r.t) : null, gaps };
+  return { beats: R.map(r => r.t), positions: hasPos ? R.map(r => r.pos) : null, downbeats: hasPos ? R.filter(r => r.pos === 1).map(r => r.t) : null, gaps, tempoChanges };
 }
 
-// Continuity check. A hole longer than 1.75x the local beat interval must be covered by a declared gap; beats may not
-// sit inside a declared gap; gaps must be well-formed and must not overlap.
+// Every beat interval: is it a hole (> factor x the local interval at the same tempo), and is a gap declared there?
+// "Same tempo" = intervals on the same side of every declared tempo change (by interval midpoint). Shared by
+// validateBeats and metrics.phaseDrift so both read the annotation the same way.
+function beatIntervals(times, gaps = [], tempoChanges = [], factor = 1.75) {
+  const t = times, I = t.slice(1).map((x, i) => x - t[i]), ch = tempoChanges.map(c => c.t);
+  const region = I.map((_, i) => ch.filter(c => c <= (t[i] + t[i + 1]) / 2).length);
+  const med = a => a.length ? a.slice().sort((p, q) => p - q)[Math.floor(a.length / 2)] : null;
+  return I.map((iv, i) => {
+    const near = []; for (let j = i - 1; j >= 0 && near.length < 8; j--) if (region[j] === region[i]) near.push(I[j]);
+    for (let j = i + 1, k = 0; j < I.length && k < 8; j++) if (region[j] === region[i]) { near.push(I[j]); k++; }
+    const local = med(near);
+    return { start: t[i], end: t[i + 1], ratio: local ? iv / local : null, hole: !!local && iv > factor * local,
+      declaredGap: gaps.some(g => g.start >= t[i] - 1e-6 && g.end <= t[i + 1] + 1e-6) };
+  });
+}
+
+// Continuity check. A hole longer than 1.75x the local beat interval (at the same tempo) must be covered by a declared
+// gap; beats may not sit inside a gap; gaps need a reason and must not overlap; tempo changes need a note.
+// G1a records every flagged hole and how it was resolved (gap, tempo change, or annotation fix) in the QA log.
 function validateBeats(B, { factor = 1.75 } = {}) {
-  const problems = [], t = B.beats, gaps = B.gaps || [];
+  const problems = [], t = B.beats, gaps = B.gaps || [], tc = B.tempoChanges || [];
   gaps.forEach((g, i) => { if (!(g.end > g.start)) problems.push(`gap ${g.start}-${g.end}: end must be after start`); if (!g.reason) problems.push(`gap ${g.start}-${g.end}: give a reason`); if (i && g.start < gaps[i - 1].end) problems.push(`gap ${g.start}-${g.end}: overlaps the previous gap`); });
+  tc.forEach(c => { if (!c.note) problems.push(`tempo-change ${c.t}: give a note (e.g. "128 -> 64 BPM halftime breakdown")`); if (gaps.some(g => c.t > g.start && c.t < g.end)) problems.push(`tempo-change ${c.t}: inside a declared gap`); });
   for (const x of t) if (gaps.some(g => x > g.start && x < g.end)) problems.push(`beat at ${x} s lies inside a declared gap`);
-  const I = t.slice(1).map((x, i) => x - t[i]), med = a => a.slice().sort((p, q) => p - q)[Math.floor(a.length / 2)];
-  for (let i = 0; i < I.length; i++) {
-    const local = med(I.slice(Math.max(0, i - 8), i).concat(I.slice(i + 1, i + 9)));
-    if (local && I[i] > factor * local && !gaps.some(g => g.start >= t[i] - 1e-6 && g.end <= t[i + 1] + 1e-6))
-      problems.push(`undeclared gap ${t[i].toFixed(3)}-${t[i + 1].toFixed(3)} s (${(I[i] / local).toFixed(1)}x the local beat interval); annotate the beats or declare "gap <start> <end> <reason>"`);
-  }
+  for (const h of beatIntervals(t, gaps, tc, factor)) if (h.hole && !h.declaredGap)
+    problems.push(`undeclared gap ${h.start.toFixed(3)}-${h.end.toFixed(3)} s (${h.ratio.toFixed(1)}x the local beat interval); annotate the missing beats, declare "gap <start> <end> <reason>", or, if the tempo really changes here, declare "tempo-change <time> <note>"`);
   return problems;
 }
 
@@ -82,4 +101,4 @@ function loadTruth(track, manifestDir) {
   return T;
 }
 
-module.exports = { beats, validateBeats, key, chords, drums, notes, loadTruth, pitchClass };
+module.exports = { beats, beatIntervals, validateBeats, key, chords, drums, notes, loadTruth, pitchClass };

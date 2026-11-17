@@ -45,8 +45,8 @@ const T = (id, artists, release, songFamily, extra) => ({ id, sha256: `sha-${id}
 const leak = (d, h) => splitOverlap([d], [h]);
 assert.deepEqual(leak(T("a", ["Artist X"], "CAT001", "Song A"), T("b", ["Artist Y"], "CAT002", "Song B")), []);
 // the case the review raised: same artist, different release and song -> was missed by one exact `group`
-assert.match(leak(T("a", ["Artist X"], "CAT001", "Song A", { group: "artist-x/ep1" }), T("b", ["Artist X"], "CAT009", "Song Z", { group: "artist-x/lp2" })).join(), /^artist "artist x"/);
-assert.match(leak(T("a", ["Artist A", "Artist B"], "R1", "S1"), T("b", ["Artist B"], "R2", "S2")).join(), /artist "artist b"/);          // collaboration / feature
+assert.match(leak(T("a", ["Artist X"], "CAT001", "Song A", { group: "artist-x/ep1" }), T("b", ["Artist X"], "CAT009", "Song Z", { group: "artist-x/lp2" })).join(), /^artist "name:artist x"/);
+assert.match(leak(T("a", ["Artist A", "Artist B"], "R1", "S1"), T("b", ["Artist B"], "R2", "S2")).join(), /artist "name:artist b"/);          // collaboration / feature
 assert.equal(leak(T("a", ["Bicep"], "R1", "S1"), T("b", ["BICEP."], "R2", "S2")).length, 1);                                         // case and punctuation
 assert.equal(leak(T("a", ["Bícep"], "R1", "S1"), T("b", ["bicep"], "R2", "S2")).length, 1);                                          // accents
 assert.match(leak(T("a", ["Original Artist"], "R1", "Opus"), T("b", ["Remixer"], "R2", "opus")).join(), /song family "opus"/);        // remix of the same song
@@ -54,13 +54,32 @@ assert.match(leak(T("a", ["X"], "LBL-042", "S1"), T("b", ["Y"], "lbl 042", "S2")
 assert.equal(leak(T("a", ["X"], "R1", "S1"), T("a", ["Y"], "R2", "S2", { sha256: "other-audio" })).length, 1);                        // same id only
 assert.equal(splitOverlap([{ id: "a", artist: "Solo Name" }], [{ id: "b", artists: ["solo name"] }]).length, 1);                      // single `artist` field accepted
 assert.deepEqual(identityProblems([T("a", ["X"], "R", "S"), { id: "b", artists: [], release: "R" }]), ["b: missing leakage identifier(s) artists, songFamily"]);
+// internal artist IDs + alias registry: one artist under different names or IDs collides; external IDs optional
+const { loadRegistry } = require("../bench/lib/holdout");
+const REG = { artists: { "art-0007": { name: "Bicep", aliases: ["Andy Ferguson & Matt McBriar"], external: { musicbrainz: "optional" } }, "art-0012": { name: "Overmono" } } };
+const Rg = loadRegistry(REG);
+const byId = { id: "a", sha256: "1", artistIds: ["art-0007"], release: "R1", songFamily: "S1" }, byAlias = { id: "b", sha256: "2", artists: ["Andy Ferguson & Matt McBriar"], release: "R2", songFamily: "S2" };
+assert.deepEqual(splitOverlap([byId], [byAlias]), []);                                          // without the registry the alias is missed
+assert.match(splitOverlap([byId], [byAlias], Rg).join(), /artist "id:art-0007": dev a \/ holdout b/);
+assert.match(splitOverlap([{ ...byAlias, id: "c", sha256: "3" }], [{ ...byAlias, artists: ["BICEP"] }], Rg).join(), /id:art-0007/);
+assert.deepEqual(splitOverlap([byId], [{ id: "d", sha256: "4", artistIds: ["art-0012"], release: "R3", songFamily: "S3" }], Rg), []);
+assert.match(identityProblems([{ ...byId, artistIds: ["art-9999"] }], Rg)[0], /artist id art-9999 is not in the artist registry/);
+assert.deepEqual(identityProblems([byId], Rg), []);                                              // artistIds alone satisfy "artists"
+assert.match(loadRegistry({ artists: { "art-1": { name: "Same Name" }, "art-2": { name: "same name" } } }).problems[0], /maps to both art-1 and art-2/);
+
 // command line: missing identifiers can't be ruled safe; overlaps fail; clean splits pass
 r = node(SPLITS, manifest([{ ...D, sha256: "s1" }]), manifest([{ ...H, ...T("h1", ["Y"], "R2", "S2") }]));
-assert.equal(r.status, 1); assert.match(r.stdout, /INCOMPLETE: 1 track\(s\) lack leakage identifiers/);
+assert.equal(r.status, 1); assert.match(r.stdout, /INCOMPLETE: 1 identifier problem\(s\)[\s\S]*d1: missing leakage identifier\(s\) artists, release, songFamily/);
 r = node(SPLITS, manifest([{ ...D, ...T("d1", ["Same Artist"], "R1", "S1") }]), manifest([{ ...H, ...T("h1", ["same artist"], "R2", "S2") }]));
-assert.equal(r.status, 1); assert.match(r.stdout, /LEAKAGE: 1 overlap[\s\S]*artist "same artist": dev d1 \/ holdout h1/);
+assert.equal(r.status, 1); assert.match(r.stdout, /LEAKAGE: 1 overlap[\s\S]*artist "name:same artist": dev d1 \/ holdout h1/);
 r = node(SPLITS, manifest([{ ...D, ...T("d1", ["A"], "R1", "S1") }]), manifest([{ ...H, ...T("h1", ["B"], "R2", "S2") }]));
-assert.equal(r.status, 0, r.stdout);
+assert.equal(r.status, 0, r.stdout); assert.match(r.stdout, /no artist registry: aliases not resolved/);
+const regFile = path.join(tmp, "artists.json"); fs.writeFileSync(regFile, JSON.stringify(REG));
+r = node(SPLITS, manifest([{ ...D, ...byId, split: "dev" }]), manifest([{ ...H, ...byAlias, split: "holdout" }]), "--registry", regFile);
+assert.equal(r.status, 1); assert.match(r.stdout, /LEAKAGE: 1 overlap[\s\S]*id:art-0007/);
+fs.writeFileSync(regFile, JSON.stringify({ artists: { "art-1": { name: "X" }, "art-2": { name: "x" } } }));
+r = node(SPLITS, manifest([{ ...D, ...T("d1", ["A"], "R1", "S1") }]), manifest([{ ...H, ...T("h1", ["B"], "R2", "S2") }]), "--registry", regFile);
+assert.equal(r.status, 1); assert.match(r.stdout, /REGISTRY: 1 ambiguous alias/);
 
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log("holdout safeguard tests passed");

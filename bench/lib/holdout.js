@@ -32,17 +32,37 @@ function holdoutGuard(f) { // f: { holdout, splits:Set, outsideRepo, operator, g
 // spacing), so "Bicep", "BICEP" and "Bícep." collide. A false alarm is cheap; a missed leak is not.
 const norm = s => String(s == null ? "" : s).normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const list = v => (Array.isArray(v) ? v : v == null || v === "" ? [] : [v]).map(norm).filter(Boolean);
-const IDENTITY = { artists: t => list(t.artists != null ? t.artists : t.artist), release: t => list(t.release), songFamily: t => list(t.songFamily) };
+// Stable internal artist IDs (preferred) and an optional alias registry, so one artist under different names collides:
+//   track.artistIds: ["art-0007"]
+//   registry (JSON): { "artists": { "art-0007": { "name": "Bicep", "aliases": ["BICEP", "Bicep (live)"],
+//                                                 "external": { "musicbrainz": "…" } } } }     external IDs optional
+// Each track's artist keys = its artistIds + every credited name resolved through the registry (name or alias ->
+// ID); names the registry doesn't know are compared as normalized names.
+function loadRegistry(reg) {
+  const byAlias = new Map(), problems = [];
+  for (const [id, a] of Object.entries((reg && reg.artists) || {})) for (const n of [a.name, ...(a.aliases || [])].map(norm).filter(Boolean)) {
+    if (byAlias.has(n) && byAlias.get(n) !== id) problems.push(`alias "${n}" maps to both ${byAlias.get(n)} and ${id}`); else byAlias.set(n, id);
+  }
+  return { ids: new Set(Object.keys((reg && reg.artists) || {})), byAlias, problems };
+}
+const artistKeys = (t, R) => {
+  const ids = (t.artistIds || []).map(String), names = list(t.artists != null ? t.artists : t.artist);
+  return [...new Set([...ids.map(i => `id:${i}`), ...names.map(n => R && R.byAlias.has(n) ? `id:${R.byAlias.get(n)}` : `name:${n}`)])];
+};
+const IDENTITY = { artists: t => [...(t.artistIds || []), ...list(t.artists != null ? t.artists : t.artist)], release: t => list(t.release), songFamily: t => list(t.songFamily) };
 
-function identityProblems(tracks) {
+function identityProblems(tracks, R) {
   const out = [];
-  for (const t of tracks) { const miss = Object.keys(IDENTITY).filter(k => !IDENTITY[k](t).length); if (miss.length) out.push(`${t.id}: missing leakage identifier(s) ${miss.join(", ")}`); }
+  for (const t of tracks) {
+    const miss = Object.keys(IDENTITY).filter(k => !IDENTITY[k](t).length); if (miss.length) out.push(`${t.id}: missing leakage identifier(s) ${miss.join(", ")}`);
+    if (R) for (const i of t.artistIds || []) if (!R.ids.has(String(i))) out.push(`${t.id}: artist id ${i} is not in the artist registry`);
+  }
   return out;
 }
 
 // Overlap between dev and holdout manifests on any identifier: id, audio, artist, release, song family, legacy group
-function splitOverlap(dev, hold) {
-  const keys = { "id": t => [t.id], "audio sha256": t => t.sha256 ? [t.sha256] : [], "artist": IDENTITY.artists, "release": IDENTITY.release, "song family": IDENTITY.songFamily, "group": t => list(t.group) };
+function splitOverlap(dev, hold, R = null) {
+  const keys = { "id": t => [t.id], "audio sha256": t => t.sha256 ? [t.sha256] : [], "artist": t => artistKeys(t, R), "release": IDENTITY.release, "song family": IDENTITY.songFamily, "group": t => list(t.group) };
   const out = [];
   for (const [what, f] of Object.entries(keys)) {
     const H = new Map(); for (const t of hold) for (const v of f(t)) if (!H.has(v)) H.set(v, t.id);
@@ -51,4 +71,4 @@ function splitOverlap(dev, hold) {
   return out;
 }
 
-module.exports = { holdoutGuard, splitOverlap, identityProblems, normalizeName: norm };
+module.exports = { holdoutGuard, splitOverlap, identityProblems, loadRegistry, normalizeName: norm };

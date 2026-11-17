@@ -54,8 +54,11 @@ fs.mkdirSync(OUT, { recursive: true });
   const b = await chromium.launch(), records = [];
   if (HOLDOUT) fs.appendFileSync(LOG, JSON.stringify({ date: new Date().toISOString(), operator: opt("--operator"), reason: opt("--reason") || null, headSha: prov.headSha, pageSha256, manifestSha256: sha256File(manifestPath), tracks: tracks.length, out: OUT }) + "\n");
   for (const t of tracks) {
-    const rec = { id: t.id, split: t.split, status: "ok", pageErrors: [], sha256: t.__audioSha, annotationSha256: t.__annotationSha };
+    // pageErrors = uncaught exceptions in the app: they fail the benchmark (metrics kept for diagnosis).
+    // console warnings / console.error lines (e.g. a font that can't load offline) are recorded separately and don't.
+    const rec = { id: t.id, split: t.split, status: "ok", pageErrors: [], console: { warning: 0, error: 0, samples: [] }, sha256: t.__audioSha, annotationSha256: t.__annotationSha };
     const p = await b.newPage(); p.on("pageerror", e => rec.pageErrors.push(String(e)));
+    p.on("console", m => { const ty = m.type(); if (ty === "warning" || ty === "error") { rec.console[ty]++; if (rec.console.samples.length < 5) rec.console.samples.push(`${ty}: ${m.text().slice(0, 200)}`); } });
     await p.goto(`file://${ROOT}/${PAGE}#teardown`); await p.waitForTimeout(300);
     const t0 = Date.now();
     await p.setInputFiles("#file", path.resolve(mdir, t.audio));
