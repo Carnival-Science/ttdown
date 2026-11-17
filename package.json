@@ -7,7 +7,12 @@
     "dev": "node scripts/dev-server.js",
     "songs": "python test-songs/make_test_songs.py",
     "benchmark": "node tests/benchmark.js",
-    "test": "node tests/metrics.test.js && node tests/dev-server.test.js && node tests/run-tests.js"
+    "test": "node tests/metrics.test.js && node tests/bench-metrics.test.js && node tests/bench-holdout.test.js && node tests/dev-server.test.js && node tests/run-tests.js",
+    "bench:run": "node bench/run.js",
+    "bench:score": "node bench/score.js",
+    "bench:synthetic": "node bench/run.js test-songs/manifest.json --out bench/out/synthetic && node bench/score.js bench/out/synthetic/predictions.json",
+    "bench:parity": "node bench/parity.js",
+    "bench:crosscheck": "python bench/crosscheck_mir_eval.py"
   },
   "devDependencies": {
     "playwright": "^1.48.0"
