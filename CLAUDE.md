@@ -22,19 +22,19 @@ If present in the current checkout, read `docs/PRODUCT_STRATEGY.md`, `docs/ELECT
 4. Treat current functionality and README benchmark claims as **hypotheses until verified**. Synthetic tracks are not real-world accuracy evidence. Never invent precision, recall, confidence calibration or product comparisons.
 5. Use a paired **Version A vs Version B** comparison on the same tracks and splits when changing analysis. Record seeds, processing versions, device/runtime constraints, test commands, ground truth provenance, per-task metrics and failure cases. Do not claim an improvement based on isolated demos.
 6. Retain the user's rights-cleared audio, annotations and corrections only with clear consent, retention/deletion rules and a documented purpose. Do not scrape or upload copyrighted recordings for testing.
-7. No unsupported security assurances. Review external dependencies, licenses and model weights before adoption; research methods are not necessarily reusable code.
+7. Never treat an agent instruction or permission prompt as a hard authorization boundary; maintain human review and code review. No unsupported security assurances. Review external dependencies, licenses and model weights before adoption; research methods are not necessarily reusable code.
 8. For tests, capture the real process exit status, not just the last printed line. Clearly separate **not run / attempted / passed / failed** and explain blockers.
 
 ## When to delegate
 - `architecture-auditor`: unfamiliar or risky modules, architectural maps, dependencies and maintainability.
 - `audio-researcher`: DSP correctness, literature, established applications, baselines and licensing.
-- `benchmark-engineer`: test harness, independent ground truth, metrics, baseline and paired experiments.
+- `benchmark-engineer`: read-only inspection of test harness, independent ground truth, metrics, baseline and paired experiments; the main engineer executes tests.
 - `code-reviewer`: independent read-only review of a proposed diff before marking work complete.
 
 Invoke specialists only when necessary, preferably in parallel **for independent read-only research**, never for overlapping code edits. Review the evidence yourself rather than uncritically repeating agent output. All specialists are advisory; you remain responsible for the result.
 
 ## Required end-of-session handoff
-Follow `docs/CLAUDE_CODE_WORKFLOW.md`. Every substantial development share must include: objective and branch/commit, investigations, supported findings with file/line citations, alternatives researched, decision, changes made, tests with exact commands and outcomes, accuracy claims vs unmeasured areas, risks/self-critique, next steps, and decisions needed from the CEO. Include a **copy-paste-ready handoff to ChatGPT**. Be communicative about what is happening and why; distinguish measured evidence from interpretation.
+Follow `docs/CLAUDE_CODE_WORKFLOW.md`. On a fresh project session, the founder can explicitly invoke `/track-audit` for the read-only baseline investigation. Every substantial development share must include: objective and branch/commit, investigations, supported findings with file/line citations, alternatives researched, decision, changes made, tests with exact commands and outcomes, accuracy claims vs unmeasured areas, risks/self-critique, next steps, and decisions needed from the CEO. Include a **copy-paste-ready handoff to ChatGPT**. Be communicative about what is happening and why; distinguish measured evidence from interpretation.
 
 ## First task unless overridden
 Perform a **read-only repository + DSP + benchmark baseline audit** and propose a prioritized plan. No unapproved algorithm overhaul, no fabricated results and no PR merge.
