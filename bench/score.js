@@ -42,11 +42,15 @@ function scoreTrack(rec) {
   // tempo and grid
   m.tempo = T.tempo != null ? M.tempo(p.bpm, T.tempo) : null; cls.tempo = C.tempoClass(m.tempo);
   if (T.beats) {
-    m.beats = g ? M.events(g.beats, T.beats) : null; cls.beats = C.beatClass(g && g.beats, T.beats, cls.tempo);
-    const eg = M.exportGrid(p); inputs.exportBeats = eg.beats; inputs.exportDownbeats = eg.downbeats; inputs.trackedBeats = g ? g.beats : []; inputs.trackedDownbeats = g ? g.downbeats : [];
-    // drift: phase-locked (accumulates whole-beat slips); nearest-beat kept alongside for comparison
-    m.exportBeats = M.events(eg.beats, T.beats); m.drift = M.phaseDrift(p, T.beats); m.driftNearest = M.drift(eg.beats, T.beats); cls.exportGrid = C.driftClass(m.drift);
-    if (T.downbeats) { m.downbeats = g ? M.events(g.downbeats, T.downbeats) : null; m.exportDownbeats = M.events(eg.downbeats, T.downbeats); cls.downbeats = C.downbeatClass(g && g.downbeats, T); }
+    // predictions inside declared gaps have no verified truth to be scored against: drop them before matching
+    const G = T.gaps || [], cut = a => M.outsideGaps(a || [], G), eg0 = M.exportGrid(p);
+    const tb = g ? cut(g.beats) : null, td = g ? cut(g.downbeats) : null, eg = { beats: cut(eg0.beats), downbeats: cut(eg0.downbeats) };
+    m.beats = g ? M.events(tb, T.beats) : null; cls.beats = C.beatClass(tb, T.beats, cls.tempo);
+    inputs.exportBeats = eg.beats; inputs.exportDownbeats = eg.downbeats; inputs.trackedBeats = tb || []; inputs.trackedDownbeats = td || [];
+    // drift: phase-locked within each continuous annotated segment; nearest-beat kept alongside for comparison
+    m.exportBeats = M.events(eg.beats, T.beats); m.drift = M.phaseDrift(p, T.beats, G); m.driftNearest = M.drift(eg0.beats, T.beats); cls.exportGrid = C.driftClass(m.drift);
+    if (T.downbeats) { m.downbeats = g ? M.events(td, T.downbeats) : null; m.exportDownbeats = M.events(eg.downbeats, T.downbeats); cls.downbeats = C.downbeatClass(td, T); }
+    if (G.length) m.declaredGaps = { count: G.length, seconds: r4(G.reduce((s, x) => s + x.end - x.start, 0)) };
   }
   // key
   if (T.key) { m.key = M.keyScore(p.key, T.key); m.key.confidence = p.keyConf; cls.key = C.keyClass(m.key); inputs.key = p.key; }
@@ -82,10 +86,22 @@ function scoreTrack(rec) {
   return out;
 }
 
-const tracks = P.tracks.map(scoreTrack), ok = tracks.filter(t => t.metrics);
+// Every manifest track of this split is required. A track with no prediction is listed (not silently dropped).
+const required = manifest.tracks.filter(t => HOLDOUT ? t.split === "holdout" : t.split !== "holdout"), predicted = new Set(P.tracks.map(r => r.id));
+const tracks = [...P.tracks.map(scoreTrack), ...required.filter(t => !predicted.has(t.id)).map(t => ({ id: t.id, split: t.split, status: "no-prediction", tags: t.tags || {} }))];
+const ok = tracks.filter(t => t.metrics);
 // required coverage, checked on the manifest tracks of this split (holdout tracks only for a holdout run)
-const reqCheck = checkRequirements(manifest, manifest.tracks.filter(t => HOLDOUT ? t.split === "holdout" : t.split !== "holdout"), mdir);
+const reqCheck = checkRequirements(manifest, required, mdir);
 const integrityProblems = tracks.filter(t => t.status === "annotation-checksum-mismatch").flatMap(t => t.problems);
+// Run completeness: the benchmark only succeeds if every required track was analyzed and scored. Three kinds of
+// failure are kept apart because they need different owners: the analyzer, the run, or the ground truth.
+const ANALYZER = new Set(["analysis-failed", "timeout"]), INPUT = new Set(["missing-audio", "checksum-mismatch"]);
+const completeness = { required: required.length, scored: ok.length,
+  analyzerFailures: tracks.filter(t => ANALYZER.has(t.status) || (t.pageErrors > 0)).map(t => ({ id: t.id, status: t.pageErrors > 0 && !ANALYZER.has(t.status) ? `page-errors (${t.pageErrors}); metrics kept for diagnosis` : t.status })),
+  missingPredictions: tracks.filter(t => t.status === "no-prediction" || INPUT.has(t.status)).map(t => ({ id: t.id, status: t.status })),
+  unscorableAnnotations: tracks.filter(t => t.status === "annotation-checksum-mismatch").map(t => ({ id: t.id, status: t.status })),
+  unknownTracks: tracks.filter(t => t.status === "not-in-manifest").map(t => ({ id: t.id, status: t.status })) };
+completeness.complete = !completeness.analyzerFailures.length && !completeness.missingPredictions.length && !completeness.unscorableAnnotations.length && !completeness.unknownTracks.length && ok.length === required.length;
 // one fingerprint for the whole answer set: any changed annotation file changes it
 const truthFingerprint = crypto.createHash("sha256").update(JSON.stringify(tracks.map(t => [t.id, t.annotationSha256 || null]).sort())).digest("hex");
 const get = (t, p) => p.split(".").reduce((o, k) => o == null ? null : o[k], t.metrics);
@@ -125,7 +141,7 @@ summary.reliability = { key: reliability(t => t.prediction.keyConf, t => t.metri
   tempo: reliability(t => t.prediction.bpmConf, t => t.metrics.tempo ? t.metrics.tempo.acc1 : null) };
 
 const meta = { kind: "track-teardown-scores", version: 2, scoredAt: new Date().toISOString(), classifierVersion: C.CLASSIFIER_VERSION, predictions: path.basename(predPath),
-  manifest: { ...P.manifest, changedSincePrediction: manifestChanged }, truthFingerprint, coverage: reqCheck.coverage, requirementProblems: reqCheck.problems, integrityProblems,
+  manifest: { ...P.manifest, changedSincePrediction: manifestChanged }, completeness, truthFingerprint, coverage: reqCheck.coverage, requirementProblems: reqCheck.problems, integrityProblems,
   annotationsChangedSincePrediction: tracks.filter(t => t.annotationsChangedSincePrediction).map(t => t.id), split: P.split, page: P.page, pageSha256: P.pageSha256, headSha: P.headSha, gitCommit: P.gitCommit,
   testedMergeCommit: P.testedMergeCommit, gitDirty: P.gitDirty, node: P.node, browser: P.browser, os: P.os, config: { beatWindowSec: M.WINDOW, drumWindowsSec: [0.03, 0.05, 0.1], bassOnsetWindowSec: 0.05, tempoTolerance: 0.04, bootstrap: { B: 2000, seed: 20261117 } } };
 fs.writeFileSync(path.join(OUT, "scores.json"), JSON.stringify({ meta, summary, tracks }, null, 1));
@@ -149,6 +165,11 @@ const L = [`# Benchmark report: ${P.manifest.name} (${P.split})`, "",
   manifest.note ? `> ${manifest.note}` : "", "",
   `${ok.length} of ${tracks.length} tracks scored.${summary.notScored.length ? " Not scored: " + summary.notScored.map(x => `${x.id} (${x.status})`).join(", ") + "." : ""} Mean over tracks, [bootstrap 95 % CI], n.`, "",
   "| Metric | Mean [95 % CI] | n |", "|---|---|---|", ...METRICS.map(([k, label]) => `| ${label} | ${fmt(summary.metrics[k])} | ${summary.metrics[k].n} |`), "",
+  "## Run completeness", "",
+  completeness.complete ? `Complete: all ${completeness.required} required tracks were analyzed and scored.` : `**INCOMPLETE: ${completeness.scored} of ${completeness.required} required tracks scored. The benchmark run is unsuccessful; the metrics above cover only the scored tracks.**`, "",
+  ...[["Analyzer failures (crash, timeout or page errors)", completeness.analyzerFailures], ["No usable prediction (not run, missing or changed audio)", completeness.missingPredictions],
+      ["Unscorable ground truth (answer files changed)", completeness.unscorableAnnotations], ["Predictions for tracks not in the manifest", completeness.unknownTracks]]
+    .filter(([, l]) => l.length).flatMap(([h, l]) => [`- ${h}: ` + (HOLDOUT ? `${l.length} track(s)` : l.map(x => `${x.id} (${x.status})`).join(", "))]), "",
   "## Ground truth", "", `Annotation protocol: ${manifest.annotationProtocol || "not stated"} · truth fingerprint \`${truthFingerprint.slice(0, 16)}\` (sha256 over every track's annotation-file hashes; any changed answer file changes it)`, "",
   "| Annotation | Tracks | Required |", "|---|---|---|", ...Object.entries(reqCheck.coverage).map(([k, c]) => `| ${k} | ${c.tracks}/${c.of} | ${c.required == null ? "–" : c.required === "all" ? "every track" : `≥ ${Math.round(c.required * 100)} %`} |`), "",
   ...(reqCheck.problems.length || integrityProblems.length ? ["**Requirement / integrity failures (run fails):**", "", ...[...reqCheck.problems, ...integrityProblems].map(x => `- ${x}`), ""] : ["All annotation requirements met; every annotation file matches its pinned sha256.", ""]),
@@ -172,5 +193,9 @@ console.log(METRICS.filter(([k]) => summary.metrics[k].n).map(([k]) => `${k} ${f
 console.log(`report: ${path.relative(process.cwd(), path.join(OUT, "report.md"))}`);
 if (manifestChanged) console.log("WARNING: the manifest changed since these predictions were made.");
 if (meta.annotationsChangedSincePrediction.length) console.log(`NOTE: annotations changed after prediction for ${meta.annotationsChangedSincePrediction.length} track(s); scored against the current, pinned files.`);
-const failures = [...reqCheck.problems, ...integrityProblems];
-if (failures.length) { console.log(`FAILED: ${failures.length} requirement/integrity problem(s).` + (HOLDOUT ? " Details in report.md." : "\n  " + failures.join("\n  "))); process.exitCode = 1; }
+const failures = [...reqCheck.problems, ...integrityProblems,
+  ...completeness.analyzerFailures.map(x => `analyzer failure: ${x.id} (${x.status})`),
+  ...completeness.missingPredictions.map(x => `no usable prediction: ${x.id} (${x.status})`),
+  ...completeness.unknownTracks.map(x => `prediction for a track not in the manifest: ${x.id}`)];
+console.log(`completeness: ${completeness.scored}/${completeness.required} required tracks scored${completeness.complete ? "" : " (INCOMPLETE: the metrics above cover only the scored tracks)"}`);
+if (failures.length) { console.log(`FAILED: ${failures.length} problem(s); reports were still written for diagnosis.` + (HOLDOUT ? " Details in report.md." : "\n  " + failures.join("\n  "))); process.exitCode = 1; }

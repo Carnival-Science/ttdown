@@ -37,7 +37,7 @@ Founder decision needed: which sources to use, budget, and whether legal review 
 ## 4. Track selection
 
 **Sizes.**
-- **Pilot (G1a):** 12 tracks, used to test the annotation protocol and harness end to end.
+- **Pilot (G1a):** 12 tracks, used to test the annotation protocol and harness end to end. **The pilot is development data.** Its results may shape the protocol and the failure classes, so it can never become part of a holdout.
 - **Development (G1b):** 60 tracks.
 - **Hidden holdout (G1b):** 30 tracks.
 - For key (a right/wrong outcome per track), 90 tracks give a 95 % confidence interval of roughly ±9–10 points around 70 % accuracy. Finer per-subgenre key conclusions need more tracks; this is an estimate, not a power calculation.
@@ -74,6 +74,12 @@ Founder decision needed: which sources to use, budget, and whether legal review 
 **Leakage rules:**
 - Split by **artist and release**. No artist appears in both development and holdout.
 - Remixes, edits, alternate masters and stems of one song stay in one split.
+- Every track records three **leakage identifiers**:
+  - `artists`: everyone credited, including featured artists and remixers;
+  - `release`: a catalog number where there is one;
+  - `songFamily`: the underlying song, shared by its originals, remixes, edits and VIPs.
+- Development and holdout may share **none** of them. The comparison ignores differences in case, accents and punctuation.
+- `bench/check-splits.js` enforces this and fails if any track lacks an identifier. Real manifests set `requirements.identity: true`.
 
 **Selection discipline:** define the selection quota *before* listening to analyzer output. Never add or drop tracks based on how the analyzer did on them.
 
@@ -86,7 +92,7 @@ Founder decision needed: which sources to use, budget, and whether legal review 
 
 | Task | Convention | Method | QA |
 |---|---|---|---|
-| Beats | Quarter-note level of the felt pulse. If half/double is genuinely plausible, record the alternative level as acceptable. | Tap along, then correct each beat against the waveform/spectrogram. Silence or drumless sections: annotate only if the pulse is unambiguous, and mark the span "uncertain". | 2 annotators on 100 % of tracks; inter-annotator beat F (±70 ms) reported; adjudicate below 0.9 |
+| Beats | Quarter-note level of the felt pulse. If half/double is genuinely plausible, record the alternative level as acceptable. | Tap along, then correct each beat against the waveform/spectrogram. **Beats must be continuous throughout every scorable region.** Where the pulse can't be verified (drumless or free-time section, ambiguous metre), don't guess: declare `gap <start> <end> <reason>`. Gaps are never filled with interpolated beats. Predictions inside a gap aren't scored, and grid drift restarts after it. An unexplained hole between beats fails validation (`requirements.continuousBeats: true`). | 2 annotators on 100 % of tracks; inter-annotator beat F (±70 ms) reported; adjudicate below 0.9 |
 | Downbeats / meter | First beat of each bar; meter per section | Marked on the beat annotation | 2 annotators; disagreements on "where is 1" kept as alternatives, not forced |
 | Tempo map | Derived from beats; S1 tracks: from DAW project, then cross-checked against audio | – | Flag tempo changes and drift > 0.5 % |
 | Key | Tonic + mode, extended labels: major, minor, dorian, phrygian, mixolydian, "atonal", "ambiguous", "modulates (segments)" | Musicians with a reference keyboard | 2 annotators; agreement and Cohen's κ reported |
@@ -124,6 +130,9 @@ Defined in `tests/metrics.js` (G0) plus additions. Every metric is reported **pe
 2. Run the development set once, without changes. Record per-track predictions with checksums, engine commit, browser/OS versions and runtime.
 3. Report the baseline per capability and per condition, with confidence intervals.
 4. **The holdout is run once, at the end of G1**, by a different command that never prints per-track details to the console, to confirm the development-set conclusions. Its numbers are reported but never used for tuning.
+   - **Independent custody.** The final holdout is assembled, annotated and stored by a custodian who is **not** the engineer tuning the analyzer. It is kept outside the repository, under the custody procedure in `bench/README.md`.
+   - **No pilot tracks.** No pilot or development track, artist, release or song family may enter it.
+5. **A run only counts if it is complete.** Every required track must be analyzed and scored. Crashes, timeouts, page errors, missing predictions and unscorable annotations all make the run unsuccessful (exit 1). Reports are still written so the failures can be diagnosed, and they are listed separately by cause.
 
 ## 8. Failure analysis
 

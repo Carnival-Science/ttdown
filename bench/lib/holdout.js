@@ -24,14 +24,31 @@ function holdoutGuard(f) { // f: { holdout, splits:Set, outsideRepo, operator, g
   return { ok: true, priorRuns: prior.length };
 }
 
-// Overlap between dev and holdout manifests: same id, same audio, or same group (artist/release/song family)
-function splitOverlap(dev, hold) {
-  const key = (ts, f) => new Map(ts.filter(t => f(t)).map(t => [f(t), t.id]));
+// ---- leakage identifiers (review: one exact-match `group` misses same artist / different release) ----
+// Each track carries:  artists: ["Artist A", "Artist B"]  (everyone credited: main, featured, remixer)
+//                      release: "label catalog number or release title"
+//                      songFamily: "the underlying song: originals, remixes, edits, VIPs, stems share it"
+// Dev and holdout may share NONE of these. Names are compared after normalization (case, accents, punctuation,
+// spacing), so "Bicep", "BICEP" and "Bícep." collide. A false alarm is cheap; a missed leak is not.
+const norm = s => String(s == null ? "" : s).normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const list = v => (Array.isArray(v) ? v : v == null || v === "" ? [] : [v]).map(norm).filter(Boolean);
+const IDENTITY = { artists: t => list(t.artists != null ? t.artists : t.artist), release: t => list(t.release), songFamily: t => list(t.songFamily) };
+
+function identityProblems(tracks) {
   const out = [];
-  for (const [what, f] of [["id", t => t.id], ["audio sha256", t => t.sha256], ["group", t => t.group]]) {
-    const H = key(hold, f); for (const t of dev) { const v = f(t); if (v && H.has(v)) out.push(`${what} ${String(v).slice(0, 40)}: dev ${t.id} / holdout ${H.get(v)}`); }
+  for (const t of tracks) { const miss = Object.keys(IDENTITY).filter(k => !IDENTITY[k](t).length); if (miss.length) out.push(`${t.id}: missing leakage identifier(s) ${miss.join(", ")}`); }
+  return out;
+}
+
+// Overlap between dev and holdout manifests on any identifier: id, audio, artist, release, song family, legacy group
+function splitOverlap(dev, hold) {
+  const keys = { "id": t => [t.id], "audio sha256": t => t.sha256 ? [t.sha256] : [], "artist": IDENTITY.artists, "release": IDENTITY.release, "song family": IDENTITY.songFamily, "group": t => list(t.group) };
+  const out = [];
+  for (const [what, f] of Object.entries(keys)) {
+    const H = new Map(); for (const t of hold) for (const v of f(t)) if (!H.has(v)) H.set(v, t.id);
+    for (const t of dev) for (const v of f(t)) if (H.has(v)) out.push(`${what} "${String(v).slice(0, 40)}": dev ${t.id} / holdout ${H.get(v)}`);
   }
   return out;
 }
 
-module.exports = { holdoutGuard, splitOverlap };
+module.exports = { holdoutGuard, splitOverlap, identityProblems, normalizeName: norm };

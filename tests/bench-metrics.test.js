@@ -62,9 +62,18 @@ assert.equal(C.driftClass(ph), "slipped-beats");
 const steady = Array.from({ length: 64 }, (_, i) => i * 0.5 - 0.012);
 assert.equal(M.phaseDrift(P120, steady).maxAbsMs, M.drift(M.exportGrid(P120).beats, steady).maxAbsMs);
 assert.equal(C.driftClass(M.phaseDrift(P120, steady)), "ok");
-// an unannotated gap (beats 20-27 missing) is bridged, not mistaken for a slip
-const gapped = steady.filter((_, i) => i < 20 || i > 27), pg = M.phaseDrift(P120, gapped);
-assert.equal(pg.gapsBridged, 1); assert.equal(pg.maxAbsMs, 12);
+// beats are never interpolated across a hole: the count restarts after it. Declared gap -> new segment;
+// an unexplained hole also restarts (no guessing) but is counted as undeclared.
+const gapped = steady.filter((_, i) => i < 20 || i > 27);
+const pd = M.phaseDrift(P120, gapped, [{ start: 9.6, end: 13.9, reason: "breakdown" }]);
+assert.deepEqual([pd.segments, pd.undeclaredGaps, pd.maxAbsMs], [2, 0, 12]);
+const pu = M.phaseDrift(P120, gapped);
+assert.deepEqual([pu.segments, pu.undeclaredGaps, pu.maxAbsMs], [2, 1, 12]);
+// a whole-beat slip hidden inside a gap is not invented either: after the gap the grid is re-anchored
+const slipInGap = gapped.map(t => t > 12 ? t + 0.5 : t); // the music lost exactly one beat inside the gap
+assert.equal(M.phaseDrift(P120, slipInGap, [{ start: 9.6, end: 14.4, reason: "x" }]).maxAbsMs, 12);
+// predictions inside a declared gap are dropped before scoring; at the edges they stay
+assert.deepEqual(M.outsideGaps([9, 9.6, 10, 13.9, 14], [{ start: 9.6, end: 13.9 }]), [9, 9.6, 13.9, 14]);
 // a 100 ms constant offset is an offset, not a slip
 assert.equal(C.driftClass(M.phaseDrift(P120, steady.map(t => t - 0.088))), "constant-offset");
 

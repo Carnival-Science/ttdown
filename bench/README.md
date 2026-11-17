@@ -20,13 +20,16 @@ node bench/score.js <DIR>/predictions.json                             # scores.
 ```json
 {
   "name": "electronic-dev", "version": 3, "annotationProtocol": "v1.0",
-  "requirements": { "checksums": true, "annotations": { "beats": "all", "downbeats": "all", "key": "all", "chords": 0.3 } },
+  "requirements": { "checksums": true, "continuousBeats": true, "identity": true,
+                    "annotations": { "beats": "all", "downbeats": "all", "key": "all", "chords": 0.3 } },
   "tracks": [{
     "id": "ukg-007",
     "audio": "audio/ukg-007.wav",
     "sha256": "…",
     "split": "dev",
-    "group": "artist-x/release-y",
+    "artists": ["Artist X", "Featured Artist"],
+    "release": "LABEL-042",
+    "songFamily": "artist x - song name",
     "rights": { "source": "contributor agreement CA-012", "licence": "internal evaluation only" },
     "tempo": 132,
     "tags": { "style": "uk garage", "swing": "heavy", "four_on_floor": false, "tempo_band": "115-135" },
@@ -39,7 +42,12 @@ node bench/score.js <DIR>/predictions.json                             # scores.
 Field notes:
 - Paths are relative to the manifest. Audio and annotations for real music live **outside this repository**.
 - `split` is `dev` or `holdout`.
-- `sha256` is checked before each run; a mismatch marks the track `checksum-mismatch` and it isn't analyzed.
+- `sha256` is checked before each run; a mismatch stops the run before it starts.
+- `artists`, `release` and `songFamily` are the leakage identifiers.
+  - `artists`: everyone credited, including featured artists and remixers.
+  - `release`: a catalog number if there is one.
+  - `songFamily`: the underlying song, shared by its originals, remixes, edits and VIPs.
+- **Real benchmark manifests must set `checksums`, `continuousBeats` and `identity` to true.**
 - `tempo` is optional; without it, tempo comes from the median beat interval.
 - Any annotation may be missing; metrics that need it are reported as not scored.
 - `tags` are free-form condition labels. Every tag value becomes a row of the failure atlas.
@@ -48,7 +56,7 @@ Annotation formats (plain text, mir_eval/Sonic Visualiser style; `#` at line sta
 
 | File | Line format |
 |---|---|
-| beats | `time [beat-in-bar]` (1 = downbeat; without positions, downbeats are "not annotated") |
+| beats | `time [beat-in-bar]` (1 = downbeat; without positions, downbeats are "not annotated"). Must be continuous in scorable regions; declare uncertain spans as `gap <start> <end> <reason>`. Gaps are never interpolated: predictions inside them are not scored, and drift restarts after them. |
 | key | `F# minor` (also `dorian`, `phrygian`, …, `atonal`, `ambiguous`: kept, not scored as major/minor) |
 | chords | `start end label` (Harte: `A:min`, `C:maj7/3`, `N`, `X`) |
 | drums | `time class` (`kick`/`bd`, `snare`/`sd`/`clap`/`cp`/`rim`, `hihat`/`hh`/`chh`/`ohh`) |
@@ -78,9 +86,13 @@ Every error also gets a **failure class** (`lib/classify.js`, versioned). `repor
 - Audio files are checked against `sha256`.
 - The manifest's `requirements` are enforced:
   ```json
-  "requirements": { "checksums": true, "annotations": { "beats": "all", "downbeats": "all", "key": "all", "chords": 0.3, "drums": 0.5 } }
+  "requirements": { "checksums": true, "continuousBeats": true, "identity": true,
+                    "annotations": { "beats": "all", "downbeats": "all", "key": "all", "chords": 0.3, "drums": 0.5 } }
   ```
-  `"all"` means every track; a number is the minimum share of tracks. `downbeats` means the beats file carries bar positions. `checksums: true` requires a hash for the audio and for every annotation.
+  `"all"` means every track; a number is the minimum share of tracks. `downbeats` means the beats file carries bar positions.
+  - `checksums` requires a hash for the audio and for every annotation.
+  - `continuousBeats` rejects any hole longer than 1.75× the local beat interval that isn't declared as a gap, any beat inside a gap, and any gap without a reason.
+  - `identity` requires `artists`, `release` and `songFamily` on every track.
 
 `score.js` checks again at scoring time:
 - A track whose answer files no longer match is **not scored**, and the run exits 1.
@@ -90,9 +102,24 @@ Every error also gets a **failure class** (`lib/classify.js`, versioned). `repor
 
 To correct an annotation, edit the file, update its hash, bump the manifest `version`, and re-score. The old report keeps the old fingerprint.
 
+## Run completeness
+
+Every manifest track of the split is required. `score.js` exits 1 unless **every** required track was analyzed and scored. Reports are written either way, and failures are listed by cause because each needs a different owner:
+
+| Category | Meaning | Owner |
+|---|---|---|
+| Analyzer failures | crash ("Couldn't read"), timeout, or page errors (metrics kept for diagnosis) | analyzer |
+| No usable prediction | track not run, or its audio missing or changed | whoever ran the benchmark |
+| Unscorable ground truth | answer files changed since they were pinned | annotation custodian |
+| Unknown tracks | predictions for tracks no longer in the manifest | whoever ran the benchmark |
+
+Aggregate metrics in an incomplete run cover only the scored tracks, and the report says so at the top of its completeness section.
+
 ## Exported-grid drift
 
-`drift` is **phase-locked**: exported beat *n* is tied to true beat *n* from the first true beat, so a grid that slips by whole beats on a tempo-changing track keeps accumulating error. The class is `slipped-beats` once it is half a beat or more off. `driftNearest` (distance to the nearest exported beat) is kept for comparison; it can never exceed half a beat. Gaps in the beat annotation are bridged using the local beat interval.
+`drift` is **phase-locked**: exported beat *n* is tied to true beat *n* from the first true beat, so a grid that slips by whole beats on a tempo-changing track keeps accumulating error. The class is `slipped-beats` once it is half a beat or more off. `driftNearest` (distance to the nearest exported beat) is kept for comparison; it can never exceed half a beat.
+
+Beats are **never interpolated**. At a declared gap the count restarts with a new anchor, because how many beats passed inside the gap is unknown. An unexplained hole also restarts the count; it is reported as `undeclaredGaps`, and it fails validation when `continuousBeats` is required.
 
 ## Holdout safeguards
 
@@ -102,7 +129,8 @@ To correct an annotation, edit the file, update its hash, bump the manifest `ver
 3. `--operator NAME` is required. Every run is appended to the custody log `holdout-runs.jsonl` next to the holdout manifest: date, operator, reason, engine head SHA, page sha256, manifest sha256.
 4. The working tree must be **clean**, so each result maps to one commit.
 5. **One run per engine build.** If the log already has a run for this `index.html`, another run needs `--reason "<why>"`, which is logged.
-6. `node bench/check-splits.js dev.json holdout.json` fails on any shared track id, audio file or `group` (set `group` to artist/release so related tracks stay in one split).
+6. `node bench/check-splits.js dev.json holdout.json` fails on any shared track id, audio file, **artist**, **release** or **song family**, compared ignoring case, accents and punctuation. It also fails if any track lacks those identifiers, since leakage can't then be ruled out. The legacy `group` field is still compared if present.
+7. The 12-track G1a pilot and all development tracks are dev data. Nothing from them (track, artist, release or song family) may enter the final holdout.
 
 **Procedure** (people, not code):
 - **Custodian.** One named custodian, not the engineer tuning the analyzer, holds the holdout manifest, audio, annotations and custody log outside this repository, e.g. an access-restricted drive.

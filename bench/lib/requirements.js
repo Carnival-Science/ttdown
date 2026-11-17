@@ -4,13 +4,17 @@
 //   track.annotationSha256: { beats: "<sha256>", key: "...", ... }   expected hash of each annotation file
 //   manifest.requirements: {
 //     checksums: true,                          every track must list audio sha256 and a hash for every annotation
-//     annotations: { beats: "all", downbeats: "all", key: "all", chords: 0.3, drums: 0.5, bass: 0 }
+//     annotations: { beats: "all", downbeats: "all", key: "all", chords: 0.3, drums: 0.5, bass: 0 },
+//     continuousBeats: true,                    beats continuous; uncertain spans declared as "gap" lines
+//     identity: true                            every track has artists, release, songFamily (leakage checks)
 //   }                                           "all" = every track; a number = minimum share of tracks
 // "downbeats" means a beats file whose lines carry bar positions.
+// Real benchmark manifests must set checksums, continuousBeats and identity (bench/README.md).
 "use strict";
 const fs = require("node:fs"), path = require("node:path");
 const { sha256File } = require("./provenance");
-const { beats } = require("./loaders");
+const { beats, validateBeats } = require("./loaders");
+const { identityProblems } = require("./holdout");
 const KINDS = ["beats", "downbeats", "key", "chords", "drums", "bass"];
 
 // Hash every annotation file a track lists; compare with the manifest's expected hashes.
@@ -38,6 +42,11 @@ function checkRequirements(manifest, tracks, manifestDir) {
   if (req.checksums) for (const t of tracks) {
     if (!t.sha256) problems.push(`${t.id}: no audio sha256 (requirements.checksums)`);
     for (const k of Object.keys(t.annotations || {})) if (!(t.annotationSha256 || {})[k]) problems.push(`${t.id}: no sha256 for ${k} annotation (requirements.checksums)`);
+  }
+  if (req.identity) problems.push(...identityProblems(tracks));
+  if (req.continuousBeats) for (const t of tracks) {
+    const f = t.annotations && t.annotations.beats && path.resolve(manifestDir, t.annotations.beats);
+    if (f && fs.existsSync(f)) { try { problems.push(...validateBeats(beats(f)).map(x => `${t.id}: ${x}`)); } catch (e) { problems.push(`${t.id}: beats file unreadable (${e.message})`); } }
   }
   const have = new Map(tracks.map(t => [t.id, provided(t, manifestDir)]));
   for (const k of KINDS) {

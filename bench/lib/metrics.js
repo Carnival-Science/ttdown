@@ -29,25 +29,32 @@ function drift(exportBeats, refBeats, win = WINDOW) {
 // Phase-unwrapped drift (review finding 2). Nearest-beat distance (drift above) can never exceed half a beat:
 // once the grid slips by a whole beat it looks perfect again. Here exported beat n is tied to true beat n from
 // the first true beat on, so displacement keeps accumulating across tempo changes. The exported grid is linear
-// (firstDown + n * q, q = barSec / 4), so true beat k should sit on export beat n0 + idx[k]. idx counts true beats;
-// a gap in the annotation (an unannotated section) is bridged with the local beat interval.
-function phaseDrift(p, refBeats, win = WINDOW) {
+// (firstDown + n * q, q = barSec / 4), so the k-th beat of a continuous annotated segment should sit on export beat
+// n0 + k. Beats are never interpolated: at a declared gap (or an unexplained hole, counted as undeclaredGaps) the
+// count restarts with a new anchor, because how many beats passed inside the gap is unknown.
+function phaseDrift(p, refBeats, gaps = [], win = WINDOW) {
   if (!refBeats || refBeats.length < 2) return null;
-  const q = p.barSec / 4, R = refBeats.slice().sort((a, b) => a - b), I = R.map((t, k) => k ? t - R[k - 1] : null);
-  const med = a => a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)];
-  const idx = [0]; let gaps = 0;
+  const q = p.barSec / 4, R = refBeats.slice().sort((a, b) => a - b), med = a => a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)];
+  const I = R.slice(1).map((t, i) => t - R[i]);
+  const segStarts = [0]; let undeclared = 0;
   for (let k = 1; k < R.length; k++) {
-    const local = k > 1 ? med(I.slice(Math.max(1, k - 4), k)) : I[k], step = Math.max(1, Math.round(I[k] / local));
-    if (step > 1) gaps++; idx.push(idx[k - 1] + step);
+    const declared = (gaps || []).some(g => g.start >= R[k - 1] - 1e-6 && g.end <= R[k] + 1e-6);
+    const local = med(I.slice(Math.max(0, k - 9), k - 1).concat(I.slice(k, k + 8))) || I[k - 1];
+    const hole = I[k - 1] > 1.75 * local;
+    if (declared || hole) { segStarts.push(k); if (hole && !declared) undeclared++; }
   }
-  const n0 = Math.round((R[0] - p.firstDown) / q);
-  const off = R.map((t, k) => (p.firstDown + (n0 + idx[k]) * q - t) / q); // beats; + = export late
+  const off = [];
+  segStarts.forEach((s, j) => { const e = j + 1 < segStarts.length ? segStarts[j + 1] : R.length, n0 = Math.round((R[s] - p.firstDown) / q);
+    for (let k = s; k < e; k++) off.push((p.firstDown + (n0 + k - s) * q - R[k]) / q); }); // beats; + = export late
   const ms = off.map(v => v * q * 1000), abs = ms.map(Math.abs), k8 = Math.min(8, ms.length);
   const iMax = abs.indexOf(Math.max(...abs)), first = abs.findIndex(v => v > win * 1000), slip = off.findIndex(v => Math.abs(v) >= 0.5);
   return { maxAbsMs: r4(abs[iMax]), maxAbsBeats: r4(Math.abs(off[iMax])), maxSlipBeats: Math.round(Math.abs(off[iMax])), startOffsetMs: r4(med(ms.slice(0, k8))), endOffsetMs: r4(med(ms.slice(-k8))),
     endOffsetBeats: r4(med(off.slice(-k8))), firstExceedSec: first < 0 ? null : r4(R[first]), firstSlipSec: slip < 0 ? null : r4(R[slip]),
-    beatsWithin: r4(abs.filter(v => v <= win * 1000).length / abs.length), gapsBridged: gaps };
+    beatsWithin: r4(abs.filter(v => v <= win * 1000).length / abs.length), segments: segStarts.length, undeclaredGaps: undeclared };
 }
+
+// predictions strictly inside a declared gap are not scored (there is no verified ground truth there)
+const outsideGaps = (times, gaps) => !gaps || !gaps.length ? times : times.filter(t => !gaps.some(g => t > g.start && t < g.end));
 
 // ---- key: mir_eval.key.weighted_score (a fifth counts only upward) + a category for failure analysis ----
 function parseKey(s) { const [t, m] = String(s || "").trim().split(/\s+/); return { tonic: pitchClass(t), mode: (m || "").toLowerCase() }; }
@@ -108,4 +115,4 @@ function noteScores(est, ref, win = 0.05) {
     pitchAccuracyOnMatched: m.length ? r4(pitchOk / m.length) : null, octaveErrorRate: m.length ? r4(octave / m.length) : null, matched: m.length };
 }
 
-module.exports = { exportGrid, drift, phaseDrift, keyScore, parseKey, chordScores, parseChord, appChordToHarte, noteScores, events, tempo, match, WINDOW, r4 };
+module.exports = { exportGrid, drift, phaseDrift, outsideGaps, keyScore, parseKey, chordScores, parseChord, appChordToHarte, noteScores, events, tempo, match, WINDOW, r4 };

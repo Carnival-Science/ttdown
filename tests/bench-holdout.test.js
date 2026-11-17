@@ -2,7 +2,7 @@
 // browser starts, so these tests are fast and need no audio.
 "use strict";
 const assert = require("node:assert/strict"), fs = require("node:fs"), os = require("node:os"), path = require("node:path"), crypto = require("node:crypto"), { spawnSync } = require("node:child_process");
-const { holdoutGuard, splitOverlap } = require("../bench/lib/holdout");
+const { holdoutGuard, splitOverlap, identityProblems } = require("../bench/lib/holdout");
 const ROOT = path.join(__dirname, ".."), RUN = path.join(ROOT, "bench", "run.js"), SPLITS = path.join(ROOT, "bench", "check-splits.js");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tt-holdout-"));
 const manifest = (tracks, dir = tmp) => { fs.mkdirSync(dir, { recursive: true }); const p = path.join(dir, `m${crypto.randomBytes(4).toString("hex")}.json`); fs.writeFileSync(p, JSON.stringify({ name: "t", version: 1, tracks })); return p; };
@@ -40,14 +40,27 @@ fs.writeFileSync(path.join(hdir, "holdout-runs.jsonl"), JSON.stringify({ date: "
 r = node(RUN, hm, "--holdout", "--out", path.join(tmp, "out"), "--operator", "x");
 assert.equal(r.status, 2); assert.match(r.stderr, /already run on this engine build/);
 
-// ---- leakage between dev and holdout manifests ----
-assert.deepEqual(splitOverlap([{ id: "a", sha256: "1", group: "artistX" }], [{ id: "b", sha256: "2", group: "artistY" }]), []);
-assert.equal(splitOverlap([{ id: "a", sha256: "1", group: "g" }], [{ id: "a", sha256: "1", group: "g" }]).length, 3);
-assert.match(splitOverlap([{ id: "a", sha256: "1", group: "artistX/ep1" }], [{ id: "b", sha256: "2", group: "artistX/ep1" }])[0], /^group/);
-r = node(SPLITS, manifest([{ ...D, sha256: "s1", group: "g1" }]), manifest([{ ...H, sha256: "s2", group: "g1" }]));
-assert.equal(r.status, 1); assert.match(r.stdout, /LEAKAGE: 1 overlap/);
-r = node(SPLITS, manifest([{ ...D, sha256: "s1", group: "g1" }]), manifest([{ ...H, sha256: "s2", group: "g2" }]));
-assert.equal(r.status, 0);
+// ---- leakage between dev and holdout manifests: artist, release and song family are checked separately ----
+const T = (id, artists, release, songFamily, extra) => ({ id, sha256: `sha-${id}`, artists, release, songFamily, ...extra });
+const leak = (d, h) => splitOverlap([d], [h]);
+assert.deepEqual(leak(T("a", ["Artist X"], "CAT001", "Song A"), T("b", ["Artist Y"], "CAT002", "Song B")), []);
+// the case the review raised: same artist, different release and song -> was missed by one exact `group`
+assert.match(leak(T("a", ["Artist X"], "CAT001", "Song A", { group: "artist-x/ep1" }), T("b", ["Artist X"], "CAT009", "Song Z", { group: "artist-x/lp2" })).join(), /^artist "artist x"/);
+assert.match(leak(T("a", ["Artist A", "Artist B"], "R1", "S1"), T("b", ["Artist B"], "R2", "S2")).join(), /artist "artist b"/);          // collaboration / feature
+assert.equal(leak(T("a", ["Bicep"], "R1", "S1"), T("b", ["BICEP."], "R2", "S2")).length, 1);                                         // case and punctuation
+assert.equal(leak(T("a", ["Bícep"], "R1", "S1"), T("b", ["bicep"], "R2", "S2")).length, 1);                                          // accents
+assert.match(leak(T("a", ["Original Artist"], "R1", "Opus"), T("b", ["Remixer"], "R2", "opus")).join(), /song family "opus"/);        // remix of the same song
+assert.match(leak(T("a", ["X"], "LBL-042", "S1"), T("b", ["Y"], "lbl 042", "S2")).join(), /release "lbl 042"/);                       // same release, other artist
+assert.equal(leak(T("a", ["X"], "R1", "S1"), T("a", ["Y"], "R2", "S2", { sha256: "other-audio" })).length, 1);                        // same id only
+assert.equal(splitOverlap([{ id: "a", artist: "Solo Name" }], [{ id: "b", artists: ["solo name"] }]).length, 1);                      // single `artist` field accepted
+assert.deepEqual(identityProblems([T("a", ["X"], "R", "S"), { id: "b", artists: [], release: "R" }]), ["b: missing leakage identifier(s) artists, songFamily"]);
+// command line: missing identifiers can't be ruled safe; overlaps fail; clean splits pass
+r = node(SPLITS, manifest([{ ...D, sha256: "s1" }]), manifest([{ ...H, ...T("h1", ["Y"], "R2", "S2") }]));
+assert.equal(r.status, 1); assert.match(r.stdout, /INCOMPLETE: 1 track\(s\) lack leakage identifiers/);
+r = node(SPLITS, manifest([{ ...D, ...T("d1", ["Same Artist"], "R1", "S1") }]), manifest([{ ...H, ...T("h1", ["same artist"], "R2", "S2") }]));
+assert.equal(r.status, 1); assert.match(r.stdout, /LEAKAGE: 1 overlap[\s\S]*artist "same artist": dev d1 \/ holdout h1/);
+r = node(SPLITS, manifest([{ ...D, ...T("d1", ["A"], "R1", "S1") }]), manifest([{ ...H, ...T("h1", ["B"], "R2", "S2") }]));
+assert.equal(r.status, 0, r.stdout);
 
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log("holdout safeguard tests passed");
