@@ -564,6 +564,26 @@ Decisions applied: results held in `$state.raw` and **replaced** on every correc
 
 Found and fixed by these gates: the Esc-to-cancel listener (legacy listens on `document`; the first port listened on `window`), and `window.__td` being a getter in the bench build (the legacy page assigns it, and test25/test26 observe the assignments). **No accuracy claim** follows from parity: the Svelte app reproduces the legacy analysis exactly, including its known defects (§8.3).
 
+### Release-candidate review gates (2026-11-18)
+
+An external review of the finished PR set these gates before production. Status:
+
+| Gate | Status |
+|---|---|
+| Hosted CI green on the final head | Passed on `058ae8f` and `c1dbf97`; re-checked on the final head after the changes below (see the PR) |
+| Netlify preview end to end | Checked on `5f97780`: `/` serves the Svelte production build (manifest commit `5f97780`, clean, 61 files, hashed assets `immutable`), `/legacy.html` serves the legacy page with the engine inlined |
+| Saved-data round trip | Same-origin round trip both ways (above), plus `tests/app-saved-data-variants.test.js`: a real saved record with each optional field removed or nulled (28 variants) opens in the legacy page and the Svelte app alike. **Not possible here:** the founder's own browser data. localStorage is per origin, so only production (after merge) holds it; `/legacy.html` on that origin is the fallback if anything is odd |
+| Audio playback and exports on desktop/mobile | Not verified on real devices here (headless Chromium only). Manual smoke test needed on Safari and a phone: play the song, Check by ear, beat clicks, the MIDI zip and the aligned WAV |
+| Account integration in Claude | Exercised against a **mock** runtime only (`tests/app-account.test.js`); not against a real Claude runtime |
+| Rollback rehearsal | Reverting the merge restores the legacy root; both apps use the same keys and shapes, so data written by either is read by the other (round-trip test) |
+
+Two implementation risks raised by the review, verified and fixed:
+
+1. **Late account connection.** It could never overwrite local state (migration only adds ids the account lacks, and nothing is written back into localStorage). But migration covered only history, log and progress, so plan ticks, saved ideas, journal cards and shelf items made while offline vanished from view once the account took over reads, and a refused write was never retried. Now migration covers every kind of saved data (still add-only), a refused write is remembered and retried at the next connection event, and the user is told when a write was refused. The legacy page has the same gaps; this makes the Svelte app a superset.
+2. **Cached capability failures.** `useCap` kept a failed or absent capability for the page's lifetime. Now only a capability that was obtained is kept; a failure is retried on the next use.
+
+`tests/app-account.test.js` (21 checks, mock runtime, data made by the real legacy page) covers both and fails on the previous code.
+
 ### Full suite on this branch (local, Apple M1, Node 24.19, Chromium 159)
 
 | Command | Exit | Wall | Result |

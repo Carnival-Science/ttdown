@@ -139,6 +139,12 @@ jobs:
       - name: "Data compatibility: legacy page and Svelte app read each other's saved data on the same origin"
         run: node tests/app-storage-roundtrip.test.js
 
+      - name: "Account sync and optional runtime: late connection, refused writes, failed capabilities (mock Claude runtime)"
+        run: node tests/app-account.test.js
+
+      - name: "Saved-data variants: records with missing optional fields open in the Svelte app wherever the legacy page opens them"
+        run: node tests/app-saved-data-variants.test.js
+
       - name: Upload build manifests and smoke screenshots
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

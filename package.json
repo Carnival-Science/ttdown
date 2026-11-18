@@ -9,6 +9,7 @@
     "app:build": "npm --prefix app run build:all",
     "app:smoke": "npm --prefix app run smoke",
     "app:feature-tests": "node tests/run-app-tests.js",
+    "app:data-tests": "node tests/app-storage-roundtrip.test.js && node tests/app-account.test.js && node tests/app-saved-data-variants.test.js",
     "app:parity": "node bench/target-parity.js test-songs/manifest.json && node bench/target-parity.js test-songs/time-fixtures/manifest.json && node bench/target-parity.js test-songs/arrangement-fixtures/manifest.json",
     "songs": "python test-songs/make_test_songs.py",
     "benchmark": "node tests/benchmark.js",
