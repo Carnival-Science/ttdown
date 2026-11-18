@@ -8,11 +8,13 @@ const ROOT = path.resolve(__dirname, "..");
 let n = 0; const ok = (name, fn) => { fn(); n++; };
 
 ok("legacy is the default target and keeps the file:// URL the harness always used", () => {
+  const eng = require("node:crypto").createHash("sha256").update(fs.readFileSync(path.join(ROOT, "src", "engine.js"))).digest("hex");
   const t = createTarget({ root: ROOT });
   assert.equal(t.kind, "legacy"); assert.equal(t.canAnalyze, true);
   assert.equal(t.url(), `file://${ROOT}/index.html#teardown`);
   const d = t.describe(); assert.equal(d.loadedFrom, "file"); assert.equal(d.page, "index.html"); assert.match(d.pageSha256, /^[0-9a-f]{64}$/);
   assert.equal(d.variant, d.pageSha256 === VERSION_A_PAGE_SHA256 ? "frozen-version-a" : "working");
+  assert.equal(d.engineSha256, eng, "the engine inlined in index.html is src/engine.js byte for byte");
 });
 ok("a legacy page with Version A's hash is labelled frozen", () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tt-target-")); fs.writeFileSync(path.join(tmp, "p.html"), "x");
@@ -29,17 +31,18 @@ ok("unknown kinds, missing pages and missing builds are refused", () => {
 ok("the svelte target is identified by its external manifest and refuses to analyse", async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tt-target-")), dist = path.join(tmp, "app", "dist", "bench");
   fs.mkdirSync(dist, { recursive: true });
-  const man = { mode: "bench", gitSha: "a".repeat(40), gitDirty: false, timemapSha256: "b".repeat(64), bundleSha256: "c".repeat(64) };
+  const man = { mode: "bench", gitSha: "a".repeat(40), gitDirty: false, timemapSha256: "b".repeat(64), engineSha256: "e".repeat(64), bundleSha256: "c".repeat(64) };
   fs.writeFileSync(path.join(dist, "build-manifest.json"), JSON.stringify(man));
   const t = createTarget({ kind: "svelte", root: tmp });
   assert.equal(t.canAnalyze, false);
   assert.deepEqual(t.describe(), { kind: "svelte", variant: "bench", loadedFrom: "http://localhost", entry: "app/dist/bench/index.html",
-    bundleSha256: man.bundleSha256, buildGitSha: man.gitSha, buildGitDirty: false, timemapSha256: man.timemapSha256 });
+    bundleSha256: man.bundleSha256, buildGitSha: man.gitSha, buildGitDirty: false, timemapSha256: man.timemapSha256, engineSha256: man.engineSha256 });
   assert.throws(() => t.url(), e => e.code === "not-started");
   return Promise.all([
     assert.rejects(t.analyzeTrack(), e => e.code === "cannot-analyze"),
-    assert.rejects(t.verifyIdentity({ evaluate: async () => ({ gitSha: man.gitSha, timemapSha256: "d".repeat(64), mode: "bench" }) }), e => e.code === "identity-mismatch"),
+    assert.rejects(t.verifyIdentity({ evaluate: async () => ({ gitSha: man.gitSha, timemapSha256: "d".repeat(64), engineSha256: man.engineSha256, mode: "bench" }) }), e => e.code === "identity-mismatch"),
     assert.rejects(t.verifyIdentity({ evaluate: async () => null }), e => e.code === "no-identity"),
-    t.verifyIdentity({ evaluate: async () => ({ gitSha: man.gitSha, timemapSha256: man.timemapSha256, mode: "bench" }) }),
+    t.verifyIdentity({ evaluate: async () => ({ gitSha: man.gitSha, timemapSha256: man.timemapSha256, engineSha256: man.engineSha256, mode: "bench" }) }),
+    assert.rejects(t.verifyIdentity({ evaluate: async () => ({ gitSha: man.gitSha, timemapSha256: man.timemapSha256, engineSha256: "f".repeat(64), mode: "bench" }) }), e => e.code === "identity-mismatch"),
   ]).then(() => console.log(`bench target tests passed (${n})`));
 });

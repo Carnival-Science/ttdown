@@ -544,5 +544,5 @@ async function analyze(file, onProg, opts_compare, signal) {
   return result;
 }
 
-return Object.freeze({ analyze, transcribe, mag, detrend, acfAt, NAMES, CAM_MAJ, CAM_MIN, LIMITS, InputLimitError, fmtLen, ANALYSIS_STATS });
+return Object.freeze({ analyze, transcribe, tick, mag, detrend, acfAt, NAMES, CAM_MAJ, CAM_MIN, LIMITS, InputLimitError, fmtLen, ANALYSIS_STATS });
 });
