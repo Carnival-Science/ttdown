@@ -7,13 +7,16 @@ score.js used (scores.json "inputs"), and compares. Exits 1 if any value differs
     python bench/crosscheck_mir_eval.py [bench/out/synthetic/scores.json] [--manifest path/to/manifest.json]
 
 Scorable regions are checked independently: this script applies its OWN half-open [start, end) masks to the reference annotations AND to the
-raw predictions (read from predictions.json next to scores.json), instead of trusting the masked data score.js recorded. An annotated-but-empty
-class inside a region must still score its false positives, and a class with nothing annotated and nothing predicted must be "not scored".
+raw predictions (read from predictions.json next to scores.json), instead of trusting the masked data score.js recorded. EVERY evaluated event
+list is rebuilt here from the raw predictions: tracked beats and downbeats, the exported grid (own implementation of firstDown + n * barSec / 4),
+drum hits, bass notes and chord bars (own app-chord to Harte mapping), then masked by this script's own region and declared-gap filters. Only
+if predictions.json is missing does it fall back to the (already filtered) copies in scores.json. An annotated-but-empty class inside a region
+must still score its false positives, and a class with nothing annotated and nothing predicted must be "not scored".
 
 All times are shifted by one constant so none is negative (mir_eval rejects negative times); matching-based
 scores do not change under a common shift.
 """
-import json, os, sys, warnings
+import json, math, os, sys, warnings
 import numpy as np
 import mir_eval
 
@@ -46,6 +49,34 @@ def mask_times(x, regs):
     for r in regs: keep |= (x >= r["start"]) & (x < r["end"])
     return x[keep]
 
+WINDOW = 0.07
+def export_grid(full):
+    """The grid the app exports: firstDown + n * barSec / 4 (own implementation, same arithmetic order as the app)."""
+    fd, bs, dur = full["firstDown"], full["barSec"], full["duration"]
+    beats, downs = [], []
+    n = math.ceil((-WINDOW - fd) / (bs / 4))
+    while fd + n * bs / 4 <= dur:
+        t = fd + n * bs / 4; beats.append(t)
+        if n % 4 == 0: downs.append(t)
+        n += 1
+    return np.array(beats), np.array(downs)
+
+def read_gaps(path):
+    """Declared 'gap <start> <end> <reason>' spans of a beats file: predictions strictly inside are not scored."""
+    out = []
+    for line in open(path, encoding="utf-8"):
+        w = line.split()
+        if w and w[0].lower() == "gap" and len(w) >= 3: out.append((float(w[1]), float(w[2])))
+    return out
+
+def outside_gaps(x, gaps):
+    x = np.asarray(x, dtype=float)
+    if not gaps: return x
+    return x[[not any(g[0] < v < g[1] for g in gaps) for v in x]]
+
+def app_chord_to_harte(c):
+    return "N" if (not c or c == "\u2013") else (c[:-1] + ":min" if c.endswith("m") else c + ":maj")
+
 def f_or_none(ref, est, tol):
     """mir_eval F, or None when nothing is annotated AND nothing predicted (vacuous: not scored)."""
     if len(ref) == 0 and len(est) == 0: return None
@@ -64,7 +95,7 @@ for t in S["tracks"]:
     # one shift for the whole track, large enough to make every time non-negative
     lows = [0.0] + [min(v) for k, v in inp.items() if isinstance(v, list) and v and isinstance(v[0], (int, float))]
     lows += [min(v) for v in (inp.get("drums") or {}).values() if v] + [s["start"] for s in inp.get("chords") or []][:1] + [n["onset"] for n in inp.get("bass") or []][:1]
-    sh = max(0.0, -min(lows)) + 0.0
+    sh = max(0.0, -min(lows)) + 3.0   # a constant shift; raw predictions can start before 0 (firstDown < 0), all metrics are shift-invariant
     arr = lambda v: np.asarray(v, dtype=float) + sh
     regs = tracks[t["id"]].get("scorable")
     raw = PRED.get(t["id"], {})
@@ -79,19 +110,26 @@ for t in S["tracks"]:
         keep = np.zeros(len(bt0), dtype=bool)
         for r in (regs or [{"start": -1e9, "end": 1e9}]): keep |= (bt0 >= r["start"]) & (bt0 < r["end"])
         bt = bt0[keep] + sh; down = (bt0[keep & isdown] + sh) if isdown is not None else None
-        trk = mask_times(raw["grid"]["beats"], regs) if raw.get("grid") else np.asarray(inp["trackedBeats"], dtype=float)
+        gaps = read_gaps(P("beats"))
+        cut = lambda v: outside_gaps(mask_times(v, regs), gaps)      # this script's own region mask, then declared gaps
+        if raw.get("grid") and raw.get("full"):
+            trk, trk_d = cut(raw["grid"]["beats"]), cut(raw["grid"]["downbeats"]); eb, ed = export_grid(raw["full"]); exb, exd = cut(eb), cut(ed)
+        else: trk, trk_d, exb, exd = (np.asarray(inp[k], dtype=float) for k in ("trackedBeats", "trackedDownbeats", "exportBeats", "exportDownbeats"))
         if len(bt) or len(trk):
             same(f"{t['id']} beats F", get(m, "beats.f"), mir_eval.beat.f_measure(bt, trk + sh, 0.07) if len(bt) and len(trk) else 0.0)
         else: same(f"{t['id']} beats vacuous", get(m, "beats.f"), None)
-        if len(bt) and len(arr(inp["exportBeats"])): same(f"{t['id']} export beats F", get(m, "exportBeats.f"), mir_eval.beat.f_measure(bt, arr(inp["exportBeats"]), 0.07))
-        if down is not None and len(down) and len(inp["trackedDownbeats"]):
-            same(f"{t['id']} downbeats F", get(m, "downbeats.f"), mir_eval.beat.f_measure(down, arr(inp["trackedDownbeats"]), 0.07))
-            same(f"{t['id']} export downbeats F", get(m, "exportDownbeats.f"), mir_eval.beat.f_measure(down, arr(inp["exportDownbeats"]), 0.07))
+        if len(bt) and len(exb): same(f"{t['id']} export beats F", get(m, "exportBeats.f"), mir_eval.beat.f_measure(bt, exb + sh, 0.07))
+        if down is not None and len(down) and len(trk_d):
+            same(f"{t['id']} downbeats F", get(m, "downbeats.f"), mir_eval.beat.f_measure(down, trk_d + sh, 0.07))
+            same(f"{t['id']} export downbeats F", get(m, "exportDownbeats.f"), mir_eval.beat.f_measure(down, exd + sh, 0.07))
     if "key" in A and get(m, "key.scorable"):
         same(f"{t['id']} key weighted", get(m, "key.weighted"), mir_eval.key.weighted_score(mir_eval.io.load_key(P("key")), inp["key"]))
     if "chords" in A and inp.get("chords"):
         ri, rl = mir_eval.io.load_labeled_intervals(P("chords"))
-        ei = np.array([[c["start"], c["end"]] for c in inp["chords"]]) + sh; el = [c["label"] for c in inp["chords"]]
+        if raw.get("full"):  # one chord per bar on the app's fixed grid, labels mapped by this script
+            fd, bs = raw["full"]["firstDown"], raw["full"]["barSec"]; bars = raw["full"]["chords"]["bars"]
+            ei = np.array([[fd + i * bs, fd + (i + 1) * bs] for i in range(len(bars))]) + sh; el = [app_chord_to_harte(c) for c in bars]
+        else: ei = np.array([[c["start"], c["end"]] for c in inp["chords"]]) + sh; el = [c["label"] for c in inp["chords"]]
         if regs is None:
             r = mir_eval.chord.evaluate(ri + sh, rl, ei, el)
             same(f"{t['id']} chords root", get(m, "chords.root"), r["root"]); same(f"{t['id']} chords majmin", get(m, "chords.majmin"), r["majmin"])
@@ -123,7 +161,12 @@ for t in S["tracks"]:
             for r in regs: keepb |= (ri[:, 0] >= r["start"]) & (ri[:, 0] < r["end"])
             ri, rp = ri[keepb], rp[keepb]
         ri = ri + sh
-        E = inp["bass"]; eon = arr([n["onset"] for n in E])
+        if raw.get("full") and raw.get("exported"):  # notes at firstDown + t * stepSec, masked by onset with this script's own regions
+            fd, ss = raw["full"]["firstDown"], raw["exported"]["stepSec"]
+            E = [{"onset": fd + n["t"] * ss, "offset": fd + (n["t"] + n["dur"]) * ss, "midi": n["midi"]} for n in raw["exported"]["bass"]]
+            if regs is not None: E = [n for n in E if any(g["start"] <= n["onset"] < g["end"] for g in regs)]
+        else: E = inp["bass"]
+        eon = arr([n["onset"] for n in E])
         same(f"{t['id']} bass onset F", get(m, "bass.onset.f"), f_or_none(ri[:, 0] if len(ri) else [], eon, 0.05))
         if len(E) and len(ri):
             ei = np.array([[n["onset"], n["offset"]] for n in E]) + sh; ep = mir_eval.util.midi_to_hz(np.array([n["midi"] for n in E], dtype=float))

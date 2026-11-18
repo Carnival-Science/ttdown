@@ -33,4 +33,11 @@ assert.equal(R.containsInterval(D, 2, 8), true); assert.equal(R.containsInterval
 // complement and size
 assert.deepEqual(R.complement(D, 60), [{ start: 10, end: 30 }, { start: 40, end: 60 }]); assert.deepEqual(R.complement(R.normalize([{ start: 0, end: 60 }]), 60), []);
 assert.deepEqual(R.complement(R.normalize([{ start: 5, end: 10 }]), 12), [{ start: 0, end: 5 }, { start: 10, end: 12 }]); assert.equal(R.seconds(D), 20);
+// silent declarations and the recording's duration
+assert.deepEqual(R.problems([{ start: 0, end: 10, silent: ["drums", "bass", "chords"] }]), []);
+assert.match(R.problems([{ start: 0, end: 10, silent: ["beats"] }])[0], /beats cannot be silent: declare a gap/); assert.match(R.problems([{ start: 0, end: 10, silent: ["vocals"] }])[0], /silent must be a list/); assert.match(R.problems([{ start: 0, end: 10, silent: "drums" }])[0], /silent must be a list/);
+assert.deepEqual(R.problems([{ start: 0, end: 70.4 }], "t", 70), [], "up to 0.5 s of slack at the end"); assert.deepEqual(R.problems([{ start: 0, end: 70 }], "t", 70), []);
+assert.match(R.problems([{ start: 0, end: 70.6 }], "t", 70)[0], /ends at 70.6 s, 0.60 s after the recording ends \(70.00 s\)/); assert.match(R.problems([{ start: 500, end: 600 }], "t", 70)[0], /starts at 500 s, after the recording ends/);
+assert.match(R.problems([{ start: 70, end: 71 }], "t", 70)[0], /starts at 70 s, after the recording ends/); assert.deepEqual(R.problems([{ start: 500, end: 600 }], "t"), [], "without a duration only the shape is checked");
+assert.deepEqual(R.normalize([{ start: 1, end: 2, silent: ["drums"] }]), [{ start: 1, end: 2, silent: ["drums"] }]); assert.deepEqual(R.normalize([{ start: 1, end: 2 }])[0].silent, []);
 console.log("bench regions tests passed");
