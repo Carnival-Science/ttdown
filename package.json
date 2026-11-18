@@ -7,7 +7,7 @@
     "dev": "node scripts/dev-server.js",
     "songs": "python test-songs/make_test_songs.py",
     "benchmark": "node tests/benchmark.js",
-    "test": "node tests/metrics.test.js && node tests/timemap.test.js && node tests/timemap-sync.test.js && node tests/timing-consumers.test.js && node tests/bench-metrics.test.js && node tests/bench-integrity.test.js && node tests/bench-holdout.test.js && node tests/dev-server.test.js && node tests/run-tests.js",
+    "test": "node tests/metrics.test.js && node tests/timemap.test.js && node tests/timemap-sync.test.js && node tests/timing-consumers.test.js && node tests/bench-metrics.test.js && node tests/bench-integrity.test.js && node tests/bench-holdout.test.js && node tests/bench-regions.test.js && node tests/dev-server.test.js && node tests/run-tests.js",
     "bench:run": "node bench/run.js",
     "bench:score": "node bench/score.js",
     "bench:synthetic": "node bench/run.js test-songs/manifest.json --out bench/out/synthetic && node bench/score.js bench/out/synthetic/predictions.json",
@@ -17,7 +17,8 @@
     "bench:check-splits": "node bench/check-splits.js",
     "songs:time": "python test-songs/make_time_fixtures.py",
     "bench:time-fixtures": "node bench/run.js test-songs/time-fixtures/manifest.json --out bench/out/time-fixtures && node bench/score.js bench/out/time-fixtures/predictions.json && node bench/time-fixtures-summary.js bench/out/time-fixtures",
-    "sync:timemap": "node scripts/sync-timemap.js"
+    "sync:timemap": "node scripts/sync-timemap.js",
+    "bench:regions": "node tests/bench-regions-score.test.js"
   },
   "devDependencies": {
     "playwright": "^1.48.0"
