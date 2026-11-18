@@ -5,6 +5,10 @@
 //             tempo-change time note        (a real tempo change; beats stay continuous)
 //   key     : "<Tonic> <mode>"             (major/minor scored; dorian, phrygian, ... , atonal, ambiguous kept as labels)
 //   chords  : start end label              (Harte syntax, N = no chord, X = unknown)
+//   melody_vocal, melody_lead : onset offset midi [tag ...]   vocal melody / instrumental lead notes, MIDI number (fractional = cents).
+//             Tags: unpitched (a consonant or noise burst: not a pitched note), ambiguous (annotators disagreed). An annotation file
+//             with no notes is an annotated absence (declare it with "silent" for the region, see bench/lib/regions.js).
+//   melody_vocal_f0, melody_lead_f0 : time hz       optional frame-level f0 (hz <= 0 = unvoiced), enables raw pitch/chroma accuracy
 //   sections: start end label              (arrangement; boundaries are scored, labels are kept but not scored yet)
 //   drums   : time class                   (kick|bd, snare|sd|clap|cp|rim, hihat|hh|chh|ohh|openhat|closedhat)
 //   bass    : onset offset midi
@@ -86,6 +90,17 @@ function drums(file) {
   return out;
 }
 
+const MELODY_TAGS = new Set(["unpitched", "ambiguous"]);
+function melodyNotes(file) {
+  return rows(file).map(r => {
+    const n = { onset: num(r[0], file), offset: num(r[1], file), midi: num(r[2], file), tags: r.slice(3).map(x => x.toLowerCase()) };
+    if (!(n.offset > n.onset)) throw new Error(`${file}: note must end after it starts (${r[0]} ${r[1]})`);
+    if (!(n.midi >= 0 && n.midi <= 127)) throw new Error(`${file}: MIDI pitch out of range 0..127: ${r[2]}`);
+    for (const t of n.tags) if (!MELODY_TAGS.has(t)) throw new Error(`${file}: unknown tag "${t}" (use unpitched or ambiguous)`);
+    return n;
+  }).sort((a, b) => a.onset - b.onset || a.midi - b.midi);
+}
+function f0Series(file) { return rows(file).map(r => ({ t: num(r[0], file), hz: num(r[1], file) })).sort((a, b) => a.t - b.t); }
 function notes(file) { return rows(file).map(r => ({ onset: num(r[0], file), offset: num(r[1], file), midi: Math.round(num(r[2], file)) })).sort((a, b) => a.onset - b.onset); }
 
 // Load every annotation a manifest track lists; paths are relative to the manifest file.
@@ -97,10 +112,11 @@ function loadTruth(track, manifestDir) {
   if (A.sections) T.sections = chords(p("sections")); // same start/end/label format
   if (A.drums) T.drums = drums(p("drums"));
   if (A.bass) T.bass = notes(p("bass"));
+  for (const k of ["melody_vocal", "melody_lead"]) { if (A[k]) T[k] = melodyNotes(p(k)); if (A[k + "_f0"]) T[k + "_f0"] = f0Series(p(k + "_f0")); }
   if (T.tempo == null && T.beats && T.beats.length > 2) { // tempo from the median inter-beat interval
     const d = T.beats.slice(1).map((t, i) => t - T.beats[i]).sort((a, b) => a - b); T.tempo = 60 / d[Math.floor(d.length / 2)]; T.tempoDerived = true;
   }
   return T;
 }
 
-module.exports = { beats, beatIntervals, validateBeats, key, chords, drums, notes, loadTruth, pitchClass };
+module.exports = { beats, beatIntervals, validateBeats, key, chords, drums, notes, melodyNotes, f0Series, loadTruth, pitchClass };

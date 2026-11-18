@@ -1,0 +1,79 @@
+{
+ "track": "lead120_Amin",
+ "engine": "Version A (analyzer-baseline-a, index.html sha256 a14fea96...)",
+ "note": "The analyzer hook (one folded 4-bar loop repeated through its section) scored note by note against the exact synthetic lead line. Synthetic: a regression measurement, not real-world accuracy.",
+ "config": {
+  "onsetTol": 0.05,
+  "pitchTolCents": 50,
+  "offsetRatio": 0.2,
+  "offsetMinTol": 0.05
+ },
+ "nRef": 150,
+ "nEst": 158,
+ "onset": {
+  "tp": 150,
+  "fp": 8,
+  "fn": 0,
+  "P": 0.9494,
+  "R": 1,
+  "F": 0.974,
+  "vacuous": false
+ },
+ "pitchOnset": {
+  "tp": 150,
+  "fp": 8,
+  "fn": 0,
+  "P": 0.9494,
+  "R": 1,
+  "F": 0.974,
+  "vacuous": false
+ },
+ "full": {
+  "tp": 116,
+  "fp": 42,
+  "fn": 34,
+  "P": 0.7342,
+  "R": 0.7733,
+  "F": 0.7532,
+  "vacuous": false
+ },
+ "avgOverlap": 0.9657,
+ "offsetErrorMs": {
+  "n": 150,
+  "medianAbs": 6,
+  "median": -6
+ },
+ "durationRatio": {
+  "n": 150,
+  "median": 1
+ },
+ "octave": {
+  "onsetMatched": 150,
+  "wrongPitch": 0,
+  "octaveErrors": 0,
+  "rate": 0
+ },
+ "fragmentation": {
+  "refNotesFragmented": 0,
+  "rate": 0
+ },
+ "merged": {
+  "estNotesMerged": 0,
+  "rate": 0
+ },
+ "frames": {
+  "hop": 0.01,
+  "centsTol": 50,
+  "frames": 7000,
+  "refVoiced": 7000,
+  "refUnvoiced": 0,
+  "voicingRecall": 0.8184,
+  "voicingFalseAlarm": null,
+  "rawPitchAccuracy": 0.7997,
+  "rawChromaAccuracy": 0.7997,
+  "overallAccuracy": 0.7997,
+  "vacuous": false,
+  "reference": "derived from the reference notes"
+ },
+ "class": "timing-or-duration"
+}

@@ -15,7 +15,7 @@ import numpy as np, wave, sys
 SR=44100
 def song(bpm, key_root_midi, minor, kick, clap, hats, prog, fname, dur=70, swing=0.0, ghost=(), lead=None, bassline=None, tags=None):
     n=int(SR*dur); x=np.zeros(n)
-    T = {"bpm": bpm, "key": NOTE[key_root_midi % 12] + (" minor" if minor else " major"), "beats": [], "chords": [], "drums": [], "bass": [], "tags": tags or {}}
+    T = {"bpm": bpm, "key": NOTE[key_root_midi % 12] + (" minor" if minor else " major"), "beats": [], "chords": [], "drums": [], "bass": [], "melody_lead": [], "tags": tags or {}}
     at = lambda t: int(t*SR)/SR  # add() places sounds at the floor sample; answers use the same instant
     step=60/bpm/4; rng=np.random.default_rng(1)
     def add(sig,t):
@@ -52,7 +52,9 @@ def song(bpm, key_root_midi, minor, kick, clap, hats, prog, fname, dur=70, swing
             if s_ in hats: add(hatS*(1 if s_%4==0 else 0.6),t); T["drums"].append((at(t), "hihat"))
         if lead:
             for (ls,lm,ld) in lead:
-                if ls//16==b%4: add(tone(lm,ld*step,0.16,6)*np.exp(-np.arange(int(ld*step*SR))/SR*2), t0+(ls%16)*step)
+                if ls//16==b%4:
+                    add(tone(lm,ld*step,0.16,6)*np.exp(-np.arange(int(ld*step*SR))/SR*2), t0+(ls%16)*step)
+                    T["melody_lead"].append((at(t0+(ls%16)*step), at(t0+(ls%16)*step)+ld*step, lm))   # the lead line, exact: onset, offset, MIDI
         if bassline:
             for (ls,lm,ld) in bassline:
                 if ls//16==b%4:
@@ -69,7 +71,7 @@ def song(bpm, key_root_midi, minor, kick, clap, hats, prog, fname, dur=70, swing
     x/=np.max(np.abs(x))*1.05
     y=(x*32767).astype(np.int16); st=np.stack([y,y],1)
     with wave.open(fname,'wb') as w: w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR); w.writeframes(st.tobytes())
-    T["drums"].sort(); T["bass"].sort(); TRUTH[fname[:-4]] = T
+    T["drums"].sort(); T["bass"].sort(); T["melody_lead"].sort(); TRUTH[fname[:-4]] = T
 
 # ---- the test songs (answers are written right here, which is what makes them useful) ----
 A=57
@@ -112,8 +114,11 @@ for tid, T in TRUTH.items():
     with W(f"{base}.chords.lab") as f: f.writelines(f"{f6(a)}\t{f6(b)}\t{l}\n" for a, b, l in T["chords"])
     with W(f"{base}.drums.txt") as f: f.writelines(f"{f6(t)}\t{c}\n" for t, c in T["drums"])
     with W(f"{base}.bass.txt") as f: f.writelines(f"{f6(a)}\t{f6(b)}\t{m}\n" for a, b, m in T["bass"])
+    if T.get("melody_lead"):
+        with W(f"{base}.melody_lead.txt") as f: f.writelines(f"{f6(a)}\t{f6(b)}\t{m}\n" for a, b, m in T["melody_lead"])
     sha_of = lambda p: hashlib.sha256(open(p, "rb").read()).hexdigest()
     ann = {k: f"{base}.{ext}" for k, ext in [("beats", "beats.txt"), ("key", "key.txt"), ("chords", "chords.lab"), ("drums", "drums.txt"), ("bass", "bass.txt")]}
+    if T.get("melody_lead"): ann["melody_lead"] = f"{base}.melody_lead.txt"
     tracks.append({"id": tid, "audio": f"{tid}.wav", "sha256": sha_of(f"{tid}.wav"), "split": "synthetic",
         # leakage identifiers: one generator "artist" and release; the padded copies are the same song family
         "artists": ["Track Teardown test generator"], "release": "synthetic test songs v1",

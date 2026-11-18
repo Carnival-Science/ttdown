@@ -16,13 +16,19 @@
 const path = require("node:path"), fs = require("node:fs");
 const M = require("./lib/metrics"), C = require("./lib/classify"), { loadTruth } = require("./lib/loaders"), { summarize } = require("./lib/stats"), { sha256File } = require("./lib/provenance");
 const { annotationIntegrity, checkRequirements } = require("./lib/requirements"), crypto = require("node:crypto");
-const Reg = require("./lib/regions");
+const Reg = require("./lib/regions"), TR = require("./lib/transcription");
 
 const ROOT = path.resolve(__dirname, "..");
 const args = process.argv.slice(2), opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
-const predPath = path.resolve(args.find(a => !a.startsWith("--") && args[args.indexOf(a) - 1] !== "--manifest") || "");
+const predPath = path.resolve(args.find(a => !a.startsWith("--") && args[args.indexOf(a) - 1] !== "--manifest" && args[args.indexOf(a) - 1] !== "--candidate") || "");
 if (!fs.existsSync(predPath)) { console.error("usage: node bench/score.js <predictions.json> [--manifest manifest.json] [--rescore]"); process.exit(2); }
 const P = JSON.parse(fs.readFileSync(predPath, "utf8")), HOLDOUT = P.split === "holdout";
+// Optional melody candidate: another model's notes, evaluated exactly like the analyzer's own (bench/README.md, "Melody").
+//   { "name": "...", "version": "...", "tracks": { "<track id>": { "melody_vocal": [{onset, offset, midi}], "melody_lead": [...] } } }
+// A kind the candidate does not list for a track is not evaluated (no output), which is different from an empty list (it found nothing: F 0).
+const candPath = opt("--candidate", null);
+const CAND = candPath ? JSON.parse(fs.readFileSync(path.resolve(candPath), "utf8")) : null;
+if (CAND && (typeof CAND.tracks !== "object" || !CAND.tracks)) { console.error("--candidate: expected { name, version, tracks: { id: { melody_vocal: [...], melody_lead: [...] } } }"); process.exit(2); }
 const manifestPath = path.resolve(opt("--manifest", path.join(ROOT, P.manifest.path)));
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")), mdir = path.dirname(manifestPath);
 const manifestSha = sha256File(manifestPath), manifestChanged = manifestSha !== P.manifest.sha256;
@@ -54,16 +60,17 @@ function truthSteps(T, cls) {
 // Mask the truth to the scorable regions (the same masks are applied to the predictions below). "Not annotated" (the track has no
 // file for that kind) is different from "annotated and absent here": a drumless breakdown inside a region is annotated, with zero
 // events, so any hits the analyzer invents there stay scorable as false positives. Only a kind the track never annotated is skipped.
-function maskTruth(T, R) {
+function maskTruth(T, S) { // S(kind) -> that kind's regions, or null for the whole recording
   const X = { ...T };
-  if (T.beats) {
-    const keep = T.beats.map(b => Reg.inside(R, b));
+  if (T.beats && S("beats")) {
+    const R = S("beats"), keep = T.beats.map(b => Reg.inside(R, b));
     X.beats = T.beats.filter((_, i) => keep[i]); X.positions = T.positions ? T.positions.filter((_, i) => keep[i]) : null;
     X.downbeats = X.positions ? X.beats.filter((_, i) => X.positions[i] === 1) : T.downbeats ? Reg.filterTimes(T.downbeats, R) : T.downbeats;
   }
-  if (T.drums) X.drums = { ...T.drums, kick: Reg.filterTimes(T.drums.kick, R), snare: Reg.filterTimes(T.drums.snare, R), hihat: Reg.filterTimes(T.drums.hihat, R) };
-  if (T.bass) X.bass = Reg.filterNotes(T.bass, R);
-  if (T.chords) X.chords = Reg.clipIntervals(T.chords, R);
+  if (T.drums && S("drums")) { const R = S("drums"); X.drums = { ...T.drums, kick: Reg.filterTimes(T.drums.kick, R), snare: Reg.filterTimes(T.drums.snare, R), hihat: Reg.filterTimes(T.drums.hihat, R) }; }
+  if (T.bass && S("bass")) X.bass = Reg.filterNotes(T.bass, S("bass"));
+  if (T.chords && S("chords")) X.chords = Reg.clipIntervals(T.chords, S("chords"));
+  for (const k of ["melody_vocal", "melody_lead"]) if (T[k] && S(k)) X[k] = Reg.filterNotes(T[k], S(k)); // a note belongs to the region of its onset
   return X;
 }
 // chord accuracy over several regions: each region scored on its own clipped intervals, then weighted by reference seconds
@@ -77,6 +84,18 @@ function chordsByRegion(est, ref, R) {
   return sec ? { root: sr ? r4(wr / sr) : null, majmin: sm ? r4(wm / sm) : null, refSeconds: r4(sec) } : null;
 }
 
+const NOTE_OK = n => n && Number.isFinite(n.onset) && Number.isFinite(n.offset) && n.offset > n.onset && Number.isFinite(n.midi) && n.midi >= 0 && n.midi <= 127;
+if (CAND) for (const [id, kinds] of Object.entries(CAND.tracks)) for (const [k, l] of Object.entries(kinds)) {
+  if (!Array.isArray(l) || !l.every(NOTE_OK)) { console.error(`--candidate: ${id}.${k} must be a list of { onset, offset, midi } with offset after onset and midi 0..127`); process.exit(2); }
+}
+function predictionFor(t, kind, rec, p, ex) {
+  const fromList = (source, l) => ({ source, notes: l.map(n => ({ onset: n.onset, offset: n.offset, midi: n.midi })).sort((a, b) => a.onset - b.onset) });
+  if (CAND) { const l = CAND.tracks[t.id] && CAND.tracks[t.id][kind]; return Array.isArray(l) ? fromList(`candidate ${CAND.name || "unnamed"}${CAND.version ? " " + CAND.version : ""}`, l) : null; }
+  if (rec.melody && Array.isArray(rec.melody[kind])) return fromList("predictions.json", rec.melody[kind]);
+  // the analyzer's own "hook" (one folded 4-bar loop, repeated through its section) is its only melodic output: it stands for the instrumental lead
+  if (kind === "melody_lead" && ex && ex.hook) return fromList("analyzer hook", ex.hook.map(n => ({ onset: p.firstDown + n.t * ex.stepSec, offset: p.firstDown + (n.t + n.dur) * ex.stepSec, midi: n.midi })));
+  return null;
+}
 function scoreTrack(rec) {
   const t = byId[rec.id], out = { id: rec.id, split: rec.split, status: rec.status, tags: (t && t.tags) || {}, runtimeSec: rec.runtimeMs ? r4(rec.runtimeMs / 1000) : null, pageErrors: (rec.pageErrors || []).length,
     pageErrorSamples: (rec.pageErrors || []).slice(0, 3).map(s => String(s).slice(0, 200)), console: rec.console || null };
@@ -89,17 +108,22 @@ function scoreTrack(rec) {
   out.annotationsChangedSincePrediction = !!rec.annotationSha256 && JSON.stringify(rec.annotationSha256) !== JSON.stringify(ai.hashes);
   if (ai.problems.length) { out.status = "annotation-checksum-mismatch"; out.problems = ai.problems; return out; }
   // declared regions must lie inside the recording (known only now, from the prediction): otherwise only tempo and key could be scored
-  if (t.scorable !== undefined && rec.full && rec.full.duration) { const rp = Reg.problems(t.scorable, t.id, rec.full.duration); if (rp.length) { out.status = "invalid-scorable-region"; out.problems = rp; return out; } }
+  if (rec.full && rec.full.duration) {
+    const rp = [...(t.scorable !== undefined ? Reg.problems(t.scorable, t.id, rec.full.duration) : []), ...Object.entries(t.scorableByKind || {}).flatMap(([k, l]) => Reg.problems(l, `${t.id} scorableByKind.${k}`, rec.full.duration))];
+    if (rp.length) { out.status = "invalid-scorable-region"; out.problems = rp; return out; }
+  }
   if (rec.status !== "ok") return out;
-  const T0 = loadTruth(t, mdir), R = t.scorable ? Reg.normalize(t.scorable) : null, T = R ? maskTruth(T0, R) : T0, p = rec.full, g = rec.grid, m = {}, cls = {}, inputs = {};
+  const scopeOf = kind => { const l = Reg.scopeList(t, kind); return l ? Reg.normalize(l) : null; };   // per-kind scope, else the track's, else whole recording
+  const T0 = loadTruth(t, mdir), R = scopeOf("sections"), T = maskTruth(T0, scopeOf), p = rec.full, g = rec.grid, m = {}, cls = {}, inputs = {};
+  const maskK = (kind, a) => { const Rk = scopeOf(kind); return Rk ? Reg.filterTimes(a, Rk) : a; };
   if (R) out.scorable = { regions: R.length, seconds: r4(Reg.seconds(R)), fractionOfTrack: p && p.duration ? r4(Math.min(1, Reg.seconds(R) / p.duration)) : null };
-  const maskT = a => R ? Reg.filterTimes(a, R) : a;
+  const maskT = a => R ? Reg.filterTimes(a, R) : a;          // sections follow the track-level scope
   // tempo and grid
   m.tempo = T.tempo != null ? M.tempo(p.bpm, T.tempo) : null; cls.tempo = C.tempoClass(m.tempo);
   if (T.beats) {
     // predictions inside declared gaps have no verified truth to be scored against: drop them before matching
-    const G = T.gaps || [], cut = a => M.outsideGaps(maskT(a || []), G), eg0 = M.exportGrid(p);
-    const driftGaps = R ? G.concat(Reg.complement(R, p.duration)).sort((a, b) => a.start - b.start) : G; // drift restarts at every region edge, as at a declared gap
+    const G = T.gaps || [], cut = a => M.outsideGaps(maskK("beats", a || []), G), eg0 = M.exportGrid(p), Rb = scopeOf("beats");
+    const driftGaps = Rb ? G.concat(Reg.complement(Rb, p.duration)).sort((a, b) => a.start - b.start) : G; // drift restarts at every region edge, as at a declared gap
     const tb = g ? cut(g.beats) : null, td = g ? cut(g.downbeats) : null, eg = { beats: cut(eg0.beats), downbeats: cut(eg0.downbeats) };
     m.beats = g ? M.events(tb, T.beats) : null; cls.beats = C.beatClass(tb, T.beats, cls.tempo);
     inputs.exportBeats = eg.beats; inputs.exportDownbeats = eg.downbeats; inputs.trackedBeats = tb || []; inputs.trackedDownbeats = td || [];
@@ -114,7 +138,8 @@ function scoreTrack(rec) {
   // chords: one per exported bar on the app's fixed grid
   if (T.chords) {
     const est = (p.chords && p.chords.bars || []).map((c, i) => ({ start: p.firstDown + i * p.barSec, end: p.firstDown + (i + 1) * p.barSec, label: M.appChordToHarte(c) }));
-    m.chords = R ? chordsByRegion(est, T.chords, R) : M.chordScores(est, T.chords); cls.chords = C.chordClass(m.chords); inputs.chords = R ? Reg.clipIntervals(est, R) : est;
+    const Rc = scopeOf("chords");
+    m.chords = Rc ? chordsByRegion(est, T.chords, Rc) : M.chordScores(est, T.chords); cls.chords = C.chordClass(m.chords); inputs.chords = Rc ? Reg.clipIntervals(est, Rc) : est;
   }
   // arrangement: section boundaries (the start of every section after the first), one-to-one at ±0.5 s and ±3 s, as mir_eval.segment.detection
   if (T.sections && p.sections) {
@@ -127,14 +152,14 @@ function scoreTrack(rec) {
   if (T.drums && ex) {
     m.drums = {}; m.drumSteps = {}; cls.drums = {}; inputs.drums = {};
     for (const [app, k] of [["kick", "kick"], ["snare", "snare"], ["hats", "hihat"]]) {
-      const est = maskT(sec(ex[app])); inputs.drums[k] = est;
+      const est = maskK("drums", sec(ex[app])); inputs.drums[k] = est;
       m.drums[k] = { w30: M.events(est, T.drums[k], 0.03), w50: M.events(est, T.drums[k], 0.05), w100: M.events(est, T.drums[k], 0.1) };
       cls.drums[k] = C.drumClass(m.drums[k]);
       const TS = truthSteps(T0, k);
       if (TS) { let tp = 0, fp = 0, fn = 0;
         for (let bar = 1; bar < p.nBars - 1; bar++) {
           const start = p.firstDown + bar * p.barSec, tb = T0.downbeats.findIndex(d => Math.abs(d - start) < p.barSec / 2); if (tb < 0) continue;
-          if (R && !Reg.containsInterval(R, start - p.barSec / 32, start + p.barSec)) continue; // only bars wholly inside one scorable region
+          if (scopeOf("drums") && !Reg.containsInterval(scopeOf("drums"), start - p.barSec / 32, start + p.barSec)) continue; // only bars wholly inside one scorable region
           const got = new Set(ex[app].filter(s => Math.floor(s / 16) === bar).map(s => s % 16)), truth = TS[tb];
           got.forEach(s => truth.has(s) ? tp++ : fp++); truth.forEach(s => { if (!got.has(s)) fn++; }); }
         m.drumSteps[app] = { tp, fp, fn }; }
@@ -142,8 +167,21 @@ function scoreTrack(rec) {
   }
   // bass: exported 808/bass notes in seconds
   if (T.bass && ex) {
-    const est = ex.bass.map(n => ({ onset: p.firstDown + n.t * ex.stepSec, offset: p.firstDown + (n.t + n.dur) * ex.stepSec, midi: n.midi })).filter(n => !R || Reg.inside(R, n.onset));
+    const est = ex.bass.map(n => ({ onset: p.firstDown + n.t * ex.stepSec, offset: p.firstDown + (n.t + n.dur) * ex.stepSec, midi: n.midi })).filter(n => !scopeOf("bass") || Reg.inside(scopeOf("bass"), n.onset));
     m.bass = M.noteScores(est, T.bass); cls.bass = C.bassClass(m.bass); inputs.bass = est;
+  }
+  // melody (vocal and instrumental lead): note-level and frame-level, from the analyzer's own notes or a --candidate file. Both are evaluated
+  // identically. A kind with no prediction supplied is "not evaluated" (null), which is different from a prediction that found nothing (F 0).
+  for (const kind of ["melody_vocal", "melody_lead"]) {
+    if (!T0[kind]) continue;
+    const pr = predictionFor(t, kind, rec, p, ex);
+    if (!pr) { m[kind] = null; (out.melodyNotEvaluated = out.melodyNotEvaluated || []).push(kind); continue; }
+    const Rk = scopeOf(kind), refN = T[kind], estN = Rk ? Reg.filterNotes(pr.notes, Rk) : pr.notes, ns = TR.noteScores(estN, refN), f0 = T0[kind + "_f0"];
+    // frames use the unmasked notes on both sides, restricted to the scope's frames, so a note straddling a region edge is treated alike
+    const fr = TR.frameScores(pr.notes, f0 ? { series: f0 } : { notes: T0[kind] }, { duration: p.duration, regions: Rk });
+    m[kind] = { source: pr.source, ...ns, frames: { ...fr, reference: f0 ? "f0 series" : "derived from the reference notes" } };
+    cls[kind] = C.melodyClass(m[kind]); inputs[kind] = { source: pr.source, est: estN };
+    if (t.annotationProvenance && t.annotationProvenance[kind]) (out.melodyProvenance = out.melodyProvenance || {})[kind] = t.annotationProvenance[kind];
   }
   out.prediction = { bpm: p.bpm, bpmConf: p.bpmConf, key: p.key, keyConf: p.keyConf, firstDown: p.firstDown, barSec: p.barSec };
   out.metrics = m; out.classes = cls; out.inputs = inputs;
@@ -180,12 +218,16 @@ const METRICS = [
   ["drums.kick.w50.f", "Kick F (±50 ms, exported MIDI)"], ["drums.snare.w50.f", "Snare/clap F (±50 ms)"], ["drums.hihat.w50.f", "Hi-hat F (±50 ms)"],
   ["drums.kick.w30.f", "Kick F (±30 ms)"], ["drums.snare.w30.f", "Snare/clap F (±30 ms)"], ["drums.hihat.w30.f", "Hi-hat F (±30 ms)"],
   ["sections.w05.f", "Section boundaries F (±0.5 s)"], ["sections.w3.f", "Section boundaries F (±3 s)"],
+  ...["melody_lead", "melody_vocal"].flatMap(k => { const L = k === "melody_lead" ? "Lead" : "Vocal"; return [
+    [`${k}.onset.F`, `${L} melody onset-only F (±50 ms; ignores pitch)`], [`${k}.pitchOnset.F`, `${L} melody note F (onset + pitch ±50 cents)`], [`${k}.full.F`, `${L} melody note F (onset + pitch + offset)`],
+    [`${k}.octave.rate`, `${L} melody octave errors (of onset-matched)`], [`${k}.frames.voicingRecall`, `${L} voicing recall (frames)`], [`${k}.frames.voicingFalseAlarm`, `${L} voicing false alarm (frames)`],
+    [`${k}.frames.rawPitchAccuracy`, `${L} raw pitch accuracy (frames)`], [`${k}.frames.overallAccuracy`, `${L} overall accuracy (frames)`]]; }),
   ["bass.onset.f", "Bass onset F (±50 ms)"], ["bass.noteF", "Bass note F (onset + pitch)"], ["bass.octaveErrorRate", "Bass octave errors (of matched)"],
 ];
 const summary = { metrics: {}, failureClasses: {}, drumStepTotals: {}, runtime: summarize(ok.map(t => t.runtimeSec)), tracks: tracks.length, scored: ok.length,
   notScored: tracks.filter(t => !t.metrics).map(t => ({ id: t.id, status: t.status })) };
 for (const [k, label] of METRICS) summary.metrics[k] = { label, ...summarize(ok.map(t => num(get(t, k)))) };
-const CAPS = ["tempo", "beats", "downbeats", "exportGrid", "key", "chords", "drums.kick", "drums.snare", "drums.hihat", "bass"];
+const CAPS = ["tempo", "beats", "downbeats", "exportGrid", "key", "chords", "drums.kick", "drums.snare", "drums.hihat", "bass", "melody_lead", "melody_vocal"];
 const clsOf = (t, c) => c.split(".").reduce((o, k) => o == null ? null : o[k], t.classes);
 for (const c of CAPS) { const counts = {}; ok.forEach(t => { const v = clsOf(t, c); if (v && v !== "n/a") counts[v] = (counts[v] || 0) + 1; }); summary.failureClasses[c] = counts; }
 for (const k of ["kick", "snare", "hats"]) { const s = ok.reduce((a, t) => { const d = t.metrics.drumSteps && t.metrics.drumSteps[k]; if (d) { a.tp += d.tp; a.fp += d.fp; a.fn += d.fn; } return a; }, { tp: 0, fp: 0, fn: 0 });
@@ -206,7 +248,7 @@ function reliability(conf, correct) {
 summary.reliability = { key: reliability(t => t.prediction.keyConf, t => t.metrics.key && t.metrics.key.scorable ? t.metrics.key.exact : null),
   tempo: reliability(t => t.prediction.bpmConf, t => t.metrics.tempo ? t.metrics.tempo.acc1 : null) };
 
-const meta = { kind: "track-teardown-scores", version: 3, scoredAt: new Date().toISOString(), classifierVersion: C.CLASSIFIER_VERSION, predictions: path.relative(OUT, predPath).replace(/\\/g, "/"),
+const meta = { kind: "track-teardown-scores", version: 3, scoredAt: new Date().toISOString(), classifierVersion: C.CLASSIFIER_VERSION, candidate: CAND ? { path: candPath, sha256: sha256File(path.resolve(candPath)), name: CAND.name || null, version: CAND.version || null } : null, predictions: path.relative(OUT, predPath).replace(/\\/g, "/"),
   manifest: { path: P.manifest.path, name: manifest.name, version: manifest.version, annotationProtocol: manifest.annotationProtocol || null, sha256: manifestSha }, predictionManifest: P.manifest, rescore, completeness, truthFingerprint, coverage: reqCheck.coverage, requirementProblems: reqCheck.problems, integrityProblems,
   annotationsChangedSincePrediction: tracks.filter(t => t.annotationsChangedSincePrediction).map(t => t.id), split: P.split, page: P.page, pageSha256: P.pageSha256, headSha: P.headSha, gitCommit: P.gitCommit,
   testedMergeCommit: P.testedMergeCommit, gitDirty: P.gitDirty, node: P.node, browser: P.browser, os: P.os, config: { beatWindowSec: M.WINDOW, drumWindowsSec: [0.03, 0.05, 0.1], bassOnsetWindowSec: 0.05, tempoTolerance: 0.04, bootstrap: { B: 2000, seed: 20261117 } } };
@@ -221,7 +263,9 @@ const COLS = [["id", t => t.id], ["split", t => t.split], ["status", t => t.stat
   ["chord_root", t => get(t, "chords.root")], ["chord_majmin", t => get(t, "chords.majmin")], ["chord_class", t => clsOf(t, "chords")],
   ["kick_f50", t => get(t, "drums.kick.w50.f")], ["snare_f50", t => get(t, "drums.snare.w50.f")], ["hihat_f50", t => get(t, "drums.hihat.w50.f")],
   ["kick_class", t => clsOf(t, "drums.kick")], ["snare_class", t => clsOf(t, "drums.snare")], ["hihat_class", t => clsOf(t, "drums.hihat")],
-  ["bass_onset_f", t => get(t, "bass.onset.f")], ["bass_note_f", t => get(t, "bass.noteF")], ["bass_class", t => clsOf(t, "bass")], ["runtime_s", t => t.runtimeSec], ["page_errors", t => t.pageErrors], ["tags", t => JSON.stringify(t.tags)]];
+  ["bass_onset_f", t => get(t, "bass.onset.f")], ["bass_note_f", t => get(t, "bass.noteF")], ["bass_class", t => clsOf(t, "bass")],
+  ["lead_onset_f", t => get(t, "melody_lead.onset.F")], ["lead_note_f", t => get(t, "melody_lead.pitchOnset.F")], ["lead_full_f", t => get(t, "melody_lead.full.F")], ["lead_rpa", t => get(t, "melody_lead.frames.rawPitchAccuracy")], ["lead_class", t => clsOf(t, "melody_lead")],
+  ["vocal_onset_f", t => get(t, "melody_vocal.onset.F")], ["vocal_note_f", t => get(t, "melody_vocal.pitchOnset.F")], ["vocal_full_f", t => get(t, "melody_vocal.full.F")], ["vocal_rpa", t => get(t, "melody_vocal.frames.rawPitchAccuracy")], ["vocal_class", t => clsOf(t, "melody_vocal")], ["runtime_s", t => t.runtimeSec], ["page_errors", t => t.pageErrors], ["tags", t => JSON.stringify(t.tags)]];
 fs.writeFileSync(path.join(OUT, "tracks.csv"), [COLS.map(c => c[0]).join(","), ...tracks.map(t => COLS.map(c => q(t.metrics || c[0].match(/^(id|split|status|runtime_s|page_errors|tags)$/) ? c[1](t) : null)).join(","))].join("\n") + "\n");
 
 // ---- report.md ----

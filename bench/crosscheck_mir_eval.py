@@ -88,6 +88,78 @@ def get(d, path):
         d = d.get(k)
     return d
 
+def regs_for(track, kind):
+    return (track.get("scorableByKind") or {}).get(kind) or track.get("scorable")
+
+def read_melody(path):
+    """Own parser: onset offset midi [tags]. Returns list of dicts."""
+    out = []
+    for line in open(path, encoding="utf-8"):
+        line = line.split("#")[0].strip()
+        if not line: continue
+        w = line.replace(",", " ").split()
+        out.append({"on": float(w[0]), "off": float(w[1]), "midi": float(w[2]), "tags": [x.lower() for x in w[3:]]})
+    return out
+
+def midi_hz(x): return 440.0 * 2.0 ** ((np.asarray(x, dtype=float) - 69.0) / 12.0)
+
+def notes_to_frames(notes, times):
+    """Own note-to-frame rule (monophonic: the latest-onset note covering the frame wins). Returns Hz, 0 = unvoiced."""
+    f = np.zeros(len(times))
+    for n in sorted(notes, key=lambda n: n["on"]):                 # later onsets overwrite earlier ones
+        f[(times >= n["on"]) & (times < n["off"])] = midi_hz(n["midi"])
+    return f
+
+def candidate_notes(t, kind, raw):
+    """The estimated notes, rebuilt from the candidate file (if one was used) or from the raw predictions (the analyzer's hook)."""
+    cand = S["meta"].get("candidate")
+    if cand:
+        l = (json.load(open(os.path.join(ROOT, cand["path"]) if not os.path.isabs(cand["path"]) else cand["path"], encoding="utf-8"))["tracks"].get(t["id"]) or {}).get(kind)
+        return None if l is None else [{"on": n["onset"], "off": n["offset"], "midi": n["midi"]} for n in l]
+    full, ex = raw.get("full"), raw.get("exported")
+    if kind == "melody_lead" and full and ex and ex.get("hook") is not None:
+        return [{"on": full["firstDown"] + n["t"] * ex["stepSec"], "off": full["firstDown"] + (n["t"] + n["dur"]) * ex["stepSec"], "midi": n["midi"]} for n in ex["hook"]]
+    return None
+
+def crosscheck_melody(t, mm, kind, A, P, track, raw, regs):
+    tid = f"{t['id']} {kind}"
+    refall = read_melody(P(kind)); est = candidate_notes(t, kind, raw)
+    if est is None: return                                       # no prediction supplied for this kind: not evaluated
+    inside = lambda x: regs is None or any(g["start"] <= x < g["end"] for g in regs)
+    ref = [n for n in refall if inside(n["on"]) and "unpitched" not in n["tags"]]; unp = [n for n in refall if inside(n["on"]) and "unpitched" in n["tags"]]
+    est = [n for n in est if inside(n["on"])]
+    iv = lambda L: np.array([[n["on"] + 3.0, n["off"] + 3.0] for n in L]).reshape(-1, 2); hz = lambda L: midi_hz([n["midi"] for n in L])   # +3 s: mir_eval rejects negative times; matching is shift-invariant
+    if ref and unp:  # estimates that land on an unpitched reference note (and match no pitched one) are ignored
+        pre = {j for _, j in mir_eval.transcription.match_note_onsets(iv(ref), iv(est), onset_tolerance=0.05)} if est else set()
+        est = [n for j, n in enumerate(est) if j in pre or not any(n["on"] >= u["on"] - 0.05 and n["on"] <= u["off"] for u in unp)]
+    same(tid + " nRef", mm["nRef"], len(ref)); same(tid + " nEst", mm["nEst"], len(est))
+    if ref and est:
+        ri, ei, rh, eh = iv(ref), iv(est), hz(ref), hz(est)
+        p, r, f = mir_eval.transcription.onset_precision_recall_f1(ri, ei, onset_tolerance=0.05)
+        same(tid + " onset P", get(mm, "onset.P"), p); same(tid + " onset R", get(mm, "onset.R"), r); same(tid + " onset F", get(mm, "onset.F"), f)
+        p, r, f, _ = mir_eval.transcription.precision_recall_f1_overlap(ri, rh, ei, eh, onset_tolerance=0.05, pitch_tolerance=50.0, offset_ratio=None)
+        same(tid + " pitchOnset P", get(mm, "pitchOnset.P"), p); same(tid + " pitchOnset R", get(mm, "pitchOnset.R"), r); same(tid + " pitchOnset F", get(mm, "pitchOnset.F"), f)
+        p, r, f, aor = mir_eval.transcription.precision_recall_f1_overlap(ri, rh, ei, eh, onset_tolerance=0.05, pitch_tolerance=50.0, offset_ratio=0.2, offset_min_tolerance=0.05)
+        same(tid + " full P", get(mm, "full.P"), p); same(tid + " full R", get(mm, "full.R"), r); same(tid + " full F", get(mm, "full.F"), f)
+        if get(mm, "avgOverlap") is not None: same(tid + " average overlap", get(mm, "avgOverlap"), aor)
+    elif not ref and est:
+        same(tid + " false positives only: F", get(mm, "pitchOnset.F"), 0.0); same(tid + " fp", get(mm, "pitchOnset.fp"), len(est))
+    elif not ref and not est:
+        same(tid + " vacuous F is null", get(mm, "pitchOnset.F"), None)
+    # frames: own grid, own note-to-frame rule, then mir_eval.melody on the SAME time base (no resampling involved)
+    fr = mm.get("frames")
+    if fr and fr.get("reference") == "derived from the reference notes":
+        full = raw.get("full"); dur = full["duration"]; hop = fr["hop"]
+        ks = np.arange(0, int(np.ceil(dur / hop)) + 2); times = ks * hop; times = times[times < dur - 1e-9]
+        if regs is not None: times = times[[any(g["start"] <= x < g["end"] for g in regs) for x in times]]
+        rf = notes_to_frames(refall, times); ef = notes_to_frames(candidate_notes(t, kind, raw), times)
+        same(tid + " frames", fr["frames"], len(times))
+        if len(times) and (rf > 0).any():
+            r = mir_eval.melody.evaluate(times, rf, times, ef)
+            for key, name in [("Voicing Recall", "voicingRecall"), ("Raw Pitch Accuracy", "rawPitchAccuracy"), ("Raw Chroma Accuracy", "rawChromaAccuracy"), ("Overall Accuracy", "overallAccuracy")]:
+                same(f"{tid} {name}", fr.get(name), r[key])
+            if (rf == 0).any(): same(tid + " voicingFalseAlarm", fr.get("voicingFalseAlarm"), r["Voicing False Alarm"])
+
 for t in S["tracks"]:
     m, inp = t.get("metrics"), t.get("inputs")
     if not m: continue
@@ -172,6 +244,10 @@ for t in S["tracks"]:
             ei = np.array([[n["onset"], n["offset"]] for n in E]) + sh; ep = mir_eval.util.midi_to_hz(np.array([n["midi"] for n in E], dtype=float))
             f = mir_eval.transcription.precision_recall_f1_overlap(ri, mir_eval.util.midi_to_hz(np.round(rp)), ei, ep, onset_tolerance=0.05, pitch_tolerance=50.0, offset_ratio=None)[2]
             same(f"{t['id']} bass note F", get(m, "bass.noteF"), f)
+
+    for mk in ("melody_vocal", "melody_lead"):
+        if mk in A and (get(m, mk) or {}).get("nRef") is not None:
+            crosscheck_melody(t, m[mk], mk, A, P, tracks[t["id"]], raw, regs_for(tracks[t["id"]], mk))
 
     if "sections" in A and inp.get("sections"):
         ri, _ = mir_eval.io.load_labeled_intervals(P("sections"))

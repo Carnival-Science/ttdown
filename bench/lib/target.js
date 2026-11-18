@@ -37,7 +37,7 @@ async function driveTrack(p, url, audioPath, rec) {
           const st = document.querySelector("#status").textContent; if (/Couldn/.test(st)) return { failed: st };
           const a = window.__td, N = window.__sn(a);
           return { full: JSON.parse(JSON.stringify(a)), grid: a.grid || null,
-            exported: { stepSec: N.stepSec, kick: N.D.kick.map(n => n.t), snare: N.D.snare.map(n => n.t), hats: N.D.hats.map(n => n.t), bass: N.bass.map(n => ({ t: n.t, dur: n.dur, midi: n.midi })) } };
+            exported: { stepSec: N.stepSec, kick: N.D.kick.map(n => n.t), snare: N.D.snare.map(n => n.t), hats: N.D.hats.map(n => n.t), bass: N.bass.map(n => ({ t: n.t, dur: n.dur, midi: n.midi })), hook: (N.hook || []).map(n => ({ t: n.t, dur: n.dur, midi: n.midi })) } };
         });
         if (r.failed) { rec.status = "analysis-failed"; rec.message = r.failed.slice(0, 200); }
         else Object.assign(rec, r);

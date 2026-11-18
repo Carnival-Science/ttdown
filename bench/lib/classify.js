@@ -51,6 +51,18 @@ function drumClass(m) { // m: { w30, w50, w100 } event scores for one class
 
 const chordClass = c => !c || c.majmin == null ? "n/a" : c.majmin >= 0.9 ? "ok" : c.root >= 0.9 ? "quality" : "root";
 
+// melody: m = noteScores result (+ frames). "onset-only high but pitch low" is exactly what the old hook metric could not see.
+function melodyClass(m) {
+  if (!m || m.vacuous) return "n/a";
+  if (m.nRef === 0) return "extra";                                  // annotated as absent, notes predicted
+  if (m.nEst === 0) return "missed";                                 // annotated present, nothing predicted
+  if (m.pitchOnset.F >= 0.8) return m.full.F >= 0.8 ? "ok" : "timing-or-duration";
+  if (m.octave && m.octave.wrongPitch > 0 && m.octave.octaveErrors / m.octave.wrongPitch >= 0.5 && m.onset.F >= 0.8) return "octave";
+  if (m.onset.F >= 0.8) return "wrong-notes";
+  if (m.fragmentation && m.fragmentation.rate >= 0.3) return "fragmented";
+  return m.onset.R < m.onset.P - 0.2 ? "missed" : m.onset.P < m.onset.R - 0.2 ? "extra" : "mixed";
+}
+
 function bassClass(b) {
   if (!b || b.onset.vacuous) return "n/a";
   if (b.onset.tp + b.onset.fn === 0) return "extra";        // annotated as absent, but the analyzer predicted notes
@@ -60,4 +72,4 @@ function bassClass(b) {
   return wrong > 0 && b.octaveErrorRate / wrong >= 0.5 ? "octave" : "wrong-notes";
 }
 
-module.exports = { CLASSIFIER_VERSION, tempoClass, beatClass, downbeatClass, driftClass, keyClass, drumClass, chordClass, bassClass };
+module.exports = { CLASSIFIER_VERSION, tempoClass, beatClass, downbeatClass, driftClass, keyClass, drumClass, chordClass, bassClass, melodyClass };

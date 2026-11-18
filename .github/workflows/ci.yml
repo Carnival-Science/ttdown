@@ -76,6 +76,11 @@ jobs:
           node tests/arrangement-vs-version-a.test.js
           python bench/crosscheck_mir_eval.py bench/out/arrangement-fixtures/scores.json
 
+      - name: Melody scoring end to end, and the transcription/melody scorers against mir_eval
+        run: |
+          npm run bench:melody
+          npm run bench:transcription
+
       - name: Upload run records
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

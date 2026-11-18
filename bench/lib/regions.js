@@ -10,7 +10,7 @@
 // regions never count an event twice. Regions must be finite, ordered, non-overlapping, with end > start >= 0.
 // A track without `scorable` is scored over the whole recording, exactly as before.
 //
-// Optional per region:  "silent": ["drums", "bass", "chords"]  declares that those kinds are ANNOTATED as absent there (a drumless
+// Optional per region:  "silent": ["drums", "bass", "chords", "melody_vocal", "melody_lead"]  declares that those kinds are ANNOTATED as absent there (a drumless
 // breakdown). That is different from "nobody annotated this region": a kind with no events in a region and no `silent` declaration is a
 // validation failure (see requirements.js), because it cannot be told apart from a missing annotation. Declared silence stays scorable:
 // anything the analyzer predicts there is a false positive. Beats cannot be silent (declare a `gap` for a free-time passage).
@@ -19,7 +19,10 @@
 // 0.5 s after it (a benchmark whose declared regions miss the music would otherwise "complete" with only tempo and key scored).
 "use strict";
 
-const SILENT_KINDS = ["drums", "bass", "chords"], END_SLACK = 0.5;
+const SILENT_KINDS = ["drums", "bass", "chords", "melody_vocal", "melody_lead"], END_SLACK = 0.5;
+/** The scope list for one annotation kind: the kind's own `scorableByKind[kind]` if the track gives one (e.g. the vocal melody was
+ *  annotated for a different excerpt than the beats), else the track's `scorable`, else null (whole recording). */
+const scopeList = (track, kind) => (track.scorableByKind && track.scorableByKind[kind]) || track.scorable || null;
 function problems(regions, id = "track", duration = null) {
   if (!Array.isArray(regions) || !regions.length) return [`${id}: scorable must be a non-empty list of { start, end } regions`];
   const out = [];
@@ -65,4 +68,4 @@ function complement(R, duration) {
 }
 const seconds = R => R.reduce((s, r) => s + (r.end - r.start), 0);
 
-module.exports = { problems, normalize, inside, filterTimes, filterNotes, clipIntervals, containsInterval, complement, seconds };
+module.exports = { scopeList, SILENT_KINDS, problems, normalize, inside, filterTimes, filterNotes, clipIntervals, containsInterval, complement, seconds };
