@@ -59,3 +59,14 @@ Columns: *tracked* = the beats and downbeats the engine's tracker produced; *exp
 ## Limits of this report
 
 One fixture per condition; synthetic sounds; truth for ambiguous cases (half-time, breakdown, 6/8 not included) is a convention; the harness's drift metric over-reports when the metrical level differs; hi-hat results unexplained; no real music.
+
+## Arrangement fixtures (added for Phase 2c step 2)
+
+Two further fixtures in their own manifest (`test-songs/arrangement-fixtures/`, so the twelve time fixtures above are byte-for-byte unchanged): intro 8, groove 16, breakdown 8, drop 16, outro 8 bars, once at a constant 124 BPM and once drifting from 124 to 112 BPM. Answers include section boundaries.
+
+| Fixture | Version A boundaries within ±0.5 s | Mean error | After Phase 2c step 2 | Mean error |
+|---|---|---|---|---|
+| `arrangement_constant` | 4 of 4 (F 1.00) | 13.5 ms | 4 of 4 (F 1.00) | 3.3 ms |
+| `arrangement_drift` | 0 of 4 (F 0.00; up to 1.29 s late) | – | 4 of 4 (F 1.00) | 2.9 ms |
+
+Version A found the right **bars** for every boundary even under drift; it converted them to time with one constant tempo. Both are F 1.00 at ±3 s. Labels are not scored: Version A calls the groove a "Drop" and the outro a "Groove" on both fixtures (loudness heuristics), and the change does not alter them. Two fixtures, synthetic: not an accuracy claim.

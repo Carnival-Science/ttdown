@@ -7,7 +7,7 @@ Status: the analyzer is unchanged. Phase 2c is moving the page's consumers onto 
 | Consumer | Status |
 |---|---|
 | Bar ruler, metronome clicks, "loop 4 bars from where I am" | **on TimeMap** (this step; table in `bench/baselines/version-a/consumers/ruler-metronome.md`) |
-| Section boundaries and arrangement | open |
+| Section times (timeline, section table, section loops, plan text) | **on TimeMap** (Phase 2c step 2): a section's bar numbers map to time through the tracked bars; the arrangement pass itself is unchanged |
 | Chord intervals (and the chord-check loops, which must move with them) | open |
 | Drum and bass event timing; the "check by ear" overlay | open |
 | MIDI and aligned-audio exports | open (gated by `exportEligibility()`) |

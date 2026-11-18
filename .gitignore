@@ -10,3 +10,6 @@ bench/out/
 test-songs/time-fixtures/*.wav
 test-songs/time-fixtures/*.json
 test-songs/time-fixtures/truth/
+test-songs/arrangement-fixtures/*.wav
+test-songs/arrangement-fixtures/*.json
+test-songs/arrangement-fixtures/truth/

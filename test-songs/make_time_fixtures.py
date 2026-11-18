@@ -46,8 +46,10 @@ FEEL = {
 }
 PROG = [[57, 60, 64], [50, 53, 57], [52, 56, 59], [57, 60, 64]]  # Am Dm E Am: the major E chord (G#) makes A minor unambiguous (Am F C G would also read as C major)
 
-def build(fid, meter, bars, tempo, feel, t0=0.0, pickup=0, tags=None, tempo_notes=(), declare_tempo=None, bar_feel=None):
-    """tempo: function beat_index -> bpm in force from that beat to the next. bar_feel: optional function bar -> feel name."""
+def build(fid, meter, bars, tempo, feel, t0=0.0, pickup=0, tags=None, tempo_notes=(), declare_tempo=None, bar_feel=None, bar_mix=None, sections=None):
+    """tempo: function beat_index -> bpm in force from that beat to the next. bar_feel: optional function bar -> feel name.
+    bar_mix: optional function bar -> {kick, snare, hat, pad, bass} gains (0 mutes, and a muted hit is not an annotated event).
+    sections: optional [(start_bar, end_bar, label)], written as the arrangement answer (start and end at the bar lines)."""
     nb = pickup + bars * meter + 1                      # one extra beat so every position has a following beat
     bt = np.zeros(nb); bt[0] = t0
     for k in range(nb - 1): bt[k + 1] = bt[k] + 60.0 / tempo(k)
@@ -62,7 +64,8 @@ def build(fid, meter, bars, tempo, feel, t0=0.0, pickup=0, tags=None, tempo_note
     T = {"beats": [], "chords": [], "drums": [], "tempo_changes": list(tempo_notes), "tags": tags or {}}
     for k in range(nb - 1):                              # annotated beats (the last helper beat is not music)
         q = k - pickup; T["beats"].append((at(bt[k]), int(q % meter) + 1))
-    hits = []                                            # (time, class)
+    hits = []                                            # (time, class, gain)
+    gain = lambda b, cls: 1 if bar_mix is None else bar_mix(b).get(cls, 1)
     for b in range(-1 if pickup else 0, bars):
         f = FEEL[bar_feel(b) if bar_feel else feel]
         for cls in ("kick", "snare", "hat"):
@@ -71,19 +74,23 @@ def build(fid, meter, bars, tempo, feel, t0=0.0, pickup=0, tags=None, tempo_note
                 if q >= meter * bars or p >= meter: continue
                 if b < 0:                                # pickup bar: only its last `pickup` beats sound, hats plus a clap on the last one
                     if q < -pickup: continue
-                    if cls == "hat" or (cls == "snare" and q >= -1): hits.append((time_at(q), cls))
-                else: hits.append((time_at(q), cls))
-    for t, cls in hits:
-        add({"kick": KICK, "snare": CLAP, "hat": HAT}[cls], t)
+                    if cls == "hat" or (cls == "snare" and q >= -1): hits.append((time_at(q), cls, gain(max(b, 0), cls)))
+                else: hits.append((time_at(q), cls, gain(b, cls)))
+    for t, cls, g in hits:
+        if g == 0: continue
+        sig = {"kick": KICK, "snare": CLAP, "hat": HAT}[cls]
+        add(sig if g == 1 else sig * g, t)
         T["drums"].append((at(t), {"hat": "hihat"}.get(cls, cls)))
     for b in range(bars):
         ch = PROG[b % 4]; s0, s1 = time_at(b * meter), time_at((b + 1) * meter)
-        for m in ch: add(tone(m, (s1 - s0), 0.08, 5), s0)
-        add(bass(ch[0] - 24, (s1 - s0) * 0.9), s0)
+        gp, gb = gain(b, "pad"), gain(b, "bass")
+        if gp: [add(tone(m, (s1 - s0), 0.08 * gp, 5), s0) for m in ch]
+        if gb: add(bass(ch[0] - 24, (s1 - s0) * 0.9) * (1 if gb == 1 else gb), s0)
         T["chords"].append((at(s0), at(s1), NOTE[ch[0] % 12] + ":min" if ch[1] - ch[0] == 3 else NOTE[ch[0] % 12] + ":maj"))
     x /= np.max(np.abs(x)) * 1.05
     y = (x * 32767).astype(np.int16)
     with wave.open(fid + ".wav", "wb") as w: w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR); w.writeframes(y.tobytes())
+    T["sections"] = [(at(time_at(a * meter)), at(time_at(min(b2, bars) * meter)), l) for a, b2, l in (sections or [])]
     T["drums"].sort(); T["tempo"] = declare_tempo; T["meter"] = meter; T["dur"] = dur; T["id"] = fid
     return T
 
@@ -115,28 +122,48 @@ F.append(build("long_7min", 4, 224, const(128), "4/4", declare_tempo=128, tags=t
 f6 = lambda v: f"{v:.6f}"
 sha = lambda p: hashlib.sha256(open(p, "rb").read()).hexdigest()
 band = lambda bpm: "<90" if bpm < 90 else "90-115" if bpm < 115 else "115-135" if bpm < 135 else "135-160" if bpm < 160 else ">160"
-tracks = []
-for T in F:
-    tid = T["id"]; base = f"truth/{tid}"; W = lambda p: open(p, "w", newline="\n")
-    bt = T["beats"]
-    with W(f"{base}.beats.txt") as f:
-        for i, (t, q) in enumerate(bt): f.write(f"{f6(t)}\t{q}\n")
-        for kbeat, note in T["tempo_changes"]: f.write(f"tempo-change {f6(bt[kbeat][0])} {note}\n")
-    with W(f"{base}.key.txt") as f: f.write("A minor\n")
-    with W(f"{base}.chords.lab") as f: f.writelines(f"{f6(a)}\t{f6(b)}\t{l}\n" for a, b, l in T["chords"])
-    with W(f"{base}.drums.txt") as f: f.writelines(f"{f6(t)}\t{c}\n" for t, c in T["drums"])
-    ann = {k: f"{base}.{ext}" for k, ext in [("beats", "beats.txt"), ("key", "key.txt"), ("chords", "chords.lab"), ("drums", "drums.txt")]}
-    iv = np.diff([t for t, _ in bt]); med_bpm = 60.0 / float(np.median(iv))
-    tr = {"id": tid, "audio": f"{tid}.wav", "sha256": sha(f"{tid}.wav"), "split": "synthetic",
-          "artists": ["Track Teardown time-model fixtures"], "release": "time fixtures v1", "songFamily": tid,
-          "rights": {"source": "generated by test-songs/make_time_fixtures.py", "licence": "project-owned synthetic audio"},
-          "tags": {**T["tags"], "tempo_band": band(med_bpm)}, "annotations": ann, "annotationSha256": {k: sha(p) for k, p in ann.items()}}
-    if T["tempo"] is not None: tr["tempo"] = T["tempo"]   # variable-tempo fixtures have no single tempo: the harness derives one from the beats
-    tracks.append(tr)
-with open("manifest.json", "w", newline="\n") as f:
-    json.dump({"name": "time-fixtures", "version": 2, "annotationProtocol": "synthetic-exact",
-               "note": "Generated answers, exact by construction. Time-model stress fixtures: reported, not gated. Not real-world accuracy.",
-               "requirements": {"checksums": True, "continuousBeats": True, "identity": True,
-                                "annotations": {k: "all" for k in ["beats", "downbeats", "key", "chords", "drums"]}},
-               "tracks": tracks}, f, indent=1)
+def write_set(F, name, version, note, release, kinds):
+    tracks = []
+    for T in F:
+        tid = T["id"]; base = f"truth/{tid}"; W = lambda p: open(p, "w", newline="\n")
+        bt = T["beats"]
+        with W(f"{base}.beats.txt") as f:
+            for i, (t, q) in enumerate(bt): f.write(f"{f6(t)}\t{q}\n")
+            for kbeat, note_ in T["tempo_changes"]: f.write(f"tempo-change {f6(bt[kbeat][0])} {note_}\n")
+        with W(f"{base}.key.txt") as f: f.write("A minor\n")
+        with W(f"{base}.chords.lab") as f: f.writelines(f"{f6(a)}\t{f6(b)}\t{l}\n" for a, b, l in T["chords"])
+        with W(f"{base}.drums.txt") as f: f.writelines(f"{f6(t)}\t{c}\n" for t, c in T["drums"])
+        files = [("beats", "beats.txt"), ("key", "key.txt"), ("chords", "chords.lab"), ("drums", "drums.txt")]
+        if T["sections"]:
+            with W(f"{base}.sections.lab") as f: f.writelines(f"{f6(a)}\t{f6(b)}\t{l}\n" for a, b, l in T["sections"])
+            files.append(("sections", "sections.lab"))
+        ann = {k: f"{base}.{ext}" for k, ext in files}
+        iv = np.diff([t for t, _ in bt]); med_bpm = 60.0 / float(np.median(iv))
+        tr = {"id": tid, "audio": f"{tid}.wav", "sha256": sha(f"{tid}.wav"), "split": "synthetic",
+              "artists": ["Track Teardown time-model fixtures"], "release": release, "songFamily": tid,
+              "rights": {"source": "generated by test-songs/make_time_fixtures.py", "licence": "project-owned synthetic audio"},
+              "tags": {**T["tags"], "tempo_band": band(med_bpm)}, "annotations": ann, "annotationSha256": {k: sha(p) for k, p in ann.items()}}
+        if T["tempo"] is not None: tr["tempo"] = T["tempo"]   # variable-tempo fixtures have no single tempo: the harness derives one from the beats
+        tracks.append(tr)
+    with open("manifest.json", "w", newline="\n") as f:
+        json.dump({"name": name, "version": version, "annotationProtocol": "synthetic-exact", "note": note,
+                   "requirements": {"checksums": True, "continuousBeats": True, "identity": True, "annotations": {k: "all" for k in kinds}},
+                   "tracks": tracks}, f, indent=1)
+
+write_set(F, "time-fixtures", 2, "Generated answers, exact by construction. Time-model stress fixtures: reported, not gated. Not real-world accuracy.",
+          "time fixtures v1", ["beats", "downbeats", "key", "chords", "drums"])
 print("ok", len(F), "fixtures")
+
+# ---- arrangement fixtures (Phase 2c step 2): known section boundaries, constant tempo and drifting tempo. Separate manifest, so the
+#      time-fixture set above is unchanged. Sections change only on 8-bar lines (the analyzer measures the arrangement in 4/8-bar blocks).
+ARR = [(0, 8, "Intro"), (8, 24, "Groove"), (24, 32, "Breakdown"), (32, 48, "Drop"), (48, 56, "Outro")]
+MIX = {"Intro": dict(kick=0, snare=0, hat=1, pad=1, bass=0), "Groove": dict(kick=1, snare=1, hat=1, pad=1, bass=1),
+       "Breakdown": dict(kick=0, snare=0, hat=0, pad=1, bass=0), "Drop": dict(kick=1, snare=1, hat=1.6, pad=1.3, bass=1.3), "Outro": dict(kick=1, snare=0, hat=1, pad=0, bass=0)}
+mix_at = lambda b: MIX[next(l for a, e, l in ARR if a <= b < e)] if b < 56 else MIX["Outro"]
+os.makedirs(os.path.join(HERE, "arrangement-fixtures", "truth"), exist_ok=True); os.chdir(os.path.join(HERE, "arrangement-fixtures"))
+A = [build("arrangement_constant", 4, 56, const(124), "4/4", declare_tempo=124, bar_mix=mix_at, sections=ARR, tags=tags(arrangement="intro 8, groove 16, breakdown 8, drop 16, outro 8 bars")),
+     build("arrangement_drift", 4, 56, ramp(124, 112, 224), "4/4", bar_mix=mix_at, sections=ARR, tags=tags(arrangement="intro 8, groove 16, breakdown 8, drop 16, outro 8 bars", tempo_behaviour="drift: 124 to 112 BPM (10 %)"))]
+write_set(A, "arrangement-fixtures", 1, "Generated answers, exact by construction. Section boundaries at known bar lines, constant and drifting tempo. Reported, not gated.",
+          "arrangement fixtures v1", ["beats", "downbeats", "key", "chords", "drums", "sections"])
+print("ok", len(A), "arrangement fixtures")
+
