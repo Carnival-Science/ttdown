@@ -658,7 +658,7 @@ Not carried over, because the features are gone: tests 8, 14, 16, 17, 18, 19, 21
 
 ### Size
 
-Production build: 61 files and 1.55 MB before, 14 files and about 650 KB after (Latin font subsets only; the UI SDK default stylesheet is no longer shipped; the carried-over stylesheet was pruned from 30 KB to 12 KB by script). Dependencies are unchanged in kind and all used (`@ui-sdk/svelte` and its peer for Tabs, three self-hosted font packages, the toolchain).
+Production build: 61 files and 1.55 MB before, 14 files and about 650 KB after (Latin font subsets only; the carried-over stylesheet was pruned from 30 KB to 12 KB by script). The UI SDK default stylesheet (`@ui-sdk/core/web.css`) was dropped in that cut and **re-added at the entry on the founder's request (2026-11-18)**: it costs about 85 KB (the build is now about 740 KB), is imported before TTdown's own stylesheets so they still win, and changes nothing visible. `app/AGENTS.md` and the project skill (`.agents/skills/ui-sdk`, installed with `npx skills@latest add vercel-labs/ui --skill ui-sdk`, pinned in `skills-lock.json`; Markdown guidance only, read before it was kept) point agents at the docs that ship with the package. Dependencies are unchanged in kind and all used (`@ui-sdk/svelte` and its peer for Tabs, three self-hosted font packages, the toolchain).
 
 ### Results
 
