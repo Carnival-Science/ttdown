@@ -370,6 +370,7 @@ kbd { font: 600 0.74rem var(--font-mono); background: linear-gradient(180deg, #3
     <div class="row">
       <input type="file" id="file" accept="audio/*,.mp3,.wav,.m4a,.flac,.ogg,.aac">
       <input type="text" id="title" placeholder="Song name and artist (optional)" aria-label="Song name and artist" style="max-width:320px">
+      <button type="button" class="btn" id="cancel" hidden title="Stop analysing this file (Esc)">Cancel analysis</button>
     </div>
     <div class="progress" aria-hidden="true"><div id="prog"></div></div>
     <p class="status" id="status" role="status">No song yet. Below is an example teardown so you can see what you'll get.</p>
@@ -514,11 +515,48 @@ function transcribe(x, SR, firstDown, barSec, sections, tune) {
     return { hook: { notes: foldNotes(mel, 64, 1), from: sec.label, bar: sec.startBar + 1 }, bass: { notes: bassNotes, from: sec.label, bar: sec.startBar + 1 } };
   } catch (e) { return {}; }
 }
-async function analyze(file, onProg, opts_compare) {
+/* Processing limits. Everything is analysed in the browser tab, so a file that is too large or too long can exhaust memory:
+   a decoded stereo float track is about 21 MB per minute (8 min = 169 MB, plus analysis arrays). The numbers are policy
+   choices, not measurements of any device; they are meant to be reviewed and tuned with the performance work (Phase 9).
+   maxSeconds is the engine's own coverage: tempo, beats and drum patterns are computed for the first rhythmSeconds only, so a
+   longer file is refused instead of being presented as a full teardown of material that was only partly analysed.
+   Known gap: the duration is read from the file header before decoding, but a compressed file with a missing or wrong header
+   duration is only caught AFTER decoding, which has already allocated the whole track. File size is the only hard bound before that. */
+const LIMITS = Object.freeze({ maxFileBytes: 200 * 1024 * 1024, rhythmSeconds: 480, maxSeconds: 480, minSeconds: 8, silentPeak: 1e-4 /* about -80 dBFS */ });
+class InputLimitError extends Error { constructor(msg) { super(msg); this.name = "InputLimitError"; } } // message is shown to the user as written
+const fmtLen = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+/* Duration from the file's own header via the browser's media pipeline, without decoding it. null when unknown. */
+function probeDuration(file) {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file), a = document.createElement("audio"); a.preload = "metadata"; let done = false, timer;
+    const finish = v => { if (done) return; done = true; clearTimeout(timer); a.onloadedmetadata = a.onerror = null; a.removeAttribute("src"); try { a.load(); } catch (e) {} URL.revokeObjectURL(url); resolve(v); };
+    a.onloadedmetadata = () => finish(Number.isFinite(a.duration) && a.duration > 0 ? a.duration : null); a.onerror = () => finish(null);
+    timer = setTimeout(() => finish(null), 4000); a.src = url;
+  });
+}
+function checkDuration(sec) {
+  if (sec > LIMITS.maxSeconds) throw new InputLimitError(`That file is ${fmtLen(sec)} long. A full-track teardown supports up to ${fmtLen(LIMITS.maxSeconds)} today: tempo, beats and drum patterns are only analysed for that much. Trim it to the section you want to study and try again.`);
+  if (sec < LIMITS.minSeconds) throw new InputLimitError(`That file is only ${sec.toFixed(1)} s long. A teardown needs at least ${LIMITS.minSeconds} s to find a tempo and bars. For a single sound or a short loop, use Sample Lab.`);
+}
+/* Counters for tests and diagnostics: checkpoints reached, analyses stopped early. */
+const ANALYSIS_STATS = window.__analysisStats = { checkpoints: 0, aborted: 0 };
+/* `signal` (optional AbortSignal) is honoured at every checkpoint: between decoding and each analysis stage, and every
+   few percent inside the long arrangement pass. The stages themselves are synchronous, so a cancel takes effect at the next
+   checkpoint, not instantly (moving the work to a Web Worker is a separate, later change). */
+async function analyze(file, onProg, opts_compare, signal) {
+  const stopIfAborted = () => { if (signal && signal.aborted) { ANALYSIS_STATS.aborted++; throw new DOMException("Analysis cancelled", "AbortError"); } };
+  const gate = async () => { await tick(); ANALYSIS_STATS.checkpoints++; stopIfAborted(); };
+  stopIfAborted();
+  if (file.size > LIMITS.maxFileBytes) throw new InputLimitError(`That file is ${(file.size / 1048576).toFixed(0)} MB. The limit is ${LIMITS.maxFileBytes / 1048576} MB.`);
+  if (file.size === 0) throw new InputLimitError("That file is empty.");
+  onProg(5, "Checking the file…");
+  const headerSec = await probeDuration(file); stopIfAborted(); // refuse an over-long file BEFORE decoding allocates its memory
+  if (headerSec != null && headerSec > LIMITS.maxSeconds) checkDuration(headerSec);
   onProg(5, "Decoding audio…");
-  const raw = await file.arrayBuffer();
+  const raw = await file.arrayBuffer(); stopIfAborted();
   const ctx = new OfflineAudioContext(2, 44100, 44100);
-  const ab = await ctx.decodeAudioData(raw);
+  const ab = await ctx.decodeAudioData(raw); stopIfAborted();
+  checkDuration(ab.duration); // authoritative: the header can be missing or wrong
   const L = ab.getChannelData(0), R = ab.numberOfChannels > 1 ? ab.getChannelData(1) : L;
   const dur = ab.duration;
   // mono 22050 + stereo width
@@ -529,11 +567,12 @@ async function analyze(file, onProg, opts_compare) {
   }
   for (let i = 0; i < L.length; i += 2) { const m = (L[i] + R[i]) * 0.5, s = (L[i] - R[i]) * 0.5; mm += m * m; ss += s * s; const p = Math.max(Math.abs(L[i]), Math.abs(R[i])); if (p > peak) peak = p; }
   const width = Math.sqrt(ss / (mm || 1));
+  if (peak < LIMITS.silentPeak) throw new InputLimitError("That file is silent (its loudest sample is below -80 dBFS), so there is nothing to analyse.");
   const SR = 22050;
-  await tick(); onProg(18, "Finding the tempo and drum pattern…");
+  await gate(); onProg(18, "Finding the tempo and drum pattern…");
 
   // ---- rhythm on up to 60 s from the middle ----
-  const win = Math.min(n22, SR * 480), start = 0; // whole track (up to 8 minutes), so every section gets its own drum pattern
+  const win = Math.min(n22, SR * LIMITS.rhythmSeconds), start = 0; // whole track (the input limit keeps it within 8 minutes), so every section gets its own drum pattern
   const n = 1024, hop = 256, fps = SR / hop, nb = n / 2;
   const cur = new Float32Array(nb), prev = new Float32Array(nb);
   const eAll = [], eLow = [], eMid = [], eHigh = [], eUp = [], eSp = [];
@@ -711,7 +750,7 @@ async function analyze(file, onProg, opts_compare) {
     busy: +(eAll.reduce((p, q) => p + q, 0) / eAll.length).toFixed(1)
   };
   if (pat && pat.trackedBpm) { const r1 = Math.round(pat.trackedBpm), r10 = Math.round(pat.trackedBpm * 10) / 10; bpm = Math.abs(pat.trackedBpm - r1) < 0.25 ? r1 : r10; }
-  await tick(); onProg(45, "Mapping the arrangement and frequency balance…");
+  await gate(); onProg(45, "Mapping the arrangement and frequency balance…");
 
   // ---- sections + spectral bands over whole track ----
   const N2 = 4096, hop2 = 2048, m2 = new Float32Array(N2 / 2);
@@ -728,7 +767,7 @@ async function analyze(file, onProg, opts_compare) {
       mag(x, off, N2, m2);
       for (let k = 0; k < 6; k++) { let s = 0; for (let i = bandBins[k]; i < bandBins[k + 1]; i++) s += m2[i] * m2[i]; barE[b].bands[k] += s; }
     }
-    const p = 45 + Math.round(35 * off / n22); if (p > lastP + 4) { lastP = p; onProg(p, "Mapping the arrangement and frequency balance…"); await tick(); }
+    const p = 45 + Math.round(35 * off / n22); if (p > lastP + 4) { lastP = p; onProg(p, "Mapping the arrangement and frequency balance…"); await gate(); }
   }
   const barDb = barE.map(b => 10 * Math.log10((b.rms / (b.n || 1)) + 1e-12));
   // blocks of 8 bars (4 if short)
@@ -779,7 +818,7 @@ async function analyze(file, onProg, opts_compare) {
   let lr = 0, lc = 0, lp = 0;
   loud.forEach(b => { const s0 = Math.floor(b.s * barSec * SR), e0 = Math.min(n22, Math.floor(b.e * barSec * SR)); for (let i = s0; i < e0; i += 2) { lr += x[i] * x[i]; lc++; const a = Math.abs(x[i]); if (a > lp) lp = a; } });
   const loudRms = 20 * Math.log10(Math.sqrt(lr / (lc || 1)) + 1e-9), crest = 20 * Math.log10((lp + 1e-9)) - loudRms;
-  await tick(); onProg(84, "Detecting the key…");
+  await gate(); onProg(84, "Detecting the key…");
 
   // ---- key ----
   const N3 = 8192, m3 = new Float32Array(N3 / 2), notesAcc = [];
@@ -1017,7 +1056,7 @@ function render(a, opts) {
       stat(a.bpm, "BPM", "Set FL Studio's tempo to this", conf(a.bpmConf, 4, 2.5)),
       stat(a.camelot, a.key, "Relative: " + a.relKey, conf(a.keyConf, 0.12, 0.06)),
       stat(g.name.split(" /")[0], "Likely style", "From tempo, drums and tone"),
-      stat(fmtT(a.duration), "Length", a.nBars + " bars of 4/4"),
+      stat(fmtT(a.duration), "Length", a.nBars + " bars of 4/4" + (a.duration > LIMITS.rhythmSeconds ? `. Tempo, beats and drums are read from the first ${fmtLen(LIMITS.rhythmSeconds)} only` : "")),
       stat(a.crest + " dB", "Punch (crest)", a.crest < 9 ? "Crushed loud" : a.crest > 13 ? "Dynamic" : "Typical")
     ]),
     el("div", { class: "row", style: "gap:6px" }, moodTags(a).map(t => el("span", { class: "tag", text: t }))),
@@ -3091,7 +3130,7 @@ function saveHist(a) {
 function showHist() {
   const h = loadHist(); const wrap = $("#hist-wrap"); if (!h.length) { wrap.hidden = true; return; }
   wrap.hidden = false;
-  $("#hist").replaceChildren(...h.map(a => el("button", { class: "btn", text: `${a.title || "Untitled"} · ${a.bpm} · ${a.camelot}`, onclick: () => { supersedeAnalysis("Opened a saved teardown, so the analysis in progress was stopped."); audioURL = null; render(a, {}); $("#out").scrollIntoView({ behavior: "smooth" }); } })));
+  $("#hist").replaceChildren(...h.map(a => el("button", { class: "btn", text: `${a.title || "Untitled"} · ${a.bpm} · ${a.camelot}`, onclick: () => { supersedeAnalysis("Opened a saved teardown, so the analysis in progress was stopped."); if (audioURL) URL.revokeObjectURL(audioURL); audioURL = null; render(a, {}); $("#out").scrollIntoView({ behavior: "smooth" }); } })));
 }
 
 /* ---- wiring ---- */
@@ -3100,33 +3139,44 @@ const status = $("#status"), prog = $("#prog");
    Every upload takes a job number; anything that finishes, fails or reports progress after a newer upload (or after the
    user opened a saved teardown) is discarded. Analysis itself cannot be interrupted mid-computation (see the next PR for
    cancellation), so a superseded job still runs to its next checkpoint but its results are dropped. */
-let analysisJob = 0, analysisRunning = false;
+let analysisJob = 0, analysisRunning = false, analysisCtl = null;
+const setRunning = v => { analysisRunning = v; $("#cancel").hidden = !v; };
 function supersedeAnalysis(msg) {
   analysisJob++;
+  if (analysisCtl) { analysisCtl.abort(); analysisCtl = null; } // really stops the older job at its next checkpoint
   if (analysisRunning && msg) { status.className = "status"; status.textContent = msg; prog.style.width = "0"; }
-  analysisRunning = false;
+  setRunning(false);
 }
+const cancelAnalysis = () => { if (analysisRunning) supersedeAnalysis("Analysis cancelled. Nothing was changed."); };
+$("#cancel").addEventListener("click", cancelAnalysis);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && analysisRunning) cancelAnalysis(); });
 async function handle(file) {
   if (!file) return;
-  const job = ++analysisJob; analysisRunning = true;
+  if (analysisCtl) analysisCtl.abort();
+  const job = ++analysisJob, ctl = analysisCtl = new AbortController(); setRunning(true);
   const current = () => job === analysisJob;
-  if (audioURL) URL.revokeObjectURL(audioURL);
-  audioURL = URL.createObjectURL(file);
+  /* audioURL belongs to the teardown on screen. The new file gets its own URL, which replaces audioURL (and revokes the old one)
+     only when this job succeeds. On failure, cancel or supersede it is revoked and the teardown on screen keeps its audio. */
+  const newURL = URL.createObjectURL(file); let adopted = false;
   status.className = "status";
   try {
-    const a = await analyze(file, (p, msg) => { if (!current()) return; prog.style.width = p + "%"; status.textContent = msg; });
+    const a = await analyze(file, (p, msg) => { if (!current()) return; prog.style.width = p + "%"; status.textContent = msg; }, false, ctl.signal);
     if (!current()) return;
     a.title = $("#title").value.trim() || file.name.replace(/\.[^.]+$/, "");
     lastBuffer = a.__buf || null;
     status.textContent = `Teardown ready for “${a.title}”. Scroll down.`;
-    tdTab = "overview"; render(a, {}); saveHist(a); lastTeardown = a; analysisRunning = false;
+    const oldURL = audioURL; audioURL = newURL; adopted = true;
+    tdTab = "overview"; render(a, {}); saveHist(a); lastTeardown = a; analysisCtl = null; setRunning(false);
+    if (oldURL) URL.revokeObjectURL(oldURL); // the old player was replaced by render()
     $("#out").scrollIntoView({ behavior: "smooth" });
   } catch (e) {
-    if (!current()) return;
-    analysisRunning = false;
+    if (!current() || (e && e.name === "AbortError")) return; // superseded or cancelled: whoever did that has already set the status
+    analysisCtl = null; setRunning(false);
     status.className = "status err";
-    status.textContent = "Couldn't read that file. Try an MP3 or WAV. (" + (e && e.message ? e.message.slice(0, 80) : "decode error") + ")";
+    status.textContent = e instanceof InputLimitError ? e.message : "Couldn't read that file. Try an MP3 or WAV. (" + (e && e.message ? e.message.slice(0, 80) : "decode error") + ")";
     prog.style.width = "0";
+  } finally {
+    if (!adopted) URL.revokeObjectURL(newURL);
   }
 }
 $("#file").addEventListener("change", e => handle(e.target.files[0]));
