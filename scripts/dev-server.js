@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Local static server for development:  npm run dev   (PORT=xxxx to change the port; PORT=0 picks a free one)
-// Serves the app at http://localhost:5173 so it runs from a real origin (hash routing, downloads and
+// Serves the app (and the compiled Svelte app under /app/dist/) at http://localhost:5173 so it runs from a real origin (hash routing, downloads and
 // audio behave as they do when hosted). Only listens on this machine.
 //
 // Deny by default. Only the paths in ALLOW are served, so .git, node_modules, dotfiles (.env), run records
@@ -14,9 +14,13 @@ const http = require("node:http"), fs = require("node:fs"), path = require("node
 const ROOT = fs.realpathSync(path.resolve(__dirname, "..")), HOST = "127.0.0.1";
 const PORT = process.env.PORT != null && process.env.PORT !== "" ? Number(process.env.PORT) : 5173;
 // exact-case, relative to the project folder: a file, or a folder ending in "/"
-const ALLOW = ["index.html", "docs/", "test-songs/", "tests/samples/"];
+// app/dist/ holds the compiled Svelte application (app/: npm run build), served for the benchmark target adapter
+// (bench/lib/target.js). Only the build output, never app/src, app/node_modules or app/package.json.
+const ALLOW = ["index.html", "docs/", "test-songs/", "tests/samples/", "app/dist/"];
 const TYPES = { ".html": "text/html; charset=utf-8", ".md": "text/markdown; charset=utf-8", ".png": "image/png", ".jpg": "image/jpeg",
-  ".svg": "image/svg+xml", ".wav": "audio/wav", ".mp3": "audio/mpeg" };
+  ".svg": "image/svg+xml", ".wav": "audio/wav", ".mp3": "audio/mpeg",
+  // module scripts and stylesheets of the compiled app (nosniff: the browser refuses them under any other type)
+  ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8", ".woff2": "font/woff2" };
 
 const deny = (res, code, msg) => res.writeHead(code, { "Content-Type": "text/plain; charset=utf-8", "X-Content-Type-Options": "nosniff" }).end(msg);
 // a segment Windows (or a shell) could read as something else, or a hidden file/folder

@@ -12,7 +12,7 @@ const truth = fs.readFileSync(path.join(ARR, 'truth', 'arrangement_drift.section
   const b = await chromium.launch(); const errs = []; let failed = 0;
   const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'} ${msg}`); if (!ok) failed++; };
   const p = await b.newPage(); p.on('pageerror', e => errs.push(String(e)));
-  await p.goto(`file://${ROOT}/index.html#teardown`); await p.waitForTimeout(300);
+  await p.goto(`${process.env.TT_APP_URL || `file://${ROOT}/`}index.html#teardown`); await p.waitForTimeout(300);
   await p.setInputFiles('#file', path.join(ARR, 'arrangement_drift.wav'));
   await p.waitForFunction(() => /Teardown ready for “arrangement_drift”/.test(document.querySelector('#status').textContent), null, { timeout: 120000 });
   const a = await p.evaluate(() => { const x = window.__td; return { duration: x.duration, bpm: x.bpm, barSec: x.barSec, firstDown: x.firstDown, bpmConf: x.bpmConf, grid: x.grid, sections: x.sections }; });

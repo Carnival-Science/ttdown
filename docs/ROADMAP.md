@@ -117,7 +117,7 @@ Deliberately not next: UI workspace (Phase 5), comparison rewrite (6), AI contra
 | 9 | Workers, memory, limits, stale-job guard | stale-job guard, cancellation, URL ownership, limits implemented as PRs #9 to #12 (open, stacked). Workers, memory profiling: later |
 | 10 | Module boundaries, data-model docs | open |
 | 11 | Alpha study design | deferred until a pilot-quality analysis exists |
-| – | Framework migration (React/Svelte/Next/TypeScript) | **rejected for this assignment** |
+| – | Framework migration to Svelte 5 + Vite + TypeScript + UI SDK | **approved 2026-11-18; v1 focus applied, cutover prepared** (PR #18, `docs/SVELTE_MIGRATION.md` §14): one timeline-centred view that reports only measured, estimated, assumed or unknown findings; Learn, coach, journal, sample lab, build plan, idea generator, compare (deferred) and accounts cut; engine and domain logic shared with the legacy page in `src/`, identical predictions on all benchmark tracks; production switches when #18 merges |
 | – | Madmom models, Essentia in product | rejected (licence), unless separately licensed |
 
 ## 6. Known limits of this Phase 0 record

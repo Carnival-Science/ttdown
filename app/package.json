@@ -1,0 +1,33 @@
+{
+  "name": "ttdown-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Track Teardown: upload a track and see how it is built. The v1 interface (Svelte 5). The earlier single-file page is ../index.html.",
+  "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build --mode production && node scripts/build-manifest.mjs dist/production",
+    "build:bench": "vite build --mode bench && node scripts/build-manifest.mjs dist/bench",
+    "build:all": "npm run build && npm run build:bench",
+    "check": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings && tsc -p tsconfig.node.json && node scripts/check-ui-boundary.mjs",
+    "smoke": "node tests/smoke.mjs"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "@types/node": "24.19.2",
+    "svelte": "5.57.3",
+    "svelte-check": "4.7.8",
+    "typescript": "6.0.3",
+    "vite": "8.3.8"
+  },
+  "dependencies": {
+    "@fontsource-variable/archivo": "5.3.0",
+    "@fontsource/ibm-plex-sans": "5.3.0",
+    "@fontsource/jetbrains-mono": "5.3.0",
+    "@ui-sdk/core": "0.1.0-beta.6",
+    "@ui-sdk/svelte": "0.1.0-beta.6"
+  }
+}

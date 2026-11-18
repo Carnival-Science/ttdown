@@ -1,0 +1,57 @@
+/* App-level layout on top of components.css: the new shell, and fixes for legacy layout defects (founder: functionality is
+   preserved, layout bugs are not; docs/SVELTE_MIGRATION.md §10). */
+
+/* Header: brand, navigation, Display/Volume, LCD. The navigation never clips: it wraps onto its own row when needed. */
+.console { grid-template-columns: auto minmax(0, 1fr) auto auto auto; }
+.tabs { flex-wrap: wrap; overflow: visible; }
+@media (max-width: 1100px) { .console { grid-template-columns: auto 1fr auto auto; } .console .tabs { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; justify-content: flex-start; } .console .lcd { grid-row: 1; } }
+@media (max-width: 720px) {
+  .console .tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .console .tabs a { justify-content: center; }
+}
+
+/* Long words in stat cards break between words, never inside them ("Electronic" on phones). */
+.stat b { overflow-wrap: normal; word-break: normal; hyphens: manual; }
+@media (max-width: 480px) { .stat b { font-size: clamp(1.1rem, 6vw, 1.6rem); } }
+
+/* Room at the bottom of the page. */
+.wrap { padding-bottom: 120px; }
+@media (max-width: 720px) { .wrap { padding-bottom: 150px; } .sess { max-width: calc(100vw - 32px); } }
+
+/* UI SDK tabs styled as the legacy teardown tab bar. */
+.tdtabs [role="tab"] { flex: 0 0 auto; }
+.tdtabs [role="tab"][aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+
+/* Cards never grow wider than the screen: long words and list items wrap inside them. */
+.layer, .layer > *, .pstep, .idea { min-width: 0; max-width: 100%; }
+.plug { white-space: normal; overflow-wrap: anywhere; }
+.layer ul, .layer ol { overflow-wrap: anywhere; }
+/* Phone: the teardown tab bar wraps instead of hiding tabs off the edge. */
+@media (max-width: 720px) { .tdtabs { flex-wrap: wrap; overflow-x: visible; } .tdtabs [role="tab"] { flex: 1 1 auto; } }
+
+/* ---- v1 layout: one view, findings, the explorer, exports ---- */
+.findings { gap: 18px; }
+.findings > h2 { margin-bottom: -4px; }
+.finding { display: grid; gap: 8px; padding: 14px 0 4px; border-top: 1px solid var(--tt-line); min-width: 0; }
+.finding:first-of-type { border-top: 0; padding-top: 0; }
+.fhead { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+.fhead h3 { font-size: 1rem; }
+.big { font: 700 2rem/1.1 var(--tt-font-display); margin: 0; }
+.big.mono { font-family: var(--tt-font-mono); color: var(--tt-lcd); }
+.big small { font-size: .9rem; color: var(--tt-ink-3); font-weight: 500; }
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+.facts dt { color: var(--tt-ink-3); } .facts dd { margin: 0; }
+.notice { margin: 0; padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--tt-warn) 50%, transparent); border-radius: var(--tt-radius-sm); background: color-mix(in srgb, var(--tt-warn) 8%, transparent); color: var(--tt-ink); display: grid; gap: 8px; }
+.notice label { display: flex; gap: 8px; align-items: flex-start; }
+.notice .btn { justify-self: start; }
+.playerbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.playerbar audio { flex: 1 1 280px; min-width: 0; }
+.vol input[type="range"] { width: 120px; accent-color: var(--tt-accent); }
+.timeline .seg.sel { outline: 3px solid var(--tt-ink); outline-offset: -3px; }
+.detail { display: grid; gap: 12px; border-top: 1px solid var(--tt-line); padding-top: 14px; min-width: 0; }
+.dhead h3 { font-size: 1.1rem; }
+.dpanel { display: grid; gap: 12px; padding-top: 6px; min-width: 0; }
+.chrow.wide { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
+.chcell.cur { outline: 2px solid var(--tt-focus); }
+.chcell.ok { border-color: var(--tt-good); } .chcell.fixed { border-color: var(--tt-cool); }
+.dtabs { position: static; }
