@@ -64,6 +64,9 @@ jobs:
           npm run bench:time-fixtures
           node bench/time-fixtures-summary.js bench/out/time-fixtures > bench/out/time-fixtures/summary.md
 
+      - name: Scorable regions scored end to end (on the real predictions)
+        run: npm run bench:regions
+
       - name: Upload run records
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

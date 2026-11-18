@@ -15,6 +15,7 @@ const fs = require("node:fs"), path = require("node:path");
 const { sha256File } = require("./provenance");
 const { beats, validateBeats } = require("./loaders");
 const { identityProblems } = require("./holdout");
+const Regions = require("./regions");
 const KINDS = ["beats", "downbeats", "key", "chords", "drums", "bass"];
 
 // Hash every annotation file a track lists; compare with the manifest's expected hashes.
@@ -48,6 +49,7 @@ function checkRequirements(manifest, tracks, manifestDir) {
     const f = t.annotations && t.annotations.beats && path.resolve(manifestDir, t.annotations.beats);
     if (f && fs.existsSync(f)) { try { problems.push(...validateBeats(beats(f)).map(x => `${t.id}: ${x}`)); } catch (e) { problems.push(`${t.id}: beats file unreadable (${e.message})`); } }
   }
+  for (const t of tracks) if (t.scorable !== undefined) problems.push(...Regions.problems(t.scorable, t.id));  // scorable regions: ordered, disjoint, half-open
   const have = new Map(tracks.map(t => [t.id, provided(t, manifestDir)]));
   for (const k of KINDS) {
     const n = tracks.filter(t => have.get(t.id).has(k)).length, need = (req.annotations || {})[k];
