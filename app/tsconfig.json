@@ -15,7 +15,8 @@
     "paths": {
       "$timemap": ["./src/lib/timemap/timemap-module.d.ts"],
       "$timingstore": ["./src/lib/persistence/timing-store-module.d.ts"],
-      "$engine": ["./src/lib/engine/engine-module.d.ts"]
+      "$engine": ["./src/lib/engine/engine-module.d.ts"],
+      "$domain": ["./src/lib/domain/domain-module.d.ts"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.svelte"]

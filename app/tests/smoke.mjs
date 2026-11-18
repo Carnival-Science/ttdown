@@ -58,7 +58,7 @@ async function pageChecks(browser, name, baseUrl, expect) {
     p.on("console", m => { if (m.type() === "error") errors.push("console: " + m.text()); });
     await p.goto(baseUrl); await p.waitForSelector("[data-route]");
     const route = () => p.$eval("[data-route]", e => e.dataset.route);
-    const current = () => p.$eval('nav[aria-label="Main"] a[aria-current="page"]', e => e.textContent.trim());
+    const current = () => p.$eval('nav[aria-label="Sections"] a[aria-current="page"]', e => e.textContent.trim());
 
     check(await route() === "teardown", `${name}/${label}: default route is ${await route()}, want teardown`);
     check(await current() === "Teardown", `${name}/${label}: nav marks ${await current()} as current`);
@@ -66,7 +66,7 @@ async function pageChecks(browser, name, baseUrl, expect) {
 
     // navigation by click, then history, unknown hash and reload
     for (const [text, id] of ROUTES.slice(1).concat([ROUTES[0]])) {
-      await p.click(`nav[aria-label="Main"] a:has-text("${text}")`);
+      await p.click(`nav[aria-label="Sections"] a:has-text("${text}")`);
       await p.waitForFunction(i => document.querySelector("[data-route]").dataset.route === i, id);
       check(new URL(p.url()).hash === "#" + id, `${name}/${label}: ${text} sets #${id}`);
       check(await current() === text, `${name}/${label}: ${text} marked current`);
@@ -88,8 +88,8 @@ async function pageChecks(browser, name, baseUrl, expect) {
     const id = await p.evaluate(() => window.__build);
     check(id && id.schema === "ttdown-build/1" && id.mode === expect.mode, `${name}/${label}: __build mode ${id && id.mode}`);
     check(id && id.timemapSha256 === TIMEMAP_SHA, `${name}/${label}: __build TimeMap hash`);
-    const hooks = await p.evaluate(() => ({ test: typeof window.__ttdownTest, tm: typeof window.TimeMap, td: typeof window.__td, buf: Object.keys(window).filter(k => /buf/i.test(k)) }));
-    check(hooks.test === (expect.hooks ? "object" : "undefined") && hooks.tm === (expect.hooks ? "object" : "undefined"), `${name}/${label}: hooks ${JSON.stringify(hooks)}`);
+    const hooks = await p.evaluate(() => ({ test: typeof window.__ttdownTest, tm: typeof window.TimeMap, td: typeof window.__td, sn: typeof window.__sn, loop: "__loop" in window, buf: Object.keys(window).filter(k => /buf/i.test(k)) }));
+    check(hooks.test === (expect.hooks ? "object" : "undefined") && hooks.tm === (expect.hooks ? "object" : "undefined") && hooks.td === (expect.hooks ? "object" : "undefined") && hooks.sn === (expect.hooks ? "function" : "undefined"), `${name}/${label}: hooks ${JSON.stringify(hooks)}`);
     check(hooks.buf.length === 0, `${name}/${label}: no audio buffer globals`);
     if (expect.hooks) {
       const fp = await p.evaluate(c => window.TimeMap.fromConstantGrid(c).fingerprint(), SELF_CHECK);
@@ -116,11 +116,18 @@ async function pageChecks(browser, name, baseUrl, expect) {
     check(await tabs.nth(3).getAttribute("aria-selected") === "true", `${name}/${label}: Song map tab selected by click`);
     await p.keyboard.press("ArrowRight");
     check(await tabs.nth(4).getAttribute("aria-selected") === "true", `${name}/${label}: ArrowRight selects the next tab`);
-    check(await p.locator("[data-part]").count() === 6, `${name}/${label}: all six panels stay mounted`);
+    check(await p.locator('[role="tabpanel"]').count() === 6, `${name}/${label}: all six panels stay mounted`);
+    check(await p.locator("#out h2", { hasText: "Idea generator" }).count() === 1, `${name}/${label}: idea generator rendered`);
 
     // layout: no horizontal scroll, every nav link fully on screen
+    for (const t of ["Overview", "Build it", "Idea generator", "Song map", "Sounds and mix", "Compare"]) {
+      await p.click(`[role="tab"]:has-text("${t}")`); await p.waitForTimeout(80);
+      const wide = await p.evaluate(() => [...document.querySelectorAll('[role="tabpanel"]:not([hidden]) .layer, [role="tabpanel"]:not([hidden]) .panel, [role="tab"]')].filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.right > innerWidth + 1 || r.left < -1); }).map(e => (e.querySelector("h2,h3")?.textContent || e.textContent || "").slice(0, 30)));
+      check(wide.length === 0, `${name}/${label}: "${t}" has content wider than the screen: ${wide.slice(0, 3).join(" | ")}`);
+    }
+    await p.click('[role="tab"]:has-text("Overview")');
     const lay = await p.evaluate(() => ({ over: document.documentElement.scrollWidth - innerWidth,
-      clipped: [...document.querySelectorAll('nav[aria-label="Main"] a')].filter(a => { const r = a.getBoundingClientRect(); return r.left < 0 || r.right > innerWidth + 0.5 || a.scrollWidth > a.clientWidth + 1; }).map(a => a.textContent) }));
+      clipped: [...document.querySelectorAll('nav[aria-label="Sections"] a')].filter(a => { const r = a.getBoundingClientRect(); return r.left < 0 || r.right > innerWidth + 0.5 || a.scrollWidth > a.clientWidth + 1; }).map(a => a.textContent) }));
     check(lay.over <= 0, `${name}/${label}: horizontal overflow ${lay.over}px`);
     check(lay.clipped.length === 0, `${name}/${label}: clipped nav links ${lay.clipped}`);
     await p.screenshot({ path: path.join(OUT, `${name}-${label}.png`) });

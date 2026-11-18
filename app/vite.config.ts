@@ -19,6 +19,7 @@ const SHARED = {
   timemap: path.join(REPO, "src", "timemap.js"),        // musical time model
   timingStore: path.join(REPO, "src", "timing-store.js"), // saved-teardown timing contract (docs/PERSISTENCE.md)
   engine: path.join(REPO, "src", "engine.js"),           // the analysis engine (exports a factory: createEngine({ TimeMap }))
+  domain: path.join(REPO, "src", "domain.js"),           // plans, ideas, notes, exports, compare, curriculum (factory: createDomain)
 };
 const SHARED_FILES = new Set(Object.values(SHARED));
 
@@ -53,12 +54,13 @@ export default defineConfig(({ mode }) => {
     timemapSha256: sha256(SHARED.timemap),
     timingStoreSha256: sha256(SHARED.timingStore),
     engineSha256: sha256(SHARED.engine),
+    domainSha256: sha256(SHARED.domain),
     versions: { svelte: pkgVersion("svelte"), vite: pkgVersion("vite"), uiSdk: pkgVersion("@ui-sdk/svelte") },
   };
   return {
     base: "./",
     plugins: [canonicalSharedModules(), svelte()],
-    resolve: { alias: { $timemap: SHARED.timemap, $timingstore: SHARED.timingStore, $engine: SHARED.engine } },
+    resolve: { alias: { $timemap: SHARED.timemap, $timingstore: SHARED.timingStore, $engine: SHARED.engine, $domain: SHARED.domain } },
     define: {
       __BUILD_INFO__: JSON.stringify(build),
       __TEST_HOOKS__: JSON.stringify(mode === "bench"),

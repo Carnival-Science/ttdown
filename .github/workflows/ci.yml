@@ -93,7 +93,7 @@ jobs:
   # job above is unchanged. The app has its own lockfile (app/package-lock.json); Playwright comes from the root install.
   app:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -105,11 +105,21 @@ jobs:
             package-lock.json
             app/package-lock.json
 
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
       - name: Install dependencies
         run: |
           npm ci
           npx playwright install --with-deps chromium
           npm ci --prefix app
+          python -m pip install numpy
+
+      - name: Generate synthetic songs, time fixtures and arrangement fixtures (for the analyzer parity gate)
+        run: |
+          npm run songs
+          npm run songs:time
 
       - name: Type check (svelte-check, tsc) and UI SDK import boundary
         run: npm run app:check
@@ -119,6 +129,9 @@ jobs:
 
       - name: Browser smoke test (dev server, production build, bench build)
         run: npm run app:smoke
+
+      - name: "Analyzer parity: the Svelte app and the legacy page give identical predictions on every track"
+        run: npm run app:parity
 
       - name: Upload build manifests and smoke screenshots
         if: always()

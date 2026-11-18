@@ -56,6 +56,7 @@ fs.mkdirSync(OUT, { recursive: true });
 
 (async () => {
   const { chromium } = require("playwright");
+  await target.start(); // the Svelte target serves its build over localhost; the legacy target loads file:// and needs nothing
   const b = await chromium.launch(), records = [];
   if (HOLDOUT) fs.appendFileSync(LOG, JSON.stringify({ date: new Date().toISOString(), operator: opt("--operator"), reason: opt("--reason") || null, headSha: prov.headSha, pageSha256, manifestSha256: sha256File(manifestPath), tracks: tracks.length, out: OUT }) + "\n");
   for (const t of tracks) {
@@ -72,7 +73,7 @@ fs.mkdirSync(OUT, { recursive: true });
     manifest: { path: path.relative(ROOT, manifestPath).replace(/\\/g, "/"), name: manifest.name, version: manifest.version, annotationProtocol: manifest.annotationProtocol || null, sha256: sha256File(manifestPath) },
     split: HOLDOUT ? "holdout" : "dev", page: PAGE, pageSha256, ...prov, node: process.version, browser: b.version(), os: `${os.platform()} ${os.release()}`, coverage: req.coverage, tracks: records, target: target.describe() };
   fs.writeFileSync(path.join(OUT, "predictions.json"), JSON.stringify(out));
-  await b.close();
+  await b.close(); await target.stop();
   const bad = records.filter(r => r.status !== "ok" || r.pageErrors.length).length;
   console.log(`${records.length} tracks run, ${bad} with problems. Predictions: ${path.relative(process.cwd(), path.join(OUT, "predictions.json"))}`);
   if (bad) process.exitCode = 1;

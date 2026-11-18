@@ -6,6 +6,7 @@ export interface InputLimits { maxFileBytes: number; rhythmSeconds: number; maxS
 export interface AnalysisStats { checkpoints: number; aborted: number }
 export interface Engine {
   analyze(file: File, onProgress: (pct: number, msg: string) => void, compare?: boolean, signal?: AbortSignal): Promise<AnalysisResult>;
+  tick(): Promise<void>;
   transcribe(x: Float32Array, SR: number, firstDown: number, barSec: number, sections: Section[], tune: number): { hook: Transcription | null; bass: Transcription | null };
   mag(x: Float32Array, off: number, n: number, out: Float32Array): void;
   detrend(e: Float32Array | number[], w: number): Float32Array;

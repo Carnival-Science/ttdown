@@ -4,9 +4,8 @@
 //   svelte  the compiled Svelte application (app/dist/<build>/), served over http://localhost by scripts/dev-server.js
 //
 // The legacy path is the code that used to live inline in bench/run.js, unchanged, so legacy predictions are identical
-// to what the harness produced before this module existed. The Svelte target can load the app and verify its identity,
-// but it cannot analyse yet: the app does not run the extracted analysis engine until M3. It refuses instead of guessing,
-// so no parity number can be produced for it before then.
+// to what the harness produced before this module existed. The Svelte target runs the bench build (the one with test hooks),
+// verifies that the page is the build named by its manifest, and then drives it exactly like the legacy page.
 "use strict";
 const path = require("node:path"), fs = require("node:fs"), { spawn } = require("node:child_process");
 const { sha256File } = require("./provenance");
@@ -23,21 +22,11 @@ function inlinedEngineSha256(html) {
 
 class TargetError extends Error { constructor(code, msg) { super(msg); this.name = "TargetError"; this.code = code; } }
 
-function legacyTarget({ root, page = "index.html" }) {
-  const file = path.join(root, page);
-  if (!fs.existsSync(file)) throw new TargetError("missing-page", `Legacy page not found: ${page}`);
-  const pageSha256 = sha256File(file);
-  return {
-    kind: "legacy", canAnalyze: true,
-    async start() {}, async stop() {},
-    url: () => `file://${root}/${page}#teardown`,
-    describe: () => ({ kind: "legacy", variant: pageSha256 === VERSION_A_PAGE_SHA256 ? "frozen-version-a" : "working", loadedFrom: "file", page, pageSha256,
-      // the engine inlined in this page: hash of the text between its markers (null for pages from before the engine was a module)
-      engineSha256: inlinedEngineSha256(fs.readFileSync(file, "utf8")) }),
-    async verifyIdentity() { return null; },
-    // Same steps, timeouts and record fields as the original inline code in run.js.
-    async analyzeTrack(p, audioPath, rec) {
-      await p.goto(this.url()); await p.waitForTimeout(300);
+// Drive one track through a page: upload into #file, wait for #status to say ready (or Couldn't), then read the result the page
+// exposes (window.__td with its non-enumerable grid, and window.__sn for the exported note times). Same steps, timeouts and record
+// fields as the original inline code in run.js; both targets use it, so they are measured identically.
+async function driveTrack(p, url, audioPath, rec) {
+      await p.goto(url); await p.waitForTimeout(300);
       const t0 = Date.now();
       await p.setInputFiles("#file", audioPath);
       try { await p.waitForFunction(() => /ready|Couldn/.test(document.querySelector("#status").textContent), null, { timeout: 600000 }); }
@@ -53,7 +42,21 @@ function legacyTarget({ root, page = "index.html" }) {
         if (r.failed) { rec.status = "analysis-failed"; rec.message = r.failed.slice(0, 200); }
         else Object.assign(rec, r);
       }
-    },
+    }
+
+function legacyTarget({ root, page = "index.html" }) {
+  const file = path.join(root, page);
+  if (!fs.existsSync(file)) throw new TargetError("missing-page", `Legacy page not found: ${page}`);
+  const pageSha256 = sha256File(file);
+  return {
+    kind: "legacy", canAnalyze: true,
+    async start() {}, async stop() {},
+    url: () => `file://${root}/${page}#teardown`,
+    describe: () => ({ kind: "legacy", variant: pageSha256 === VERSION_A_PAGE_SHA256 ? "frozen-version-a" : "working", loadedFrom: "file", page, pageSha256,
+      // the engine inlined in this page: hash of the text between its markers (null for pages from before the engine was a module)
+      engineSha256: inlinedEngineSha256(fs.readFileSync(file, "utf8")) }),
+    async verifyIdentity() { return null; },
+    async analyzeTrack(p, audioPath, rec) { return driveTrack(p, this.url(), audioPath, rec); },
   };
 }
 
@@ -62,9 +65,9 @@ function svelteTarget({ root, build = "bench" }) {
   const dist = path.join(root, "app", "dist", build), manifestFile = path.join(dist, "build-manifest.json");
   if (!fs.existsSync(manifestFile)) throw new TargetError("missing-build", `No Svelte build at app/dist/${build}/ (run: npm --prefix app run build${build === "bench" ? ":bench" : ""})`);
   const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
-  let server = null, base = null;
+  let server = null, base = null, verified = false;
   return {
-    kind: "svelte", canAnalyze: false, manifest,
+    kind: "svelte", canAnalyze: build === "bench", manifest, // only the bench build exposes the result hooks
     async start() {
       if (server) return;
       server = spawn(process.execPath, [path.join(root, "scripts", "dev-server.js")], { env: { ...process.env, PORT: "0" }, stdio: ["ignore", "pipe", "inherit"] });
@@ -77,16 +80,20 @@ function svelteTarget({ root, build = "bench" }) {
     async stop() { if (server) { server.kill(); server = null; base = null; } },
     url() { if (!base) throw new TargetError("not-started", "start() the target first"); return `${base}app/dist/${build}/index.html#teardown`; },
     describe: () => ({ kind: "svelte", variant: build, loadedFrom: "http://localhost", entry: `app/dist/${build}/index.html`,
-      bundleSha256: manifest.bundleSha256, buildGitSha: manifest.gitSha, buildGitDirty: manifest.gitDirty, timemapSha256: manifest.timemapSha256, engineSha256: manifest.engineSha256 }),
+      bundleSha256: manifest.bundleSha256, buildGitSha: manifest.gitSha, buildGitDirty: manifest.gitDirty, timemapSha256: manifest.timemapSha256, engineSha256: manifest.engineSha256, domainSha256: manifest.domainSha256 }),
     // The page's own window.__build must match the externally computed manifest (same commit, same TimeMap source).
     async verifyIdentity(p) {
       const id = await p.evaluate(() => window.__build || null);
       if (!id) throw new TargetError("no-identity", "The page has no window.__build");
-      const bad = [["gitSha", id.gitSha, manifest.gitSha], ["timemapSha256", id.timemapSha256, manifest.timemapSha256], ["mode", id.mode, manifest.mode], ["engineSha256", id.engineSha256, manifest.engineSha256]].filter(([, a, b]) => a !== b);
+      const bad = [["gitSha", id.gitSha, manifest.gitSha], ["timemapSha256", id.timemapSha256, manifest.timemapSha256], ["mode", id.mode, manifest.mode], ["engineSha256", id.engineSha256, manifest.engineSha256], ["domainSha256", id.domainSha256, manifest.domainSha256]].filter(([, a, b]) => a !== b);
       if (bad.length) throw new TargetError("identity-mismatch", "Page identity does not match build-manifest.json: " + bad.map(([k, a, b]) => `${k} ${a} != ${b}`).join(", "));
       return id;
     },
-    async analyzeTrack() { throw new TargetError("cannot-analyze", "The Svelte app does not run the analysis engine yet (migration M3). No predictions are produced for it."); },
+    async analyzeTrack(p, audioPath, rec) {
+      if (build !== "bench") throw new TargetError("cannot-analyze", `The ${build} build has no test hooks; analyse with the bench build (--build bench).`);
+      if (!verified) { await p.goto(this.url()); await this.verifyIdentity(p); verified = true; } // refuse a page that is not the build in the manifest
+      return driveTrack(p, this.url(), audioPath, rec);
+    },
   };
 }
 

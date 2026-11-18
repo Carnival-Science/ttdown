@@ -4,13 +4,13 @@
   import type { Snippet } from "svelte";
   import { Tabs, TabsList, TabsPanel, TabsTab } from "@ui-sdk/svelte/tabs";
 
-  let { items, label, value = $bindable(items[0]?.value ?? null), panel }: {
-    items: readonly T[]; label: string; value?: string | null; panel: Snippet<[T]>;
+  let { items, label, value = $bindable(items[0]?.value ?? null), panel, listClass = "", onchange }: {
+    items: readonly T[]; label: string; value?: string | null; panel: Snippet<[T]>; listClass?: string; onchange?: (v: string | null) => void;
   } = $props();
 </script>
 
-<Tabs bind:value activation="automatic" class="tt-tabs">
-  <TabsList class="tt-tablist" aria-label={label}>
+<Tabs bind:value activation="automatic" class="tt-tabs" onValueChange={v => onchange?.(v)}>
+  <TabsList class={"tt-tablist " + listClass} aria-label={label}>
     {#each items as item (item.value)}
       <TabsTab value={item.value} class="tt-tab">{item.label}</TabsTab>
     {/each}

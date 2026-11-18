@@ -28,6 +28,7 @@ const manifest = {
   timemapSha256: sha(readFileSync(path.join(APP, "..", "src", "timemap.js"))),
   timingStoreSha256: sha(readFileSync(path.join(APP, "..", "src", "timing-store.js"))),
   engineSha256: sha(readFileSync(path.join(APP, "..", "src", "engine.js"))),
+  domainSha256: sha(readFileSync(path.join(APP, "..", "src", "domain.js"))),
   // One hash for the whole build: sha256 over "sha256  path\n" lines in path order (the sha256sum format).
   bundleSha256: sha(files.map(f => `${f.sha256}  ${f.path}\n`).join("")),
   totalBytes: files.reduce((s, f) => s + f.bytes, 0),

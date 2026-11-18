@@ -28,21 +28,22 @@ ok("unknown kinds, missing pages and missing builds are refused", () => {
   assert.throws(() => createTarget({ kind: "svelte", root: tmp }), e => e.code === "missing-build");
   assert.throws(() => createTarget({ kind: "svelte", root: tmp, build: "../x" }), e => e.code === "bad-build");
 });
-ok("the svelte target is identified by its external manifest and refuses to analyse", async () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tt-target-")), dist = path.join(tmp, "app", "dist", "bench");
-  fs.mkdirSync(dist, { recursive: true });
-  const man = { mode: "bench", gitSha: "a".repeat(40), gitDirty: false, timemapSha256: "b".repeat(64), engineSha256: "e".repeat(64), bundleSha256: "c".repeat(64) };
-  fs.writeFileSync(path.join(dist, "build-manifest.json"), JSON.stringify(man));
-  const t = createTarget({ kind: "svelte", root: tmp });
-  assert.equal(t.canAnalyze, false);
+ok("the svelte target is identified by its external manifest; only the bench build analyses", async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tt-target-"));
+  const man = { mode: "bench", gitSha: "a".repeat(40), gitDirty: false, timemapSha256: "b".repeat(64), engineSha256: "e".repeat(64), domainSha256: "d".repeat(64), bundleSha256: "c".repeat(64) };
+  for (const build of ["bench", "production"]) { const dist = path.join(tmp, "app", "dist", build); fs.mkdirSync(dist, { recursive: true }); fs.writeFileSync(path.join(dist, "build-manifest.json"), JSON.stringify({ ...man, mode: build })); }
+  const t = createTarget({ kind: "svelte", root: tmp }), prod = createTarget({ kind: "svelte", root: tmp, build: "production" });
+  assert.equal(t.canAnalyze, true); assert.equal(prod.canAnalyze, false);
   assert.deepEqual(t.describe(), { kind: "svelte", variant: "bench", loadedFrom: "http://localhost", entry: "app/dist/bench/index.html",
-    bundleSha256: man.bundleSha256, buildGitSha: man.gitSha, buildGitDirty: false, timemapSha256: man.timemapSha256, engineSha256: man.engineSha256 });
+    bundleSha256: man.bundleSha256, buildGitSha: man.gitSha, buildGitDirty: false, timemapSha256: man.timemapSha256, engineSha256: man.engineSha256, domainSha256: man.domainSha256 });
   assert.throws(() => t.url(), e => e.code === "not-started");
+  const id = { gitSha: man.gitSha, timemapSha256: man.timemapSha256, engineSha256: man.engineSha256, domainSha256: man.domainSha256, mode: "bench" };
   return Promise.all([
-    assert.rejects(t.analyzeTrack(), e => e.code === "cannot-analyze"),
-    assert.rejects(t.verifyIdentity({ evaluate: async () => ({ gitSha: man.gitSha, timemapSha256: "d".repeat(64), engineSha256: man.engineSha256, mode: "bench" }) }), e => e.code === "identity-mismatch"),
+    assert.rejects(prod.analyzeTrack(), e => e.code === "cannot-analyze"),
+    assert.rejects(t.verifyIdentity({ evaluate: async () => ({ ...id, timemapSha256: "f".repeat(64) }) }), e => e.code === "identity-mismatch"),
+    assert.rejects(t.verifyIdentity({ evaluate: async () => ({ ...id, engineSha256: "f".repeat(64) }) }), e => e.code === "identity-mismatch"),
+    assert.rejects(t.verifyIdentity({ evaluate: async () => ({ ...id, domainSha256: "f".repeat(64) }) }), e => e.code === "identity-mismatch"),
     assert.rejects(t.verifyIdentity({ evaluate: async () => null }), e => e.code === "no-identity"),
-    t.verifyIdentity({ evaluate: async () => ({ gitSha: man.gitSha, timemapSha256: man.timemapSha256, engineSha256: man.engineSha256, mode: "bench" }) }),
-    assert.rejects(t.verifyIdentity({ evaluate: async () => ({ gitSha: man.gitSha, timemapSha256: man.timemapSha256, engineSha256: "f".repeat(64), mode: "bench" }) }), e => e.code === "identity-mismatch"),
+    t.verifyIdentity({ evaluate: async () => id }),
   ]).then(() => console.log(`bench target tests passed (${n})`));
 });

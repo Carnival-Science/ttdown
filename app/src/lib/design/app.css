@@ -1,0 +1,30 @@
+/* App-level layout on top of components.css: the new shell, and fixes for legacy layout defects (founder: functionality is
+   preserved, layout bugs are not; docs/SVELTE_MIGRATION.md §10). */
+
+/* Header: brand, navigation, Display/Volume, LCD. The navigation never clips: it wraps onto its own row when needed. */
+.console { grid-template-columns: auto minmax(0, 1fr) auto auto auto; }
+.tabs { flex-wrap: wrap; overflow: visible; }
+@media (max-width: 1100px) { .console { grid-template-columns: auto 1fr auto auto; } .console .tabs { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; justify-content: flex-start; } .console .lcd { grid-row: 1; } }
+@media (max-width: 720px) {
+  .console .tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .console .tabs a { justify-content: center; }
+}
+
+/* Long words in stat cards break between words, never inside them ("Electronic" on phones). */
+.stat b { overflow-wrap: normal; word-break: normal; hyphens: manual; }
+@media (max-width: 480px) { .stat b { font-size: clamp(1.1rem, 6vw, 1.6rem); } }
+
+/* Fixed controls (session pill, coach button) never cover content: the page reserves room for them at the bottom. */
+.wrap { padding-bottom: 120px; }
+@media (max-width: 720px) { .wrap { padding-bottom: 150px; } .sess { max-width: calc(100vw - 32px); } }
+
+/* UI SDK tabs styled as the legacy teardown tab bar. */
+.tdtabs [role="tab"] { flex: 0 0 auto; }
+.tdtabs [role="tab"][aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+
+/* Cards never grow wider than the screen: long plugin chips and list items wrap inside them. */
+.layer, .layer > *, .pstep, .idea { min-width: 0; max-width: 100%; }
+.plug { white-space: normal; overflow-wrap: anywhere; }
+.layer ul, .layer ol { overflow-wrap: anywhere; }
+/* Phone: the teardown tab bar wraps instead of hiding tabs off the edge. */
+@media (max-width: 720px) { .tdtabs { flex-wrap: wrap; overflow-x: visible; } .tdtabs [role="tab"] { flex: 1 1 auto; } }

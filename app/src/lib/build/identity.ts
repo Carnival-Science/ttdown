@@ -12,6 +12,7 @@ export interface BuildInfo {
   timemapSha256: string;
   timingStoreSha256: string;
   engineSha256: string;
+  domainSha256: string;
   versions: { svelte: string; vite: string; uiSdk: string };
 }
 declare const __BUILD_INFO__: BuildInfo;

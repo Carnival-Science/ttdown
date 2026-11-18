@@ -1,15 +1,20 @@
 // Test hooks for the benchmark harness and browser tests. Installed ONLY in the bench build (`vite build --mode bench`):
-// `__TEST_HOOKS__` is a build-time constant, so the production bundle does not contain this code at all.
+// `__TEST_HOOKS__` is a build-time constant, so the production bundle does not contain this code.
 //
-// Contract, kept compatible with the legacy page (docs/SVELTE_MIGRATION.md §2.8). Status in this build:
-//   window.TimeMap            canonical TimeMap module                                  M1 (now)
-//   window.__ttdownTest       { route(), navigate(id) }                                  M1 (now)
-//   window.__td, window.__sn  current result and songNotes(result)                       M3, when the engine runs here
-//   window.__analysisStats    { checkpoints, aborted }                                   M3
-//   window.__loop             active loop range (getter)                                 M3
-//   result.grid / __buf       non-enumerable, read through gridOf/bufferOf accessors      M2/M3
-// Decoded audio buffers are never exposed through a production global.
+// The legacy page's contract (docs/SVELTE_MIGRATION.md §2.8), served the same way so bench/run.js and the browser tests read
+// both apps alike:
+//   window.__td               the result on screen (with its non-enumerable grid and __buf, exactly as the engine made it)
+//   window.__sn(a)            songNotes(a): the exported note times
+//   window.__analysisStats    { checkpoints, aborted } from the engine
+//   window.__rp(a)            no-op here (the legacy page re-rendered the plan; the Svelte plan is reactive)
+//   window.__loop             active loop range (defined by the player tools, bench build only)
+//   window.TimeMap            canonical TimeMap module
+//   window.__ttdownTest       { route(), navigate(id) }
+// Production builds expose none of these (no decoded audio through globals).
 import { TimeMap } from "../timemap";
+import { engine } from "../engine";
+import { domain } from "../domain";
+import { teardown } from "../state/teardown.svelte";
 import type { RouteId } from "../routing/routes";
 
 declare const __TEST_HOOKS__: boolean;
@@ -18,6 +23,11 @@ export const TEST_HOOKS: boolean = __TEST_HOOKS__;
 export function installTestHooks(api: { route: () => RouteId; navigate: (id: RouteId) => void }): void {
   if (!__TEST_HOOKS__) return;
   const w = window as unknown as Record<string, unknown>;
-  Object.defineProperty(w, "TimeMap", { value: TimeMap, configurable: true });
-  Object.defineProperty(w, "__ttdownTest", { value: Object.freeze({ route: api.route, navigate: api.navigate }), configurable: true });
+  const def = (k: string, v: PropertyDescriptor) => Object.defineProperty(w, k, { configurable: true, ...v });
+  def("TimeMap", { value: TimeMap });
+  def("__ttdownTest", { value: Object.freeze({ route: api.route, navigate: api.navigate }) });
+  def("__td", { get: () => teardown.result });
+  def("__sn", { value: (a: unknown) => domain.songNotes(a) });
+  def("__analysisStats", { value: engine.ANALYSIS_STATS });
+  def("__rp", { value: () => {} });
 }
