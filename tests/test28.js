@@ -52,7 +52,7 @@ function repeatedSong(file, srcWav, times, decimate) { // channel 0 of a synthet
   { const p = await open(), o = await outcome(p, empty); check(o.err && /empty/.test(o.status) && o.calls.decode === 0, `empty file: ${o.status}`); await p.close(); }
   { const p = await open(), o = await outcome(p, tooShort); check(o.err && /3\.0 s/.test(o.status) && /8 s/.test(o.status) && /Sample Lab/.test(o.status) && o.calls.decode === 1, `too short: ${o.status}`); await p.close(); }
   { const p = await open(), o = await outcome(p, tooLong);
-    check(o.err && /16:00/.test(o.status) && /15:00/.test(o.status) && o.calls.decode === 0 && o.calls.read === 0, `too long: refused from its header before decoding (${o.status}; reads ${o.calls.read}, decodes ${o.calls.decode})`); await p.close(); }
+    check(o.err && /16:00/.test(o.status) && /8:00/.test(o.status) && o.calls.decode === 0 && o.calls.read === 0, `too long (limit = analysis coverage): refused from its header before decoding (${o.status}; reads ${o.calls.read}, decodes ${o.calls.decode})`); await p.close(); }
   // 5. header unusable (duration unknown) => the post-decode check still refuses it
   { const p = await open(); await p.addInitScript(() => { Object.defineProperty(HTMLMediaElement.prototype, 'duration', { get: () => NaN }); }); await p.reload(); await p.waitForTimeout(300);
     const o = await outcome(p, tooLong); check(o.err && /16:00/.test(o.status) && o.calls.decode === 1, `too long, no usable header: refused after decoding (${o.status}; decodes ${o.calls.decode})`); await p.close(); }
@@ -66,13 +66,14 @@ function repeatedSong(file, srcWav, times, decimate) { // channel 0 of a synthet
     const after = await p.evaluate(async u => ({ same: document.querySelector('#out audio') && document.querySelector('#out audio').src === u, ok: await fetch(u).then(r => r.ok).catch(() => false), title: window.__td.title, hist: document.querySelectorAll('#hist button').length }), src);
     check(o.err && after.same && after.ok && after.title === 'pop127_Amaj' && after.hist === 1, `refused file: previous teardown, audio and history untouched (${JSON.stringify(after)})`); await p.close(); }
 
-  // 8. a track longer than 8 minutes is accepted but discloses what was read
-  { const long = path.join(OUT, 'song490s.wav'), sec = repeatedSong(long, path.join(SONGS, 'pop127_Amaj.wav'), 7, 4);
-    const p = await open(), t0 = Date.now(), o = await outcome(p, long), took = (Date.now() - t0) / 1000;
-    const info = await p.evaluate(() => ({ stats: [...document.querySelectorAll('#out .stat')].map(s => s.textContent), lastBeat: Math.max(...window.__td.grid.beats), dur: window.__td.duration }));
-    const lengthStat = info.stats.find(s => /Length/.test(s)) || '';
-    check(!o.err && /first 8:00 only/.test(lengthStat), `${sec.toFixed(0)} s track accepted in ${took.toFixed(1)} s; the Length stat says: "${lengthStat.replace(/\s+/g, ' ')}"`);
-    check(info.lastBeat <= 482 && info.dur > 485, `the disclosure is true: last tracked beat at ${info.lastBeat.toFixed(1)} s of ${info.dur} s`); await p.close(); }
+  // 8. the limit equals the analysis coverage: a 7:00 track is accepted and tracked to its end; 8:10 is refused, not partly analysed
+  { const ok = path.join(OUT, 'song420s.wav'), secOk = repeatedSong(ok, path.join(SONGS, 'pop127_Amaj.wav'), 6, 4);
+    const p = await open(), t0 = Date.now(), o = await outcome(p, ok), took = (Date.now() - t0) / 1000;
+    const info = await p.evaluate(() => ({ stats: [...document.querySelectorAll('#out .stat')].map(s => s.textContent).find(s => /Length/.test(s)) || '', lastBeat: Math.max(...window.__td.grid.beats), dur: window.__td.duration }));
+    check(!o.err && !/read from the first/.test(info.stats) && info.dur - info.lastBeat < 3, `${secOk.toFixed(0)} s track accepted in ${took.toFixed(1)} s and tracked to its end (last beat ${info.lastBeat.toFixed(1)} s of ${info.dur} s, no partial-analysis note)`); await p.close();
+    const over = path.join(OUT, 'song490s.wav'), secOver = repeatedSong(over, path.join(SONGS, 'pop127_Amaj.wav'), 7, 4);
+    const q = await open(), o2 = await outcome(q, over);
+    check(o2.err && /8:10/.test(o2.status) && /8:00/.test(o2.status) && o2.calls.decode <= 1 && /^Example/.test(o2.td), `${secOver.toFixed(0)} s track refused, not partly analysed (${o2.status})`); await q.close(); }
 
   console.log('errors', errs); if (errs.length || failed) process.exitCode = 1; await b.close();
 })();

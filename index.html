@@ -516,9 +516,13 @@ function transcribe(x, SR, firstDown, barSec, sections, tune) {
   } catch (e) { return {}; }
 }
 /* Processing limits. Everything is analysed in the browser tab, so a file that is too large or too long can exhaust memory:
-   a decoded stereo float track is about 21 MB per minute (15 min = 318 MB, plus analysis arrays). The numbers are policy
-   choices, not measurements of any device; they are meant to be reviewed and tuned with the performance work (Phase 9). */
-const LIMITS = Object.freeze({ maxFileBytes: 200 * 1024 * 1024, maxSeconds: 900, minSeconds: 8, rhythmSeconds: 480, silentPeak: 1e-4 /* about -80 dBFS */ });
+   a decoded stereo float track is about 21 MB per minute (8 min = 169 MB, plus analysis arrays). The numbers are policy
+   choices, not measurements of any device; they are meant to be reviewed and tuned with the performance work (Phase 9).
+   maxSeconds is the engine's own coverage: tempo, beats and drum patterns are computed for the first rhythmSeconds only, so a
+   longer file is refused instead of being presented as a full teardown of material that was only partly analysed.
+   Known gap: the duration is read from the file header before decoding, but a compressed file with a missing or wrong header
+   duration is only caught AFTER decoding, which has already allocated the whole track. File size is the only hard bound before that. */
+const LIMITS = Object.freeze({ maxFileBytes: 200 * 1024 * 1024, rhythmSeconds: 480, maxSeconds: 480, minSeconds: 8, silentPeak: 1e-4 /* about -80 dBFS */ });
 class InputLimitError extends Error { constructor(msg) { super(msg); this.name = "InputLimitError"; } } // message is shown to the user as written
 const fmtLen = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
 /* Duration from the file's own header via the browser's media pipeline, without decoding it. null when unknown. */
@@ -531,7 +535,7 @@ function probeDuration(file) {
   });
 }
 function checkDuration(sec) {
-  if (sec > LIMITS.maxSeconds) throw new InputLimitError(`That file is ${fmtLen(sec)} long. The limit is ${fmtLen(LIMITS.maxSeconds)}, because the whole track is held in memory while it is analysed. Trim it and try again.`);
+  if (sec > LIMITS.maxSeconds) throw new InputLimitError(`That file is ${fmtLen(sec)} long. A full-track teardown supports up to ${fmtLen(LIMITS.maxSeconds)} today: tempo, beats and drum patterns are only analysed for that much. Trim it to the section you want to study and try again.`);
   if (sec < LIMITS.minSeconds) throw new InputLimitError(`That file is only ${sec.toFixed(1)} s long. A teardown needs at least ${LIMITS.minSeconds} s to find a tempo and bars. For a single sound or a short loop, use Sample Lab.`);
 }
 /* Counters for tests and diagnostics: checkpoints reached, analyses stopped early. */
@@ -568,7 +572,7 @@ async function analyze(file, onProg, opts_compare, signal) {
   await gate(); onProg(18, "Finding the tempo and drum pattern…");
 
   // ---- rhythm on up to 60 s from the middle ----
-  const win = Math.min(n22, SR * 480), start = 0; // whole track (up to 8 minutes), so every section gets its own drum pattern
+  const win = Math.min(n22, SR * LIMITS.rhythmSeconds), start = 0; // whole track (the input limit keeps it within 8 minutes), so every section gets its own drum pattern
   const n = 1024, hop = 256, fps = SR / hop, nb = n / 2;
   const cur = new Float32Array(nb), prev = new Float32Array(nb);
   const eAll = [], eLow = [], eMid = [], eHigh = [], eUp = [], eSp = [];
