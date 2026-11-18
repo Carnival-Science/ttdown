@@ -145,3 +145,9 @@ Deliberately not next: UI workspace (Phase 5), comparison rewrite (6), AI contra
 | Order after the migration | Real-music pilot, Version B analysis, paired A/B evaluation, then the professional analysis workspace. Do not become a research platform before putting the tool in front of producers. |
 
 Open: whether saved teardowns should keep the tracked beats (a saved drifting track now shows tracked section times next to a constant-tempo ruler; persisting the beats changes the saved-data format); the confirmation UI (metronome audition, first-downbeat check, meter confirm); the export-range behaviour for tracks longer than the tracked beats; a real-recording check of the 20 ms tolerance; the hi-hat recall investigation.
+
+## 9. Benchmark audit (2026-11-18): scorer corrections done, dataset work open
+
+Done (PR on branch `bench/scorer-correctness`): maximum-cardinality event matching, annotated-but-empty kinds stay scorable (false positives count), vacuous classes are `null` not 1.0, and the mir_eval cross-check masks references and raw predictions itself (region scenarios, annotated silence, and now the 12 time fixtures: 156/156). No existing score, gate or baseline changed (22 tracks identical).
+
+Open, in the audit's order: (P2) transcription annotation schema (vocal melody and instrumental lead notes with pitch, onset, offset, coverage) with mir_eval melody/transcription scorers; the hook metric still counts grid-position onsets only and ignores pitch and duration; chord scoring beyond triads (sevenths, bass note, harmonic rhythm); MIDI re-read scoring (export, parse, compare); (P3) the real-music pilot as the baseline, with separation-assisted versus original-mix comparison, a coverage-at-reliability metric, and synthetic regression results reported in a section separate from real-music accuracy. Do not raise the 15 gates to force improvements; establish the real-world baseline first.

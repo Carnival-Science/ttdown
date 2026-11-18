@@ -1,8 +1,11 @@
 // Evaluation metrics, kept separate so they can be tested on their own (tests/metrics.test.js).
 // Definitions follow the usual MIR conventions (as in mir_eval), with two documented differences:
 // nothing is trimmed from the start of the song (mir_eval skips the first 5 s of beats by default),
-// and matching is greedy nearest-first, which equals optimal matching whenever events are more than
-// two windows apart (true for beats and downbeats).
+// and matching starts greedy nearest-first and is then completed to a MAXIMUM-cardinality one-to-one matching by augmenting
+// paths, as mir_eval does. Greedy alone undercounts when events sit closer than two windows apart (fast fills, rolls,
+// retriggers): reference 40/100 ms and estimate 0/60 ms at ±50 ms is two matches, greedy found one.
+// An event class with nothing annotated AND nothing predicted is "vacuous": its F is null (not 1.0), so it cannot lift an
+// average; predictions against an annotated-but-empty reference are false positives and score 0.
 "use strict";
 
 const WINDOW = 0.07;   // ±70 ms: standard beat F-measure tolerance
@@ -22,17 +25,38 @@ function match(est, ref, win = WINDOW, allow = null) {
     for (let j = j0; j < E.length && E[j] - Rf[i] <= win; j++) { const d = Math.abs(E[j] - Rf[i]); if (d <= win && (!allow || allow(ei[j], ri[i]))) pairs.push([d, i, j]); }
   }
   pairs.sort((a, b) => a[0] - b[0]);
-  const usedR = new Set(), usedE = new Set(), out = [];
-  for (const [, i, j] of pairs) { if (usedR.has(i) || usedE.has(j)) continue; usedR.add(i); usedE.add(j); out.push([ei[j], ri[i], E[j] - Rf[i]]); }
-  return out;
+  const usedR = new Set(), usedE = new Set(), out = [], matchR = new Array(Rf.length).fill(-1), matchE = new Array(E.length).fill(-1);
+  for (const [, i, j] of pairs) { if (usedR.has(i) || usedE.has(j)) continue; usedR.add(i); usedE.add(j); matchR[i] = j; matchE[j] = i; out.push([ei[j], ri[i], E[j] - Rf[i]]); }
+  // complete to maximum cardinality: from every unmatched reference, search (breadth-first) for an alternating path to an unmatched estimate
+  const adj = Rf.map(() => []); for (const [d, i, j] of pairs) adj[i].push([d, j]); adj.forEach(a => a.sort((x, y) => x[0] - y[0]));
+  let augmented = false;
+  for (let r0 = 0; r0 < Rf.length; r0++) {
+    if (matchR[r0] !== -1 || !adj[r0].length) continue;
+    const prevE = new Map(), seenR = new Set([r0]), queue = [r0]; let end = -1;
+    for (let q = 0; q < queue.length && end < 0; q++) {
+      const u = queue[q];
+      for (const [, j] of adj[u]) {
+        if (prevE.has(j)) continue; prevE.set(j, u);
+        if (matchE[j] === -1) { end = j; break; }
+        if (!seenR.has(matchE[j])) { seenR.add(matchE[j]); queue.push(matchE[j]); }
+      }
+    }
+    if (end < 0) continue;
+    for (let j = end; j !== undefined;) { const u = prevE.get(j), nextJ = matchR[u]; matchR[u] = j; matchE[j] = u; j = u === r0 ? undefined : nextJ; }
+    augmented = true;
+  }
+  if (!augmented) return out;                       // greedy was already maximum: identical to the original result and order
+  const res = []; for (let i = 0; i < Rf.length; i++) if (matchR[i] !== -1) res.push([ei[matchR[i]], ri[i], E[matchR[i]] - Rf[i]]);
+  return res;
 }
 
 function events(est, ref, win = WINDOW) {
   est = est || []; ref = ref || [];
   const errs = match(est, ref, win).map(m => m[2]);
   const tp = errs.length, fp = est.length - tp, fn = ref.length - tp;
+  if (ref.length === 0 && est.length === 0) return { tp: 0, fp: 0, fn: 0, P: null, R: null, f: null, vacuous: true, meanAbsErrMs: null, meanErrMs: null };
   const P = est.length ? tp / est.length : 0, R = ref.length ? tp / ref.length : 0;
-  const f = ref.length === 0 && est.length === 0 ? 1 : (P + R ? 2 * P * R / (P + R) : 0);
+  const f = P + R ? 2 * P * R / (P + R) : 0;
   const meanAbsErrMs = tp ? 1000 * errs.reduce((s, e) => s + Math.abs(e), 0) / tp : null;
   const meanErrMs = tp ? 1000 * errs.reduce((s, e) => s + e, 0) / tp : null; // signed: + means late
   return { tp, fp, fn, P: +P.toFixed(4), R: +R.toFixed(4), f: +f.toFixed(4), meanAbsErrMs: meanAbsErrMs == null ? null : +meanAbsErrMs.toFixed(1), meanErrMs: meanErrMs == null ? null : +meanErrMs.toFixed(1) };
