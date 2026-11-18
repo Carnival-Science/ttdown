@@ -34,12 +34,12 @@ const truth = fs.readFileSync(path.join(ARR, 'truth', 'arrangement_drift.section
   const i = 2; await p.locator('#out select[aria-label="Loop part of the song"]').selectOption(String(i)); await p.waitForTimeout(200);
   const loop = await p.evaluate(() => window.__loop), s2 = a.sections[i];
   check(loop && Math.abs(loop[0] - s2.start) < 1e-6 && Math.abs(loop[1] - Math.min(a.duration - 0.05, s2.end)) < 1e-6, `3: looping "${s2.label}" plays ${loop && loop.map(x => x.toFixed(2)).join('–')} s, the tracked span`);
-  // 4. a saved teardown keeps the tracked section times (it has no grid to recompute them from)
+  // 4. a saved teardown keeps its tracked beats AND its tracked section times, so they still agree after reopening
   await p.setInputFiles('#file', path.join(ROOT, 'test-songs', 'pop127_Amaj.wav'));
   await p.waitForFunction(() => /Teardown ready for “pop127_Amaj”/.test(document.querySelector('#status').textContent), null, { timeout: 120000 });
   await p.locator('#hist button').nth(1).click(); await p.waitForTimeout(400);
   const saved = await p.evaluate(() => ({ grid: window.__td.grid || null, sections: window.__td.sections }));
-  check(saved.grid === null && saved.sections.every((s, k) => s.timing === 'tracked' && s.start === a.sections[k].start), `4: reopened from history (no tracked grid), the sections keep their tracked times (${saved.sections.map(s => s.start).join(', ')})`);
+  check(saved.grid !== null && saved.sections.every((s, k) => s.timing === 'tracked' && s.start === a.sections[k].start), `4: reopened from history it has its tracked grid back and its sections keep their tracked times (${saved.sections.map(s => s.start).join(', ')})`);
   // 5. an old saved teardown (no "timing") is still recomputed from firstDown, exactly as before
   const legacy = await p.evaluate(() => { const x = JSON.parse(JSON.stringify(window.__td)); x.sections.forEach(s => { delete s.timing; s.start = 999; }); return x; });
   const fd = legacy.firstDown, bs = legacy.barSec, expected = legacy.sections.map(s => +Math.max(0, fd + s.startBar * bs).toFixed(2));
