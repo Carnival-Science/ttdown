@@ -3100,7 +3100,7 @@ function saveHist(a) {
 function showHist() {
   const h = loadHist(); const wrap = $("#hist-wrap"); if (!h.length) { wrap.hidden = true; return; }
   wrap.hidden = false;
-  $("#hist").replaceChildren(...h.map(a => el("button", { class: "btn", text: `${a.title || "Untitled"} · ${a.bpm} · ${a.camelot}`, onclick: () => { supersedeAnalysis("Opened a saved teardown, so the analysis in progress was stopped."); audioURL = null; render(a, {}); $("#out").scrollIntoView({ behavior: "smooth" }); } })));
+  $("#hist").replaceChildren(...h.map(a => el("button", { class: "btn", text: `${a.title || "Untitled"} · ${a.bpm} · ${a.camelot}`, onclick: () => { supersedeAnalysis("Opened a saved teardown, so the analysis in progress was stopped."); if (audioURL) URL.revokeObjectURL(audioURL); audioURL = null; render(a, {}); $("#out").scrollIntoView({ behavior: "smooth" }); } })));
 }
 
 /* ---- wiring ---- */
@@ -3125,8 +3125,9 @@ async function handle(file) {
   if (analysisCtl) analysisCtl.abort();
   const job = ++analysisJob, ctl = analysisCtl = new AbortController(); setRunning(true);
   const current = () => job === analysisJob;
-  if (audioURL) URL.revokeObjectURL(audioURL);
-  audioURL = URL.createObjectURL(file);
+  /* audioURL belongs to the teardown on screen. The new file gets its own URL, which replaces audioURL (and revokes the old one)
+     only when this job succeeds. On failure, cancel or supersede it is revoked and the teardown on screen keeps its audio. */
+  const newURL = URL.createObjectURL(file); let adopted = false;
   status.className = "status";
   try {
     const a = await analyze(file, (p, msg) => { if (!current()) return; prog.style.width = p + "%"; status.textContent = msg; }, false, ctl.signal);
@@ -3134,7 +3135,9 @@ async function handle(file) {
     a.title = $("#title").value.trim() || file.name.replace(/\.[^.]+$/, "");
     lastBuffer = a.__buf || null;
     status.textContent = `Teardown ready for “${a.title}”. Scroll down.`;
+    const oldURL = audioURL; audioURL = newURL; adopted = true;
     tdTab = "overview"; render(a, {}); saveHist(a); lastTeardown = a; analysisCtl = null; setRunning(false);
+    if (oldURL) URL.revokeObjectURL(oldURL); // the old player was replaced by render()
     $("#out").scrollIntoView({ behavior: "smooth" });
   } catch (e) {
     if (!current() || (e && e.name === "AbortError")) return; // superseded or cancelled: whoever did that has already set the status
@@ -3142,6 +3145,8 @@ async function handle(file) {
     status.className = "status err";
     status.textContent = "Couldn't read that file. Try an MP3 or WAV. (" + (e && e.message ? e.message.slice(0, 80) : "decode error") + ")";
     prog.style.width = "0";
+  } finally {
+    if (!adopted) URL.revokeObjectURL(newURL);
   }
 }
 $("#file").addEventListener("change", e => handle(e.target.files[0]));
