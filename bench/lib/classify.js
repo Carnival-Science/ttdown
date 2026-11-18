@@ -40,7 +40,8 @@ function driftClass(d) {
 const keyClass = k => !k || !k.scorable ? "n/a" : k.category === "exact" ? "ok" : k.category;
 
 function drumClass(m) { // m: { w30, w50, w100 } event scores for one class
-  if (!m || (m.w50.tp + m.w50.fn === 0)) return "n/a";
+  if (!m || m.w50.vacuous) return "n/a";                    // nothing annotated and nothing predicted: not scored
+  if (m.w50.tp + m.w50.fn === 0) return "extra";            // annotated as absent, but the analyzer predicted hits: false positives
   if (m.w50.f >= 0.9) return "ok";
   if (m.w100.f >= 0.9) return "timing";
   if (m.w50.R < m.w50.P - 0.2) return "missed";
@@ -51,7 +52,8 @@ function drumClass(m) { // m: { w30, w50, w100 } event scores for one class
 const chordClass = c => !c || c.majmin == null ? "n/a" : c.majmin >= 0.9 ? "ok" : c.root >= 0.9 ? "quality" : "root";
 
 function bassClass(b) {
-  if (!b) return "n/a";
+  if (!b || b.onset.vacuous) return "n/a";
+  if (b.onset.tp + b.onset.fn === 0) return "extra";        // annotated as absent, but the analyzer predicted notes
   if (b.onset.f >= 0.8 && b.pitchAccuracyOnMatched >= 0.8) return "ok";
   if (b.onset.f < 0.5) return "missed-onsets";
   const wrong = 1 - (b.pitchAccuracyOnMatched || 0);

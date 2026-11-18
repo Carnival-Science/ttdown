@@ -23,7 +23,7 @@ function scenario(name, edit) {
   fs.writeFileSync(path.join(dir, "predictions.json"), JSON.stringify(pred));
   const r = spawnSync(process.execPath, [SCORE, path.join(dir, "predictions.json"), "--manifest", mp], { encoding: "utf8" });
   const sj = path.join(dir, "scores.json");
-  return { r, tr: fs.existsSync(sj) ? JSON.parse(fs.readFileSync(sj, "utf8")).tracks[0] : null, report: fs.existsSync(path.join(dir, "report.md")) ? fs.readFileSync(path.join(dir, "report.md"), "utf8") : "" };
+  return { r, dir, mp, tr: fs.existsSync(sj) ? JSON.parse(fs.readFileSync(sj, "utf8")).tracks[0] : null, report: fs.existsSync(path.join(dir, "report.md")) ? fs.readFileSync(path.join(dir, "report.md"), "utf8") : "" };
 }
 const truthBeats = lines(path.join(ROOT, "test-songs", "truth", `${ID}.beats.txt`)).map(l => Number(l.split(/\s+/)[0]));
 const inBeats = (a, b) => truthBeats.filter(t => t >= a && t < b).length;
@@ -83,7 +83,36 @@ for (const [name, regions, msg] of [["overlap", [{ start: 0, end: 10 }, { start:
   const bad = scenario("bad-" + name, T => { T.scorable = regions; }); assert.equal(bad.r.status, 1, name); assert.match(bad.r.stdout + bad.r.stderr, msg, name);
 }
 
-// 7. a region with nothing annotated in it: not scored (no crash, no vacuous 1.0)
+// 7. a region where nothing is annotated AND nothing is predicted is vacuous: reported as such (f null), never a free 1.0
 const empty = scenario("empty-region", T => { T.scorable = [{ start: 500, end: 600 }]; });
-assert.equal(empty.r.status, 0, empty.r.stdout + empty.r.stderr); assert.equal(empty.tr.metrics.beats, undefined, "no reference beats in the region: beats not scored"); assert.equal(empty.tr.metrics.drums, undefined);
+assert.equal(empty.r.status, 0, empty.r.stdout + empty.r.stderr);
+assert.equal(empty.tr.metrics.beats.vacuous, true); assert.equal(empty.tr.metrics.beats.f, null); assert.equal(empty.tr.metrics.drums.kick.w50.vacuous, true); assert.equal(empty.tr.metrics.drums.kick.w50.f, null);
+assert.equal(empty.tr.classes.drums.kick, "n/a"); assert.equal(empty.tr.metrics.bass.onset.f, null); assert.equal(empty.tr.metrics.bass.noteF, null);
+
+// 8. AUDIT: a fully annotated drumless, bassless breakdown. The annotation exists and says "nothing here", so hits and notes the analyzer
+//    invents there are false positives. They used to disappear (the whole kind was dropped from scoring when no events were left in the region).
+const breakdown = scenario("annotated-silence", (T, rewrite) => {
+  const inGap = l => { const t = Number(l.split(/\s+/)[0]); return t >= 20 && t < 40; };
+  rewrite("drums", L => L.filter(l => !inGap(l))); rewrite("bass", L => L.filter(l => !inGap(l)));
+  T.scorable = [{ start: 20, end: 40 }];
+});
+assert.equal(breakdown.r.status, 0, breakdown.r.stdout + breakdown.r.stderr);
+const bk = breakdown.tr.metrics.drums.kick.w50;
+assert.ok(bk.fp > 0 && bk.tp === 0 && bk.fn === 0 && bk.f === 0 && !bk.vacuous, "kicks invented in an annotated drumless region are false positives: " + JSON.stringify(bk));
+assert.equal(breakdown.tr.classes.drums.kick, "extra", "and classified as extra hits, not n/a");
+assert.ok(breakdown.tr.metrics.drums.hihat.w50.fp > 0 && breakdown.tr.metrics.drums.hihat.w50.f === 0);
+assert.ok(breakdown.tr.metrics.bass.onset.fp > 0 && breakdown.tr.metrics.bass.onset.tp === 0 && breakdown.tr.metrics.bass.onset.f === 0, "bass notes invented in an annotated bassless region: " + JSON.stringify(breakdown.tr.metrics.bass.onset));
+assert.equal(breakdown.tr.classes.bass, "extra"); assert.equal(breakdown.tr.metrics.bass.noteF, 0);
+assert.ok(breakdown.tr.metrics.beats.tp > 0, "beats in the same region are still scored normally");
+// the same excerpt with the drums and bass annotation NOT removed is scored as before (sanity: the fix did not change real regions)
+const kept = scenario("annotated-present", T => { T.scorable = [{ start: 20, end: 40 }]; });
+assert.ok(kept.tr.metrics.drums.kick.w50.f > 0.9);
+
+// 9. independent check against mir_eval with its OWN masks (references and raw predictions): fair excerpt, disjoint, boundary, annotated silence
+const py = process.env.PYTHON || "python";
+if (spawnSync(py, ["-c", "import mir_eval"]).status !== 0) console.log(`NOTE: ${py} has no mir_eval; the independent region cross-check was skipped (CI runs it)`);
+else for (const sc of [fair, disj, bnd, split, breakdown, kept, empty]) {
+  const x = spawnSync(py, [path.join(ROOT, "bench", "crosscheck_mir_eval.py"), path.join(sc.dir, "scores.json"), "--manifest", sc.mp], { encoding: "utf8" });
+  assert.equal(x.status, 0, `mir_eval cross-check of ${path.basename(sc.dir)}: ${x.stdout}${x.stderr}`);
+}
 console.log("bench regions scoring tests passed");

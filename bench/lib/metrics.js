@@ -106,7 +106,7 @@ function noteScores(est, ref, win = 0.05) {
   const pitchOk = m.filter(([e, r]) => est[e].midi === ref[r].midi).length, octave = m.filter(([e, r]) => est[e].midi !== ref[r].midi && (est[e].midi - ref[r].midi) % 12 === 0).length;
   const nm = match(est.map(n => n.onset), ref.map(n => n.onset), win, (e, r) => est[e].midi === ref[r].midi).length;
   const P = est.length ? nm / est.length : 0, R = ref.length ? nm / ref.length : 0;
-  return { onset: on, noteF: r4(P + R ? 2 * P * R / (P + R) : (est.length || ref.length ? 0 : 1)), notePrecision: r4(P), noteRecall: r4(R),
+  return { onset: on, noteF: est.length === 0 && ref.length === 0 ? null : r4(P + R ? 2 * P * R / (P + R) : 0), notePrecision: r4(P), noteRecall: r4(R),
     pitchAccuracyOnMatched: m.length ? r4(pitchOk / m.length) : null, octaveErrorRate: m.length ? r4(octave / m.length) : null, matched: m.length };
 }
 

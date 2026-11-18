@@ -65,6 +65,7 @@ jobs:
         run: |
           npm run bench:time-fixtures
           node bench/time-fixtures-summary.js bench/out/time-fixtures > bench/out/time-fixtures/summary.md
+          python bench/crosscheck_mir_eval.py bench/out/time-fixtures/scores.json
 
       - name: Scorable regions scored end to end (on the real predictions)
         run: npm run bench:regions

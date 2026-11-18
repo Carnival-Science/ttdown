@@ -51,19 +51,19 @@ function truthSteps(T, cls) {
     return new Set(T.drums[cls].filter(t => t >= d - s16 / 2 && t < d + len - s16 / 2).map(t => Math.round((t - d) / s16))); });
 }
 
-// Mask the truth to the scorable regions (the same masks are applied to the predictions below). A kind with nothing left is dropped,
-// i.e. "not annotated", rather than scored against an empty reference.
+// Mask the truth to the scorable regions (the same masks are applied to the predictions below). "Not annotated" (the track has no
+// file for that kind) is different from "annotated and absent here": a drumless breakdown inside a region is annotated, with zero
+// events, so any hits the analyzer invents there stay scorable as false positives. Only a kind the track never annotated is skipped.
 function maskTruth(T, R) {
   const X = { ...T };
   if (T.beats) {
     const keep = T.beats.map(b => Reg.inside(R, b));
     X.beats = T.beats.filter((_, i) => keep[i]); X.positions = T.positions ? T.positions.filter((_, i) => keep[i]) : null;
     X.downbeats = X.positions ? X.beats.filter((_, i) => X.positions[i] === 1) : T.downbeats ? Reg.filterTimes(T.downbeats, R) : T.downbeats;
-    if (!X.beats.length) { delete X.beats; delete X.positions; delete X.downbeats; }
   }
-  if (T.drums) { X.drums = { ...T.drums, kick: Reg.filterTimes(T.drums.kick, R), snare: Reg.filterTimes(T.drums.snare, R), hihat: Reg.filterTimes(T.drums.hihat, R) }; if (!X.drums.kick.length && !X.drums.snare.length && !X.drums.hihat.length) delete X.drums; }
-  if (T.bass) { X.bass = Reg.filterNotes(T.bass, R); if (!X.bass.length) delete X.bass; }
-  if (T.chords) { X.chords = Reg.clipIntervals(T.chords, R); if (!X.chords.length) delete X.chords; }
+  if (T.drums) X.drums = { ...T.drums, kick: Reg.filterTimes(T.drums.kick, R), snare: Reg.filterTimes(T.drums.snare, R), hihat: Reg.filterTimes(T.drums.hihat, R) };
+  if (T.bass) X.bass = Reg.filterNotes(T.bass, R);
+  if (T.chords) X.chords = Reg.clipIntervals(T.chords, R);
   return X;
 }
 // chord accuracy over several regions: each region scored on its own clipped intervals, then weighted by reference seconds
