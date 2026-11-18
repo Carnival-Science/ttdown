@@ -53,13 +53,17 @@ const ROOT = path.resolve(__dirname, '..'), SONGS = path.join(ROOT, 'test-songs'
     const oldStart = a.firstDown + Math.floor((30 - a.firstDown) / a.barSec) * a.barSec;
     check(Math.abs(loop[0] - oldStart) > 0.2, `3: the old loop would have started ${(Math.abs(loop[0] - oldStart) * 1000).toFixed(0)} ms from the real bar line`);
 
-    // 4. opening the saved teardown (no tracked grid in storage): labelled fallback, exactly the old ticks
+    // 4. opening the saved teardown: its tracked beats were saved with it, so the ruler is tracked and identical; an OLDER save (no timing) is the labelled fallback
     await load(p, path.join(SONGS, 'pop127_Amaj.wav'), 'pop127_Amaj');
     await p.locator('#hist button').nth(1).click(); await p.waitForTimeout(400);
     const s = await analysis(p), sm = await rulerMeta(p), st = await ticks(p);
-    check(s.grid === null && sm.grid === 'fallback-grid' && /constant tempo/.test(sm.title), `4: a saved teardown has no tracked grid, so its ruler is a labelled fallback (${sm.grid}; "${sm.title}")`);
-    const legacyTicks = []; { const every = s.nBars > 96 ? 16 : s.nBars > 40 ? 8 : 4; for (let bb = 0; bb <= s.nBars; bb += every) { const t = s.firstDown + bb * s.barSec; if (t < -0.05 || t > s.duration) continue; legacyTicks.push({ bar: bb, left: +(100 * Math.max(0, t) / s.duration).toFixed(3) }); } }
-    check(sameTicks(st, legacyTicks) || (st.length >= legacyTicks.length && legacyTicks.every(l => st.some(g => g.bar === l.bar && Math.abs(g.left - l.left) <= 0.0011))), `4: and it draws the same ticks as before (${st.length} ticks)`);
+    check(s.grid !== null && sm.grid === 'tracked' && sameTicks(st, got), `4: a saved teardown keeps its tracked beats, so reopened it has the same tracked ruler (${sm.grid}, ${st.length} ticks)`);
+    await p.evaluate(() => { const k = 'teardown_history_v1', h = JSON.parse(localStorage.getItem(k)); h.forEach(x => delete x.timing); localStorage.setItem(k, JSON.stringify(h)); });
+    await p.reload(); await p.waitForTimeout(400); await p.locator('#hist button').nth(1).click(); await p.waitForTimeout(400);
+    const s0 = await analysis(p), sm0 = await rulerMeta(p), st0 = await ticks(p);
+    check(s0.grid === null && sm0.grid === 'fallback-grid' && /constant tempo/.test(sm0.title), `4: an older save without timing gets the labelled fallback (${sm0.grid}; "${sm0.title}")`);
+    const legacyTicks = []; { const every = s0.nBars > 96 ? 16 : s0.nBars > 40 ? 8 : 4; for (let bb = 0; bb <= s0.nBars; bb += every) { const t = s0.firstDown + bb * s0.barSec; if (t < -0.05 || t > s0.duration) continue; legacyTicks.push({ bar: bb, left: +(100 * Math.max(0, t) / s0.duration).toFixed(3) }); } }
+    check(st0.length >= legacyTicks.length && legacyTicks.every(l => st0.some(g => g.bar === l.bar && Math.abs(g.left - l.left) <= 0.0011)), `4: and it draws the same ticks as before (${st0.length} ticks)`);
     await p.close(); }
 
   // 5. a BPM correction replaces the tracked grid (a stale grid must not override it)
