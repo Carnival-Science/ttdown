@@ -1,13 +1,13 @@
 # TimeMap: the musical time model
 
-`src/timemap.js`: one module that answers "when, in the audio, is this musical position?" and "what musical position is this audio time?", and records **how well each answer is known**. It is a plain classic script (no ES modules, no DOM), so it loads in Node with `require` and in `index.html` with `<script src>` from `file://` as well as from a server.
+`src/timemap.js`: one module that answers "when, in the audio, is this musical position?" and "what musical position is this audio time?", and records **how well each answer is known**. It is a plain classic script (no ES modules, no DOM), so it loads in Node with `require` and in `index.html` as a classic script from `file://` as well as from a server.
 
-Status: **additive, not yet used by the analyzer or the UI** (Phase 2a). Nothing in `index.html` changed; the benchmark, parity and gates are unaffected. Consumers (sections, chords, drum/bass/melody events, overlays, exports) move onto it in later PRs, one at a time, each measured against Version A (`docs/BASELINE_A.md`).
+Status: Phase 2a, **additive and not yet used by the analyzer or the UI**. Consumers (ruler, metronome, sections, chords, drum/bass events, exports) move onto it in Phase 2c, one at a time, each measured against Version A (`docs/BASELINE_A.md`).
 
 ## Model
 
 - **Time** is audio seconds (`timeToSample` / `sampleToTime` convert).
-- **Musical coordinate** `beat` (q) is a float number of beats from bar 1 beat 1. Integer q sits on tracked beats; between beats it is linearly interpolated, so the map follows drift and tempo changes. A pickup has q < 0 and lies in bar -1. `bar` is 0-based. Before the first / after the last tracked beat, positions are extrapolated from the nearest beats and flagged `extrapolated: true`.
+- **Musical coordinate** `beat` (q) is a float number of *tracked* beats from bar 1 beat 1. Integer q sits on tracked beats; between beats it is linearly interpolated, so the map follows drift and tempo changes. A pickup has q < 0 and lies in bar -1. `bar` is 0-based. Only times strictly before the first or after the last tracked beat are extrapolated (`extrapolated: true`).
 - `timeToBeat` and `beatToTime` are exact inverses everywhere.
 
 ## What is measured, inferred, corrected, unknown
@@ -16,13 +16,16 @@ Status: **additive, not yet used by the analyzer or the UI** (Phase 2a). Nothing
 |---|---|---|
 | Each beat | `src[i]` | `measured` (tracker), `user`, `fallback-grid` |
 | Whole map | `source` | `tracker`, `fallback-grid` |
-| Downbeat (bar 1) | `downbeat.status` | `measured`, `user`, `unknown` |
-| Meter | `meter.status` | `measured` (regular downbeat spacing), `assumed` (the analyzer hard-codes 4/4), `user`, `ambiguous`, `unsupported` |
+| Downbeat (bar 1) | `downbeat.status` | `measured` (tracker), `user` (placed or confirmed), `unknown` |
+| Meter | `meter.status` | `measured` (regular downbeat spacing), `assumed` (the analyzer hard-codes 4), `user`, `ambiguous`, `unsupported` |
 | Tempo | `tempo()` | median/min/max, `isConstant`, `segments`, `changes`, `hypotheses` |
-| Tempo alternatives | `tempo().hypotheses` | half and double listed with `score: null, calibrated: false`. They are possibilities, **not probabilities**. |
-| User corrections | `corrections[]` | `{ type, from, to, source: "user", at }`; `original()` returns the untouched machine result |
+| Tempo alternatives | `tempo().hypotheses` | half and double with `score: null, calibrated: false`: possibilities, **not probabilities** |
+| Coverage | `coverage()` | measured span, extrapolated seconds before/after, fraction measured |
+| User corrections | `corrections[]`, `original()` | `{ type, from, to, source: "user", at }`; the machine result is never overwritten |
 
 If the downbeat is unknown or the meter is `ambiguous` / `unsupported`, there is **no bar layer**: `bar` and `beatInBar` are `null`, `bars()` is empty. It never falls back to forcing 4/4.
+
+**Meter representation and its limit.** `meter = { beatsPerBar, numerator, denominator, beatUnit, status, note }`. `beatsPerBar` counts *tracked pulses*, not the time signature: a 6/8 groove may be tracked as 2 (dotted-quarter) or 6 (eighth) pulses per bar, and 12/8 as 4. `numerator`, `denominator` and `beatUnit` stay `null` unless a person states them (`withMeter({ beatsPerBar: 4, numerator: 12, denominator: 8, beatUnit: "dotted-quarter" })`), because the tracker cannot know them; the fields exist so compound and other meters can be represented later without changing the shape. Meter *changes* inside a track are not representable yet. Bar exports accept only 4 pulses per bar with no contradicting denominator.
 
 A fixed constant-BPM grid is only available through `fromConstantGrid` (for a saved result with no tracked beats). Every beat is tagged `fallback-grid`, `measured` is false, and `position().source` says so.
 
@@ -37,35 +40,53 @@ const r = TM.fromJSON(JSON.parse(JSON.stringify(m)));                           
 m.timeToBeat(t); m.beatToTime(q); m.position(t);   // { beat, bar, beatInBar, extrapolated, source }
 m.barStart(bar); m.bars();                          // bars overlapping [0, duration]
 m.quantize(t, perBeat = 4);                         // { beat, t, deviation }: explicit, keeps the groove
-m.tempo(); m.tempoAt(t); m.tempoCurve();
-m.exportEligibility();                              // { eligible, verified, grade, reasons, caveats }
-m.withDownbeat(t); m.withMeter(n); m.withMeterUnsupported(note);   // return a NEW map; originals untouched
+m.tempo(); m.tempoAt(t); m.tempoCurve(); m.coverage();
+m.exportGrid(); m.exportGridTime(q);                // the single-tempo grid an exporter would write, with its error
+m.exportEligibility();                              // { state, eligible, needs, reasons, caveats, exportRange, exportGrid, coverage }
+m.withDownbeat(t); m.confirmDownbeat();             // corrections return a NEW map; originals untouched
+m.withMeter(n | { beatsPerBar, numerator, denominator, beatUnit }); m.confirmMeter(); m.withMeterUnsupported(note);
 m.fingerprint();                                    // changes whenever anything a derived result depends on changes
 ```
 
-Errors are `TimeMapError` with a `code` (`too-few-beats`, `bad-beats`, `bad-duration`, `bad-meter`, `fingerprint-mismatch`, ...). Bad input is rejected, never repaired.
+Errors are `TimeMapError` with a `code` (`too-few-beats`, `bad-beats`, `bad-duration`, `bad-meter`, `no-downbeat`, `no-meter`, `fingerprint-mismatch`, ...). Bad input is rejected, never repaired.
+
+## Immutability
+
+A TimeMap and everything reachable from its public fields (`t`, `src`, `downbeat`, `meter`, `tempoHypotheses`, `corrections`, `settings`, `warnings`) is deeply frozen, as is every memoised result (`tempo()`, `exportEligibility()`, `exportGrid()`, `coverage()`, `tempoCurve()`). Memoised values live in a module-level `WeakMap`, so instances carry no mutable cache. Inputs are copied on the way in (the caller's beats, settings and hypotheses are not frozen or aliased) and `toJSON()` hands out copies.
 
 ## Staleness
 
-Derived results (chords, sections, MIDI) should store the `fingerprint()` of the map they were computed from. After a correction the fingerprint differs, so a result with the old one is stale and must be recomputed or hidden, not shown as valid. Wiring this into the UI is Phase 2d.
+Derived results (chords, sections, MIDI) store the `fingerprint()` of the map they were computed from. The fingerprint is a 64-bit hash of: schema, duration, source, anchor, downbeat status, the full meter (including status and any stated denominator), **the settings**, every beat time and its source. Correction timestamps are excluded. After a correction, or a change of any setting that can change tempo classification or export eligibility, the fingerprint differs, so a result with the old one is stale and must be recomputed or hidden, not shown as valid. Wiring this into the UI is Phase 2d.
 
-## Export gating
+## Export gating: three states
 
-`exportEligibility()` refuses (`eligible: false`) for an unknown downbeat, `ambiguous`/`unsupported` meter, a meter other than 4/4, and any tempo change or non-constant tempo, and names the reasons. For tracked constant-tempo 4/4 it returns `eligible: true`. `verified` is `true` only when the meter and downbeat are measured or user-confirmed; with the analyzer's assumed 4/4 it is `false` with the caveat "meter is assumed to be 4/4, not measured". **Decision needed:** whether the product should allow export with that caveat (current default of this module) or require user confirmation first.
+`exportEligibility()` returns one of:
+
+| `state` | Meaning |
+|---|---|
+| `allowed` | Tracked grid, steady tempo, and **both** the meter and the first downbeat confirmed (`user`), or a `measured` meter with a user downbeat |
+| `needs-confirmation` | A stable grid whose meter and/or first downbeat are only the analyzer's assumption. `needs` lists `meter` and/or `downbeat`. Confirmation should be lightweight: audition a metronome, check the first downbeat, confirm the meter (`confirmDownbeat()`, `confirmMeter()`) |
+| `refused` | Ambiguous or unsupported meter, other than 4 pulses per bar, tempo changes, unsteady tempo, or **tempo drift**: a steady-looking tempo whose single pinned grid misses a tracked beat by more than `gridTolerance`. `reasons` names them. Confirmation never overrides a refusal |
+
+Analysis and original-audio playback are never gated, nor are exports that need no musical grid.
+
+`exportRange` is the span of **whole bars inside the tracked beats**; an export never includes extrapolated audio. A caveat appears when more than `maxExtrapolatedSeconds` (8 s) of the audio lies outside the tracked span. A fallback grid (a saved result with no tracked beats) can reach `allowed` only after confirmation, stays labelled as a fallback in `caveats`, and its `exportRange` is the whole audio.
+
+**The error of the grid actually exported.** `exportGrid()` is the grid an exporter writes: bar 1 beat 1 sits *exactly* on the tracked (or user-confirmed) downbeat, and the tempo is the least-squares slope through that pinned anchor. It reports `maxDeviationMs` and `rmsDeviationMs` against every tracked beat, and `interceptShiftMs`, what pinning the anchor costs relative to a free least-squares line. On the six synthetic songs the pinned grid is within 7.5 to 11.9 ms (RMS 3.6 to 4.7); `pop127_pad1200` shows the pinning cost, 6.1 ms. The gate is on the maximum. A single mis-tracked beat can therefore refuse an otherwise good track; that is deliberate for now and will be revisited with real recordings.
 
 ## Provisional thresholds (not calibrated)
 
-`DEFAULTS` in the module: local tempo within 3 % of the median is "constant"; a tempo segment ends after 8 consecutive beats outside ±4 %; a downbeat must lie within half a beat interval of a tracked beat. These are reasoned values, not tuned on any data. The fixtures in `tests/timemap.test.js` pin their behaviour on synthetic cases only; they need checking against real tracks before they gate anything the user sees.
+`DEFAULTS` in the module, all overridable per map (`settings`) and included in the fingerprint: local tempo within 3 % of the median is "steady"; a tempo segment ends after 8 consecutive beats outside ±4 %; a downbeat must lie within half a beat interval of a tracked beat; **`gridTolerance` 20 ms** for the pinned export grid; `maxExtrapolatedSeconds` 8. They are reasoned, not tuned on real recordings. The 20 ms value is a *grid-export compatibility threshold*, not an accuracy claim: on 20 synthetic tracks a free least-squares fit left 5.6 to 8.8 ms on every constant-tempo track and 41 ms on a 0.8 % drift (`docs/TIME_FIXTURES_BASELINE.md`), and the pinned grid measured 7.5 to 11.9 ms on the six regression songs. The pinned grid has not yet been measured on the other fixtures. Revisit when real recordings are available.
 
 ## Tempo estimation note
 
-The analyzer places beats on a ~11.6 ms frame grid, so single beat intervals alternate between frame counts. The median interval of a 127 BPM track comes out as about 126.05 BPM. TimeMap estimates tempo with a least-squares fit over a window of beats, which recovers 127.0 (`tests/test24.js` checks 6 synthetic songs within 0.5 %).
+The analyzer places beats on a ~11.6 ms frame grid, so single beat intervals alternate between frame counts. The median interval of a 127 BPM track comes out as about 126.05 BPM. TimeMap estimates tempo with a least-squares fit, which recovers 127.0.
 
 ## Tests
 
-- `tests/timemap.test.js` (Node, 25 cases, in `npm test`): conversion round trips; leading silence; pickups; nonzero first downbeat; unknown/ambiguous/unsupported/3-4 meter; half/double alternatives; drift (fixed grid drifts out of ±70 ms, the map does not); tempo change and half-time breakdown; a 10-minute recording; fallback parity with the app's current `firstDown + bar*barSec + step*barSec/16`; quantize; corrections, immutability, JSON round trip and tamper detection; input validation. Three deliberate mutations of the module were each caught.
-- `tests/test24.js` (browser, in `npm test`): TimeMap built from the real analyzer's grid for 6 synthetic songs: measured, constant tempo, tempo within 0.5 %, beat F >= 0.98, bar 1 within 70 ms of a true downbeat, same fingerprint in page and Node.
+- `tests/timemap.test.js` (Node, 31 cases, in `npm test`): conversion round trips; leading silence; pickups; nonzero first downbeat; unknown/ambiguous/unsupported/3-4 meter; half/double alternatives; drift (a fixed grid leaves ±70 ms, the map does not); tempo change and half-time breakdown; a 10-minute recording; fallback parity with the app's `firstDown + bar*barSec + step*barSec/16`; quantize; corrections and confirmations; the three export states; export-grid error and anchor pinning; coverage and export range; the exact last beat; meter representation; deep immutability and input copying; fingerprint coverage; JSON round trip and tamper detection; input validation. Six deliberate mutations of the module were each caught.
+- `tests/test24.js` (browser, in `npm test`): TimeMap built from the real analyzer's grid for 6 synthetic songs: measured, steady, tempo within 0.5 %, beat F >= 0.98, bar 1 within 70 ms of a true downbeat, the assumed meter needs confirmation and is allowed once confirmed with the exported grid within 20 ms, same fingerprint in the page and in Node.
 
 ## Not done yet
 
-Tempo-scale (×2 / ÷2) as a correction; meter changes inside a track; wiring into `index.html` (the page must load `src/timemap.js`, which means adding `src/` to the dev-server allowlist and deciding between a second shipped file and inlining it into the single-file app); persisting maps with saved projects.
+Tempo-scale (×2 / ÷2) as a correction; meter changes inside a track; compound-meter handling beyond recording what a person states; persisting maps with saved projects; wiring into the page (Phase 2c).
