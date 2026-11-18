@@ -7,3 +7,6 @@ test-songs/*.json
 /*.png
 test-songs/truth/
 bench/out/
+test-songs/time-fixtures/*.wav
+test-songs/time-fixtures/*.json
+test-songs/time-fixtures/truth/

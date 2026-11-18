@@ -58,6 +58,12 @@ jobs:
       - name: G1 ground-truth integrity and coverage enforcement (on the real predictions)
         run: npm run bench:integrity
 
+      - name: "Time-model fixtures (reported, not gated; see docs/TIME_FIXTURES_BASELINE.md)"
+        run: |
+          npm run songs:time
+          npm run bench:time-fixtures
+          node bench/time-fixtures-summary.js bench/out/time-fixtures > bench/out/time-fixtures/summary.md
+
       - name: Upload run records
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -66,5 +72,6 @@ jobs:
           path: |
             tests/out/*.json
             bench/out/synthetic/
+            bench/out/time-fixtures/
           if-no-files-found: warn
           retention-days: 30
