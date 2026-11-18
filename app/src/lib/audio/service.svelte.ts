@@ -33,6 +33,8 @@ class AudioService {
     this.players.forEach(p => { p.volume = this.songVolume; });
     try { localStorage.setItem(KEYS.volume, JSON.stringify(this.vol)); } catch { /* storage full or blocked */ }
   }
+  /** One volume for the song and for every sound the app plays over it (the player's volume control). */
+  setAll(v: number) { this.vol.song = v; this.vol.sounds = v; this.vol.muted = false; this.apply(); }
   setSong(v: number) { this.vol.song = v; this.vol.muted = false; this.apply(); }
   setSounds(v: number) { this.vol.sounds = v; this.vol.muted = false; this.apply(); }
   toggleMute() { this.vol.muted = !this.vol.muted; this.apply(); }

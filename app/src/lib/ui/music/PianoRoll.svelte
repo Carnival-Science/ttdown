@@ -1,8 +1,10 @@
 <!-- A small piano-roll picture of notes (legacy pianoRoll()): 1 step = a 16th; thick lines are bars, thin lines beats. -->
 <script lang="ts">
-  import { domain } from "../../domain";
+  import { engine } from "../../engine";
+  // Standard pitch naming: MIDI note 60 is middle C, C4 (DAWs differ by an octave or two; this is the common scientific convention).
+  const noteName = (m: number) => (engine.NAMES[((m % 12) + 12) % 12] ?? "?") + (Math.floor(m / 12) - 1);
   interface N { t: number; dur: number; midi: number; glide?: boolean }
-  let { notes, total, label = domain.flNote, aria = "Piano roll of this idea" }: { notes: N[]; total: number; label?: (m: number) => string; aria?: string } = $props();
+  let { notes, total, label = noteName, aria = "Piano roll" }: { notes: N[]; total: number; label?: (m: number) => string; aria?: string } = $props();
   const geo = $derived.by(() => {
     const ms = notes.map(n => n.midi), lo = Math.min(...ms) - 1, hi = Math.max(...ms) + 1, rows = hi - lo + 1;
     const rh = Math.max(6, Math.min(11, Math.floor(130 / rows))), lw = 36, sw = 9;

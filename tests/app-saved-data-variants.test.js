@@ -27,8 +27,14 @@ const NULLED = ["chords", "hook", "bassline", "swing", "drumParts"];
     await p.goto(url); await p.evaluate(r => localStorage.setItem("teardown_history_v1", JSON.stringify([r])), rec); await p.reload(); await p.waitForTimeout(500);
     let shown = false;
     try { await p.click("#hist button", { timeout: 4000 }); await p.waitForTimeout(500);
-      for (const tab of ["Build it", "Idea generator", "Song map", "Sounds and mix", "Compare", "Overview"]) { await p.click(`.tdtabs button:has-text("${tab}"), .tdtabs [role=tab]:has-text("${tab}")`, { timeout: 3000 }); await p.waitForTimeout(120); }
-      shown = (await p.textContent("#lcd-bpm")).trim() === rec.bpm.toFixed(1); } catch (e) { errs.push("ui: " + String(e).split("\n")[0].slice(0, 100)); }
+      if (/^http/.test(url) && url.includes("/app/dist/")) { // the v1 app: findings, then the section detail tabs
+        await p.waitForSelector('[data-finding="tempo"]', { timeout: 3000 });
+        for (const tab of ["Harmony", "Notes", "Rhythm"]) { await p.click(`[role=tab]:has-text("${tab}")`, { timeout: 3000 }); await p.waitForTimeout(120); }
+        shown = new RegExp(`\\b${rec.bpm}\\b`).test(await p.locator('[data-finding="tempo"] .big').innerText());
+      } else { // the legacy page
+        for (const tab of ["Build it", "Idea generator", "Song map", "Sounds and mix", "Compare", "Overview"]) { await p.click(`.tdtabs button:has-text("${tab}")`, { timeout: 3000 }); await p.waitForTimeout(120); }
+        shown = (await p.textContent("#lcd-bpm")).trim() === rec.bpm.toFixed(1); }
+    } catch (e) { errs.push("ui: " + String(e).split("\n")[0].slice(0, 100)); }
     await p.close(); return { ok: shown && errs.length === 0, errs };
   };
   let worse = 0, sameFail = 0; const rows = [];

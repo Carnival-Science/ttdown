@@ -1,4 +1,4 @@
-<!-- A one-bar 16-step drum grid, drawn like FL's Piano roll (legacy rack()/rackRow()). Rows are editable when `onEdit` is set. -->
+<!-- A one-bar, 16-step drum grid: four beats, four squares per beat. Rows are editable when `onEdit` is set. -->
 <script lang="ts">
   import { domain } from "../../domain";
   interface Row { name: string; steps: boolean[]; ghost?: boolean[] | null; onEdit?: (i: number, on: boolean) => void }

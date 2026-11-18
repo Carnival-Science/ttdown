@@ -1,6 +1,6 @@
 # Svelte 5 migration: plan, M0 baseline and M1 record
 
-Status: **M0–M4 done and M5 prepared on this branch (§13), 2026-11-18.** The Svelte app runs the same analysis engine and domain code as the legacy page, gives identical predictions on every benchmark track, and passes the legacy browser tests. Production changes only when PR #18 is merged: that is the founder's decision (§9). The analysis algorithms, Version A, benchmark thresholds and TimeMap are unchanged.
+Status: **v1 product focus applied (§14).** The Svelte app is now one view that answers one question: what can Track Teardown tell a producer, accurately, about how an uploaded track is built. The earlier feature-complete port (§13) was cut back accordingly. The analysis algorithms, Version A, benchmark thresholds, TimeMap and all benchmark infrastructure are unchanged. Production changes only when PR #18 is merged: that is the founder's decision (§9).
 
 | | |
 |---|---|
@@ -514,6 +514,8 @@ Existing layout defects visible in these screenshots (legacy; the new app does n
 
 ## 13. M2–M5 record: engine and domain extraction, the full Svelte app, parity, cutover
 
+> **Superseded in part by §14.** This section records the feature-complete port as it was first built and verified. §14 cut most of those features (Learn, coach, journal, sample lab, build plan, idea generator, compare, share, display settings, session timer, accounts) and replaced the interface. The engine and domain extraction (M2 and the first half of M3), the parity method and the cutover configuration still stand; the feature lists, the app structure and the test lists below describe the earlier port.
+
 Approved by the user on 2026-11-18 ("complete the full migration"), after PRs #19, #20 and #17 were merged into `main` (`169308c`, `dd3829a`, `1ffd25d`) and `main` was merged into this branch. The analysis workstream agreed an integration window: no engine changes in `index.html` until PR #18 merges; Phase 2c steps 3–5 then continue in `src/domain.js` and `src/engine.js`.
 
 ### M2: the analysis engine is one file shared by both apps
@@ -603,3 +605,80 @@ Production build: about 1.5 MB in 61 files, most of it self-hosted font subsets;
 `netlify.toml` builds the app and publishes it at the root, with the legacy page at `/legacy.html` on the same origin and long-lived caching only for hashed assets. It changes PR #18's deploy preview immediately, so the founder can try the Svelte app there before deciding, and production only when PR #18 is merged. Rollback is reverting that merge (or only `netlify.toml`). Not done here, deliberately: merging PR #18 (production) and deleting the legacy page (kept for at least one release).
 
 **Not migrated or known gaps:** the legacy page's `window.__rp` is a no-op in the app (the plan is reactive); the drag-and-drop and file inputs keep the legacy ids for the harness; `tests/benchmark.js` (G0 gates) still loads the legacy page, which runs the same engine file; the Claude runtime integrations (account sync, downloads, coach, dictation) are implemented as before but were not exercised against a real Claude runtime here.
+
+---
+
+## 14. v1 product focus (2026-11-18)
+
+**Guiding question (founder):** when a producer uploads a track, what can Track Teardown tell them accurately that would otherwise take significant time and effort to discover? A feature that doesn't contribute to that outcome doesn't belong in v1. The space the cuts leave is **deliberately not refilled**: a smaller product with a few trustworthy findings beats a larger one with many questionable ones.
+
+### What changed
+
+| Area | v1 | Why |
+|---|---|---|
+| Positioning | "Upload a track and see how it is built." No DAW named anywhere in the app, README or test expectations; note names use standard pitch naming (middle C = C4, not FL's C5) | The product is analysis, not an FL Studio course |
+| **Cut** | Learn, coach, journal, sample lab, session timer, build plan ("Build it"), idea generator, share/review pages, compare, display settings, the LCD and decorative console, navigation, accounts and every Claude-runtime integration (db, user, downloads, sample, dictation) | Not analysis. Compare is **deferred**: it needs credible comparison metrics first |
+| Also cut | Generic mixing advice (EQ, effects, levels), plugin and sample recommendations, style and mood guesses, "high/medium/low confidence" labels, the "reference" tick on the energy bars, "how to build it" text per section, the band-solo listening filter, tap tempo, stems upload, the library matcher | Unsupported by evidence (confidences are not calibrated; style, mood and advice were never validated), or prescriptive |
+| **Kept** | Tempo, key, meter assumption, bar 1, the arrangement, drum pattern, chords, rough bass and top line, measured level, dynamics, stereo width and band energy; playback with loops, speed, beat clicks and "check by ear"; corrections (tempo, key, a chord, a drum step); exports; saved teardowns; volume (now inside the player) | These are the findings and tools that answer the guiding question |
+| Interface | One view. Upload, **What was found**, **Arrangement** (the timeline is the central object: click a section to select, hear and inspect it), **Export**, **How to read this** | The timeline replaces six tabs of disconnected statistics |
+| Section detail | Tabs (UI SDK Tabs): **Rhythm**, **Harmony**, **Notes**. Notes appear only on the one section they were transcribed from, and say so | Stops presenting a one-section transcription as the whole song |
+| Defaults | Dark theme, browser text size and zoom, `prefers-reduced-motion` honoured. No Display menu. A light theme following the system setting is not built (it would be new work) | Sensible defaults over settings |
+| Example teardown | Removed. Until a track is analysed the page shows no numbers | Never show numbers that were not measured from the user's audio |
+
+### Measured, estimated, assumed, unknown
+
+Every finding carries exactly one label (`lib/ui/Basis.svelte`), explained on the page:
+
+- **Measured**: computed directly from the audio (length, level, peak, crest factor, stereo width, band energy).
+- **Estimated**: inferred by the analyzer (tempo, key, bar 1, sections and their names, drum pattern, chords, rough notes). Listen to it, check it, correct it.
+- **Assumed**: not detected (4/4).
+- **Unknown**: the analyzer found nothing and says so: no chords, no top line or bass, swing not measurable, no kick or snare in a section.
+- **Corrected by you**: a correction; the page states that dependent results were not recomputed.
+
+Uncalibrated numbers are not shown as probabilities. The tempo alternatives (half, double) come from TimeMap's hypotheses, which carry no score; the page words them as possibilities. The page says that accuracy has been checked only on computer-generated songs and not yet on real recordings.
+
+### Corrections and exports
+
+- Corrections replace the result (§0); a tempo correction **marks bars, chords, drum positions and exports stale** (existing defect C1-10, Phase 2d: they are not recomputed) and blocks the bar-aligned exports until the track is uploaded again. Downbeat and meter correction are not built (they belong to Phase 2d).
+- Exports use TimeMap's three-state eligibility (founder decision, 2026-11-18): **refused** (tempo changes or drift, non-4/4 meter) blocks the bar-aligned files with the reason; **needs confirmation** (always, until the user confirms: the analyzer's first downbeat and 4/4 are assumptions) shows two checks to make against the beat clicks, then unlocks them for the session; **allowed** after confirmation. Analysis data (.json, with the tracked beats) is always available. The confirmation is session-only; persisting it as a `timingCorrections` entry is part of the analysis workstream's export-confirmation work.
+
+### Analytical components and benchmark infrastructure
+
+Unchanged: `src/engine.js`, `src/timemap.js`, `src/timing-store.js`, and everything under `bench/`, the benchmark and parity gates, Version A and the legacy page as the harness's reference target. `src/domain.js` still contains the legacy page's teaching content (curriculum, idea generators, plan builder); the v1 app uses 17 of its names (`app/src/lib/domain/domain-module.d.ts`) and the rest is dead weight in the bundle until the legacy page is retired, at which point the analytical parts (`songNotes`, MIDI/zip/WAV writers, chord and key helpers) should move into a module of their own. The legacy page remains published at `/legacy.html` for one release, which is also the only place a person can still open the journal, practice log, favourites and shelf they saved there: those keys are left untouched in their browser, and the v1 app never deletes them (tested).
+
+### Tests reflect the new product, not feature parity
+
+`app:feature-tests` (the 17 legacy tests run against the app) is replaced by `app:product-tests` (`tests/run-app-tests.js`):
+
+| Kept (legacy tests that still describe the product) | Ported to the new interface | New |
+|---|---|---|
+| test24 (TimeMap from the real grid), test25 (stale jobs), test26 (cancel), test27 (object URLs) | `app-limits` (was 28), `app-bars` (29), `app-sections` (30), `app-persistence` (31): same assertions, no tabs and no example teardown | `app-exports` (export gating and the first downbeat), `app-product` (26 checks: labels, timeline, volume in the player, no removed features, nothing leaves the browser, unknown shown as unknown) |
+
+Not carried over, because the features are gone: tests 8, 14, 16, 17, 18, 19, 21, 22, 23 (Sample Lab, ideas, build plan, stems, journal and compare, volume menu, chord grid) and the account test. They still run, unchanged, against the legacy page in `npm test`. `app-storage-roundtrip` and `app-saved-data-variants` were rewritten for history only. The parity gate (`bench/target-parity.js`) ignores three fields the legacy panels add while rendering (`checks`, `stems`, `chordChecks`): interface bookkeeping, not analysis; every other field must still be identical.
+
+### Size
+
+Production build: 61 files and 1.55 MB before, 14 files and about 650 KB after (Latin font subsets only; the UI SDK default stylesheet is no longer shipped; the carried-over stylesheet was pruned from 30 KB to 12 KB by script). Dependencies are unchanged in kind and all used (`@ui-sdk/svelte` and its peer for Tabs, three self-hosted font packages, the toolchain).
+
+### Results
+
+Local, Apple M1, Node 24.19, Chromium 159, each command once:
+
+| Command | Exit | Wall | Result |
+|---|---|---|---|
+| `app:check` (svelte-check, tsc, UI SDK boundary) | 0 | 15 s | 0 errors, 0 warnings |
+| `app:smoke` | 0 | 23 s | 160 checks: dev server, production and bench builds, desktop and phone |
+| `app:product-tests` | 0 | 226 s | 10 of 10 test files pass (including `app-exports`, 30 checks, and `app-product`, 26 checks) |
+| `app:data-tests` | 0 | 131 s | round trip 9 checks; 28 saved-record variants open in the app wherever the legacy page opens them |
+| `app:parity` | 0 | 109 s | 22/22 tracks identical to the legacy page (same engine hash), 0 page errors |
+| `npm test` (legacy page, unchanged) | 0 | 340 s | 17/17 feature tests |
+| `benchmark` / `bench:synthetic` | 0 | 18 s / 19 s | 15/15 gates; 8/8 scored |
+| `bench:parity` / `bench:crosscheck` | 0 | 1 s / 1 s | 104/104; 120/120 with mir_eval 0.8.2 |
+| `bench:integrity` / `bench:regions` | 0 | 3 s / 1 s | pass |
+| `bench:time-fixtures` / `bench:arrangement` / arrangement-vs-Version-A | 0 | 41 s / 8 s / <1 s | 12/12; 2/2; pass |
+
+`src/`, `index.html`, `bench/run.js`, `bench/score.js`, `scripts/` and the benchmark gates are byte-identical to the previous commit: this change touches the interface and its tests, not the analysis.
+
+### Deliberately not done (the space stays empty)
+
+No replacement for the cut features. Not built: a light theme, downbeat and meter correction, persisted export confirmation, compare, any new detection. Next priorities are analysis, not interface: correction-dependent results (Phase 2d: recompute or invalidate), a real-music benchmark, then making corrections genuinely useful. Open question for the founder: retire `/legacy.html` at cutover, or keep it for one release as the way to reach old journal and log data.

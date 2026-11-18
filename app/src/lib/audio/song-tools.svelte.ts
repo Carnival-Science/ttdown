@@ -7,13 +7,12 @@ import { domain } from "../domain";
 import { gridOf } from "../timeline/grid";
 const { songNotes } = domain;
 
-/** Speed, loops and "listen to" band solo for the song player (legacy playerTools). */
+/** Speed and loops for the song player (legacy playerTools; the band solo was cut from v1). */
 export class PlayerTools {
   rate = $state(1);
   loopSel = $state("");
-  solo = $state(0);
   loop = null;
-  fx = null; owned = null; timer = null;
+  timer = null;
   constructor(a, player) {
     this.a = a; this.player = player;
     if (__TEST_HOOKS__) try { Object.defineProperty(window, "__loop", { configurable: true, get: () => this.loop }); } catch (e) {} // tests only (bench build): the active loop range
@@ -31,14 +30,7 @@ export class PlayerTools {
   }
   loopRange(st, en, rate) { const a = this.a; this.loopSel = ""; this.loop = [Math.max(0, st), Math.min(a.duration - 0.05, en)]; this.player.currentTime = this.loop[0]; if ([0.5, 0.75, 1].includes(rate)) this.setRate(rate); }
   loopSection(i, rate) { const a = this.a, s2 = a.sections[i]; if (!s2) return; this.loopSel = String(i); this.loop = [s2.start, Math.min(a.duration - 0.05, s2.end)]; this.player.currentTime = s2.start; if ([0.5, 0.75, 1].includes(rate)) this.setRate(rate); }
-  setSolo(i, SOLO) {
-    try {
-      if (!this.fx) { const o = audio.context(), ctx = o.ctx, src = ctx.createMediaElementSource(this.player), mk = t => { const f = ctx.createBiquadFilter(); f.type = t; f.Q.value = 0.7; return f; };
-        this.fx = { ctx, hp: [mk("highpass"), mk("highpass")], lp: [mk("lowpass"), mk("lowpass")] }; const fx = this.fx; src.connect(fx.hp[0]); fx.hp[0].connect(fx.hp[1]); fx.hp[1].connect(fx.lp[0]); fx.lp[0].connect(fx.lp[1]); fx.lp[1].connect(o.out); this.owned = o; }
-      this.fx.ctx.resume(); this.fx.hp.forEach(f => { f.frequency.value = SOLO[i][1] || 10; }); this.fx.lp.forEach(f => { f.frequency.value = SOLO[i][2] || 20000; }); this.solo = i;
-    } catch (e) {}
-  }
-  destroy() { if (this.timer) clearInterval(this.timer); this.timer = null; if (this.owned) { this.owned.close(); this.owned = null; this.fx = null; } }
+  destroy() { if (this.timer) clearInterval(this.timer); this.timer = null; }
 }
 
 /** "Check by ear": the detected notes played over the real song, in time (legacy overlayTools). */

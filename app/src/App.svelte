@@ -1,90 +1,85 @@
-<!-- Track Teardown: the app shell. Header (brand, views, Display, Volume, LCD), the current view, the practice-session pill and the
-     coach. Teardown is the default view (founder decision); Learn, Sample Lab and Journal are secondary. -->
+<!-- Track Teardown: upload a track and see how it is constructed. One view: findings, an arrangement timeline to explore, and exports.
+     Everything shown says how it is known (measured, estimated, assumed or unknown). -->
 <script lang="ts">
-  import { onDestroy } from "svelte";
-  import { ROUTES } from "./lib/routing/routes";
-  import { createRouter } from "./lib/routing/router.svelte";
   import { installTestHooks } from "./lib/testing/hooks";
-  import { app } from "./lib/state/app.svelte";
-  import { account } from "./lib/storage/account.svelte";
   import { teardown } from "./lib/state/teardown.svelte";
-  import { domain } from "./lib/domain";
-  import { timeMapSelfCheck } from "./lib/timemap";
   import { BUILD } from "./lib/build/identity";
-  import Popover from "./lib/ui/Popover.svelte";
-  import Display from "./components/Display.svelte";
-  import Volume from "./components/Volume.svelte";
-  import Lcd from "./components/Lcd.svelte";
-  import Session from "./components/Session.svelte";
-  import Coach from "./components/Coach.svelte";
-  import Teardown from "./routes/Teardown.svelte";
-  import Learn from "./routes/Learn.svelte";
-  import SampleLab from "./routes/SampleLab.svelte";
-  import Journal from "./routes/Journal.svelte";
+  import { timeMapSelfCheck } from "./lib/timemap";
+  import Basis from "./lib/ui/Basis.svelte";
+  import Upload from "./teardown/Upload.svelte";
+  import Findings from "./teardown/Findings.svelte";
+  import Explorer from "./teardown/Explorer.svelte";
+  import Exports from "./teardown/Exports.svelte";
 
-  const router = createRouter();
-  onDestroy(() => router.destroy());
-  $effect(() => { app.route = router.current; });
-  installTestHooks({ route: () => router.current, navigate: id => router.navigate(id) });
-  void account.init(domain.tdId);
-  $effect(() => { void account.rev; void account.state; teardown.refreshHistory(); });
-
+  installTestHooks();
+  $effect(() => { teardown.refreshHistory(); });
+  // Runs the canonical TimeMap once; the smoke test compares this with Node (dev server and built bundle alike).
   const tm = timeMapSelfCheck();
   const short = (s: string | null) => (s ? s.slice(0, 7) : "unknown");
-  const TITLES: Record<string, string> = { teardown: "Teardown a song", learn: "Learn FL Studio", samples: "Sort and tag your samples", journal: "Practice journal" };
-
-  // the sticky header measures itself, so nothing slides under it; it compacts after scrolling
-  let hdr: HTMLElement;
-  $effect(() => {
-    const setH = () => document.documentElement.style.setProperty("--hdr", (hdr.offsetHeight + 8) + "px");
-    const ro = new ResizeObserver(setH); ro.observe(hdr, { box: "border-box" }); setH();
-    let lastY = 0; const onScroll = () => { const y = window.scrollY; if ((y > 120) !== (lastY > 120)) { document.body.classList.toggle("compact-hdr", y > 120); requestAnimationFrame(setH); } lastY = y; };
-    window.addEventListener("scroll", onScroll, { passive: true }); window.addEventListener("resize", setH);
-    return () => { ro.disconnect(); window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", setH); };
-  });
-  $effect(() => { document.body.classList.toggle("has-song", !teardown.example); });
 </script>
 
-<main class="wrap" data-route={router.current} data-timemap-schema={tm.schema} data-timemap-fingerprint={tm.fingerprint}>
-  <header class="console" bind:this={hdr}>
-    <a class="brand" href="#teardown" aria-label="Track Teardown home" style="text-decoration:none;color:inherit">
-      <span class="logo" aria-hidden="true">TT</span><div><b>Track Teardown</b><span>FL Studio learning rig</span></div>
-    </a>
-    <nav class="tabs" aria-label="Sections">
-      {#each ROUTES as r (r.id)}
-        <a href={"#" + r.id} id={"tab-" + r.id} title={TITLES[r.id]} aria-current={router.current === r.id ? "page" : undefined}>{r.label}</a>
-      {/each}
-    </nav>
-    <Display />
-    <Volume />
-    <Lcd />
+<main class="wrap" data-timemap-schema={tm.schema} data-timemap-fingerprint={tm.fingerprint}>
+  <header class="top">
+    <span class="logo" aria-hidden="true">TT</span>
+    <div><h1>Track Teardown</h1><p class="lead">Upload a track. See how it is built: tempo, key, arrangement, drums and chords, and what can be measured in the sound. Listen to each part, correct what's wrong, and take the timing and notes into any DAW.</p></div>
   </header>
 
-  <div id="view-teardown" style="display:grid;gap:18px" hidden={router.current !== "teardown"}><Teardown /></div>
-  {#if router.current === "learn"}<div id="view-learn" style="display:grid;gap:18px"><Learn /></div>{/if}
-  {#if router.current === "samples"}<div id="view-samples" style="display:grid;gap:18px"><SampleLab /></div>{/if}
-  {#if router.current === "journal"}<div id="view-journal" style="display:grid;gap:18px"><Journal /></div>{/if}
+  <Upload />
+
+  <div id="out" style="display:grid;gap:18px">
+    {#if teardown.result}
+      {#key teardown.mountId}
+        <Findings />
+        <Explorer />
+        <Exports />
+      {/key}
+    {:else}
+      <section class="panel" id="empty">
+        <h2>What you'll get</h2>
+        <ul>
+          <li><b>Tempo</b> and whether it stays steady, with the beat positions it was read from.</li>
+          <li><b>Key</b>, with the other keys it could be.</li>
+          <li><b>Arrangement</b>: sections on a bar-numbered timeline you can click, hear and loop.</li>
+          <li><b>Drums and chords</b> for each section, which you can play over the song to check them.</li>
+          <li><b>Measured sound</b>: level, dynamics, stereo width and where the energy sits.</li>
+        </ul>
+      </section>
+    {/if}
+  </div>
+
+  <section class="panel" id="howto" aria-labelledby="howto-h">
+    <h2 id="howto-h">How to read this</h2>
+    <p><Basis kind="measured" /> Computed directly from the audio, like the length or the level.</p>
+    <p><Basis kind="estimated" /> Inferred by the analyzer, like the key, the sections or the drum pattern. Listen to it, check it, and correct it if it is wrong.</p>
+    <p><Basis kind="assumed" /> Not detected: the analyzer assumes it, like four beats per bar.</p>
+    <p><Basis kind="unknown" /> The analyzer can't tell, and says so instead of guessing.</p>
+    <p class="small"><b>How reliable is it?</b> Track Teardown has so far been checked only on computer-generated songs with known answers. It has not been measured on real recordings, so treat every estimate as something to verify by ear. It follows one tempo and four beats per bar, and relative keys (such as A minor and C major) are easily confused.</p>
+  </section>
 
   <footer class="about-build">
-    <Popover label="About this build" title="About this build">
-      {#snippet trigger()}About this build{/snippet}
+    <details>
+      <summary>About this build</summary>
       <dl class="about tt-mono" data-testid="build-info">
         <dt>Version</dt><dd>{BUILD.appVersion} ({BUILD.mode})</dd>
         <dt>Commit</dt><dd>{short(BUILD.gitSha)}{BUILD.gitDirty ? " + local changes" : ""}</dd>
         <dt>Engine</dt><dd>{BUILD.engineSha256.slice(0, 12)}</dd>
         <dt>TimeMap</dt><dd>{tm.schema}, {tm.fingerprint}</dd>
         <dt>Svelte</dt><dd>{BUILD.versions.svelte}</dd>
-        <dt>UI SDK</dt><dd>{BUILD.versions.uiSdk}</dd>
       </dl>
-    </Popover>
+    </details>
   </footer>
 </main>
-<Session />
-<Coach />
 
 <style>
+  .top { display: flex; gap: 14px; align-items: center; }
+  .top h1 { font-size: clamp(1.6rem, 4.5vw, 2.4rem); }
+  .logo { flex: none; width: 44px; height: 44px; border-radius: var(--tt-radius-sm); background: var(--tt-accent); color: var(--tt-accent-ink); display: grid; place-items: center; font: 800 1rem var(--tt-font-display); }
+  .lead { color: var(--tt-ink-2); max-width: 70ch; margin-top: 6px; }
   .about-build { display: flex; justify-content: flex-end; }
-  .about { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: var(--tt-fs-xs); }
+  .about-build summary { cursor: pointer; color: var(--tt-ink-3); font-size: var(--tt-fs-sm); }
+  .about { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 8px 0 0; font-size: var(--tt-fs-xs); }
   .about dt { color: var(--tt-ink-3); }
   .about dd { margin: 0; overflow-wrap: anywhere; }
+  #howto p { margin: 0; }
+  #empty ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: var(--tt-ink-2); }
 </style>

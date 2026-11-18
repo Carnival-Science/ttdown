@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// Browser smoke test for the Svelte shell, in all three ways it runs:
-//   dev         the Vite dev server (source modules, TimeMap transformed on the fly)
-//   production  app/dist/production over localhost (scripts/dev-server.js, via the benchmark target adapter)
-//   bench       app/dist/bench over localhost (same, with test hooks)
-// Checks: default route and navigation (clicks, hash, back/forward, unknown hash, reload), the canonical TimeMap gives
-// the same fingerprint as Node, build identity matches the external manifest, test hooks only in the bench build,
-// UI SDK popover and tabs work by mouse and keyboard, phone width has no clipping or horizontal scroll, no page errors.
+// Browser smoke test for the app shell, in all three ways it runs:
+//   dev         the Vite dev server (source modules, the shared UMD files transformed on the fly)
+//   production  app/dist/production over localhost (scripts/dev-server.js, via the benchmark target adapter): no test hooks
+//   bench       app/dist/bench over localhost: with test hooks
+// Checks: the empty state, the canonical TimeMap gives the same fingerprint as Node, build identity matches the external manifest,
+// test hooks only in the bench build, a real analysis renders findings and the timeline (bench), nothing wider than the screen on desktop
+// or phone before and after analysis, no page errors. What the page says and does is tested in tests/app-product.test.js.
 // Needs: npm run build:all (in app/). Run: npm run smoke (in app/), or npm run app:smoke at the repo root.
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
@@ -24,8 +24,9 @@ const { createTarget } = require(path.join(ROOT, "bench", "lib", "target.js"));
 
 const SELF_CHECK = { bpm: 120, firstDownbeat: 0.5, duration: 30, beatsPerBar: 4 }; // = src/lib/timemap/index.ts
 const NODE_FP = TM.fromConstantGrid(SELF_CHECK).fingerprint();
-const TIMEMAP_SHA = createHash("sha256").update(readFileSync(path.join(ROOT, "src", "timemap.js"))).digest("hex");
-const ROUTES = [["Teardown", "teardown"], ["Learn", "learn"], ["Sample Lab", "samples"], ["Journal", "journal"]];
+const sha = f => createHash("sha256").update(readFileSync(path.join(ROOT, "src", f))).digest("hex");
+const SHARED = { timemapSha256: sha("timemap.js"), timingStoreSha256: sha("timing-store.js"), engineSha256: sha("engine.js"), domainSha256: sha("domain.js") };
+const SONG = path.join(ROOT, "test-songs", "pop127_Amaj.wav");
 
 let failures = 0, checks = 0;
 const check = (cond, msg) => { checks++; if (!cond) { failures++; console.log("  FAIL " + msg); } };
@@ -34,17 +35,18 @@ const check = (cond, msg) => { checks++; if (!cond) { failures++; console.log(" 
 function bundleChecks(build) {
   const dir = path.join(APP, "dist", build), man = JSON.parse(readFileSync(path.join(dir, "build-manifest.json"), "utf8"));
   const js = readdirSync(path.join(dir, "assets")).filter(f => f.endsWith(".js")).map(f => readFileSync(path.join(dir, "assets", f), "utf8")).join("\n");
-  // the manifest is the truth about the compiled files: recompute it
   const lines = man.files.map(f => { const h = createHash("sha256").update(readFileSync(path.join(dir, f.path))).digest("hex"); check(h === f.sha256, `${build}: ${f.path} hash differs from manifest`); return `${h}  ${f.path}\n`; });
   check(createHash("sha256").update(lines.join("")).digest("hex") === man.bundleSha256, `${build}: bundleSha256 does not match the files`);
-  check(man.timemapSha256 === TIMEMAP_SHA, `${build}: manifest TimeMap hash`);
-  // exactly one TimeMap: every distinctive string literal of src/timemap.js appears as often as in the source
-  const src = readFileSync(path.join(ROOT, "src", "timemap.js"), "utf8");
-  const lits = [...new Set([...src.matchAll(/"([A-Za-z0-9 ,.:'%/-]{24,})"/g)].map(m => m[1]))].filter(l => src.split(`"${l}"`).length === 2).slice(0, 12);
-  check(lits.length >= 5, `${build}: too few TimeMap literals to check`);
-  for (const l of lits) { const k = js.split(l).length - 1; check(k === 1, `${build}: TimeMap literal "${l.slice(0, 40)}" appears ${k}x in the bundle (want 1)`); }
-  const hooks = js.includes("__ttdownTest");
+  for (const [k, v] of Object.entries(SHARED)) check(man[k] === v, `${build}: manifest ${k}`);
+  // exactly one copy of each shared module: distinctive strings of the source appear once in the bundle
+  { const src = readFileSync(path.join(ROOT, "src", "timemap.js"), "utf8");
+    const lits = [...new Set([...src.matchAll(/"([A-Za-z0-9 ,.:'%/-]{24,})"/g)].map(m => m[1]))].filter(l => src.split(`"${l}"`).length === 2).slice(0, 12);
+    check(lits.length >= 4, `${build}: too few timemap.js literals to check`);
+    for (const l of lits) { const k = js.split(l).length - 1; check(k === 1, `${build}: timemap.js literal "${l.slice(0, 40)}" appears ${k}x in the bundle (want 1)`); } }
+  for (const l of ["That file is empty.", "Decoding audio", "Checking the file", "dp-tracker (too few beats; downbeats not chosen)"]) { const k = js.split(l).length - 1; check(k === 1, `${build}: engine string "${l.slice(0, 40)}" appears ${k}x in the bundle (want 1)`); }
+  const hooks = js.includes("__analysisStats");
   check(build === "bench" ? hooks : !hooks, `${build}: test hooks ${hooks ? "present" : "absent"} in the bundle`);
+  check(!/fonts\.googleapis|fonts\.gstatic/.test(js + readFileSync(path.join(dir, "index.html"), "utf8")), `${build}: no third-party font host`);
   return man;
 }
 
@@ -56,81 +58,35 @@ async function pageChecks(browser, name, baseUrl, expect) {
     const p = await ctx.newPage(), errors = [];
     p.on("pageerror", e => errors.push(String(e)));
     p.on("console", m => { if (m.type() === "error") errors.push("console: " + m.text()); });
-    await p.goto(baseUrl); await p.waitForSelector("[data-route]");
-    const route = () => p.$eval("[data-route]", e => e.dataset.route);
-    const current = () => p.$eval('nav[aria-label="Sections"] a[aria-current="page"]', e => e.textContent.trim());
+    await p.goto(baseUrl); await p.waitForSelector("main.wrap");
+    const over = async () => p.evaluate(() => ({ over: document.documentElement.scrollWidth - innerWidth, wide: [...document.querySelectorAll("main *")].filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.right > innerWidth + 1 || r.left < -1) && getComputedStyle(e).position !== "fixed" && !e.closest(".scroll,.timeline,.barruler"); }).slice(0, 3).map(e => e.tagName + "." + e.className) }));
 
-    check(await route() === "teardown", `${name}/${label}: default route is ${await route()}, want teardown`);
-    check(await current() === "Teardown", `${name}/${label}: nav marks ${await current()} as current`);
-    check((await p.textContent("h1")).includes("Track Teardown"), `${name}/${label}: teardown heading`);
+    check((await p.textContent("h1")).includes("Track Teardown"), `${name}/${label}: heading`);
+    check(await p.locator("#file").count() === 1 && await p.locator("#empty").count() === 1, `${name}/${label}: upload and the empty state are shown`);
+    let o = await over(); check(o.over <= 0 && o.wide.length === 0, `${name}/${label}: empty state fits the screen (${o.over}px, ${o.wide})`);
 
-    // navigation by click, then history, unknown hash and reload
-    for (const [text, id] of ROUTES.slice(1).concat([ROUTES[0]])) {
-      await p.click(`nav[aria-label="Sections"] a:has-text("${text}")`);
-      await p.waitForFunction(i => document.querySelector("[data-route]").dataset.route === i, id);
-      check(new URL(p.url()).hash === "#" + id, `${name}/${label}: ${text} sets #${id}`);
-      check(await current() === text, `${name}/${label}: ${text} marked current`);
-    }
-    await p.goBack(); await p.waitForFunction(() => document.querySelector("[data-route]").dataset.route === "journal");
-    check(await route() === "journal", `${name}/${label}: back goes to journal`);
-    await p.goForward(); await p.waitForFunction(() => document.querySelector("[data-route]").dataset.route === "teardown");
-    await p.evaluate(() => { location.hash = "#no-such-view"; }); await p.waitForTimeout(50);
-    check(await route() === "teardown", `${name}/${label}: unknown hash falls back to teardown`);
-    await p.goto(baseUrl.replace(/#.*$/, "") + "#samples"); await p.waitForSelector("[data-route=samples]");
-    check(await route() === "samples", `${name}/${label}: reload on #samples`);
-    await p.evaluate(() => { location.hash = "#teardown"; }); await p.waitForSelector("[data-route=teardown]");
-
-    // canonical TimeMap, same result as Node
-    const tm = await p.$eval("[data-route]", e => ({ schema: e.dataset.timemapSchema, fp: e.dataset.timemapFingerprint }));
+    // the canonical TimeMap, same result as Node
+    const tm = await p.$eval("main.wrap", e => ({ schema: e.dataset.timemapSchema, fp: e.dataset.timemapFingerprint }));
     check(tm.schema === TM.SCHEMA && tm.fp === NODE_FP, `${name}/${label}: TimeMap ${tm.schema} ${tm.fp}, Node ${TM.SCHEMA} ${NODE_FP}`);
 
     // build identity and test hooks
     const id = await p.evaluate(() => window.__build);
     check(id && id.schema === "ttdown-build/1" && id.mode === expect.mode, `${name}/${label}: __build mode ${id && id.mode}`);
-    check(id && id.timemapSha256 === TIMEMAP_SHA, `${name}/${label}: __build TimeMap hash`);
-    const hooks = await p.evaluate(() => ({ test: typeof window.__ttdownTest, tm: typeof window.TimeMap, td: typeof window.__td, sn: typeof window.__sn, loop: "__loop" in window, buf: Object.keys(window).filter(k => /buf/i.test(k)) }));
-    check(hooks.test === (expect.hooks ? "object" : "undefined") && hooks.tm === (expect.hooks ? "object" : "undefined") && hooks.td === (expect.hooks ? "object" : "undefined") && hooks.sn === (expect.hooks ? "function" : "undefined"), `${name}/${label}: hooks ${JSON.stringify(hooks)}`);
+    for (const [k, v] of Object.entries(SHARED)) check(id && id[k] === v, `${name}/${label}: __build ${k}`);
+    const hooks = await p.evaluate(() => ({ tm: typeof window.TimeMap, td: "__td" in window, sn: typeof window.__sn, stats: typeof window.__analysisStats, buf: Object.keys(window).filter(k => /buf/i.test(k)) }));
+    check((hooks.tm === "object") === expect.hooks && hooks.td === expect.hooks && (hooks.sn === "function") === expect.hooks && (hooks.stats === "object") === expect.hooks, `${name}/${label}: hooks ${JSON.stringify(hooks)}`);
     check(hooks.buf.length === 0, `${name}/${label}: no audio buffer globals`);
+    await p.locator("details summary", { hasText: "About this build" }).click();
+    check((await p.locator('[data-testid="build-info"]').innerText()).includes(NODE_FP), `${name}/${label}: About this build shows the TimeMap fingerprint`);
+
+    // a real analysis, where the page can show it (the bench build reads the result back)
     if (expect.hooks) {
-      const fp = await p.evaluate(c => window.TimeMap.fromConstantGrid(c).fingerprint(), SELF_CHECK);
-      check(fp === NODE_FP, `${name}/${label}: window.TimeMap fingerprint ${fp}`);
-      await p.evaluate(() => window.__ttdownTest.navigate("journal")); await p.waitForSelector("[data-route=journal]");
-      check(await p.evaluate(() => window.__ttdownTest.route()) === "journal", `${name}/${label}: __ttdownTest.navigate`);
-      await p.evaluate(() => window.__ttdownTest.navigate("teardown")); await p.waitForSelector("[data-route=teardown]");
+      await p.setInputFiles("#file", SONG);
+      await p.waitForFunction(() => /ready|Couldn/.test(document.querySelector("#status").textContent), null, { timeout: 120000 }); await p.waitForTimeout(300);
+      check(await p.locator("[data-finding]").count() === 5 && await p.locator("#explorer .timeline .seg").count() >= 1 && await p.locator("#exports").count() === 1, `${name}/${label}: findings, timeline and exports render`);
+      o = await over(); check(o.over <= 0 && o.wide.length === 0, `${name}/${label}: the analysed page fits the screen (${o.over}px, ${o.wide})`);
+      await p.screenshot({ path: path.join(OUT, `${name}-${label}.png`), fullPage: true });
     }
-
-    // UI SDK popover: opens by click, shows the identity, closes on Escape, returns focus
-    const trigger = p.locator('button[aria-label="About this build"]');
-    await trigger.click();
-    const info = p.locator('[data-testid="build-info"]');
-    await info.waitFor({ state: "visible", timeout: 3000 }).catch(() => {});
-    check(await info.isVisible(), `${name}/${label}: About popover opens`);
-    if (await info.isVisible()) check((await info.textContent()).includes(NODE_FP), `${name}/${label}: popover shows the TimeMap fingerprint`);
-    await p.keyboard.press("Escape"); await p.waitForTimeout(200);
-    check(!(await info.isVisible()), `${name}/${label}: Escape closes the popover`);
-
-    // UI SDK tabs: click and arrow keys; panels stay mounted
-    const tabs = p.locator('[role="tablist"][aria-label="Parts of this teardown"] [role="tab"]');
-    check(await tabs.count() === 6, `${name}/${label}: six teardown tabs (${await tabs.count()})`);
-    await tabs.nth(3).click();
-    check(await tabs.nth(3).getAttribute("aria-selected") === "true", `${name}/${label}: Song map tab selected by click`);
-    await p.keyboard.press("ArrowRight");
-    check(await tabs.nth(4).getAttribute("aria-selected") === "true", `${name}/${label}: ArrowRight selects the next tab`);
-    check(await p.locator('[role="tabpanel"]').count() === 6, `${name}/${label}: all six panels stay mounted`);
-    check(await p.locator("#out h2", { hasText: "Idea generator" }).count() === 1, `${name}/${label}: idea generator rendered`);
-
-    // layout: no horizontal scroll, every nav link fully on screen
-    for (const t of ["Overview", "Build it", "Idea generator", "Song map", "Sounds and mix", "Compare"]) {
-      await p.click(`[role="tab"]:has-text("${t}")`); await p.waitForTimeout(80);
-      const wide = await p.evaluate(() => [...document.querySelectorAll('[role="tabpanel"]:not([hidden]) .layer, [role="tabpanel"]:not([hidden]) .panel, [role="tab"]')].filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.right > innerWidth + 1 || r.left < -1); }).map(e => (e.querySelector("h2,h3")?.textContent || e.textContent || "").slice(0, 30)));
-      check(wide.length === 0, `${name}/${label}: "${t}" has content wider than the screen: ${wide.slice(0, 3).join(" | ")}`);
-    }
-    await p.click('[role="tab"]:has-text("Overview")');
-    const lay = await p.evaluate(() => ({ over: document.documentElement.scrollWidth - innerWidth,
-      clipped: [...document.querySelectorAll('nav[aria-label="Sections"] a')].filter(a => { const r = a.getBoundingClientRect(); return r.left < 0 || r.right > innerWidth + 0.5 || a.scrollWidth > a.clientWidth + 1; }).map(a => a.textContent) }));
-    check(lay.over <= 0, `${name}/${label}: horizontal overflow ${lay.over}px`);
-    check(lay.clipped.length === 0, `${name}/${label}: clipped nav links ${lay.clipped}`);
-    await p.screenshot({ path: path.join(OUT, `${name}-${label}.png`) });
     check(errors.length === 0, `${name}/${label}: page errors ${errors.join(" | ")}`);
     await ctx.close();
   }

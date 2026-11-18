@@ -1,6 +1,7 @@
-// Data compatibility between the legacy page and the Svelte app ON THE SAME ORIGIN (localStorage is per origin): both are served by
-// scripts/dev-server.js, the legacy page at /index.html and the Svelte app at /app/dist/bench/index.html. Data written by one must
-// show up in the other, both ways, because cutover and rollback depend on it (docs/SVELTE_MIGRATION.md §8.2).
+// Data compatibility between the legacy page and the v1 app ON THE SAME ORIGIN (localStorage is per origin): both are served by
+// scripts/dev-server.js. A teardown saved by one opens in the other, with its tracked beats; a correction made in the app is read back
+// by the legacy page (rollback depends on this); and the app writes no storage keys of its own beyond saved teardowns and the volume,
+// and deletes nothing the legacy page saved (its journal, log and shelf stay in the browser).
 //   npm run app:build && node tests/app-storage-roundtrip.test.js
 "use strict";
 const path = require("node:path"), assert = require("node:assert/strict");
@@ -9,47 +10,41 @@ const { createTarget } = require("../bench/lib/target");
 const ROOT = path.resolve(__dirname, ".."), SONG = path.join(ROOT, "test-songs", "pop127_Amaj.wav");
 
 (async () => {
+  const guard = setTimeout(() => { console.error("test timed out"); process.exit(1); }, 200000);
   const t = createTarget({ kind: "svelte", root: ROOT, build: "bench" }); await t.start();
   const app = t.url(), origin = app.replace(/app\/dist\/bench\/index\.html#teardown$/, ""), legacy = origin + "index.html#teardown";
   const b = await chromium.launch(), ctx = await b.newContext(), errs = [];
-  const page = async url => { const p = await ctx.newPage(); p.on("pageerror", e => errs.push(url + ": " + e)); await p.goto(url); await p.waitForTimeout(400); return p; };
-  const analyze = async p => { await p.setInputFiles("#file", SONG); await p.waitForFunction(() => /ready|Couldn/.test(document.querySelector("#status").textContent), null, { timeout: 120000 }); };
   let checks = 0; const ok = (c, m) => { checks++; assert.ok(c, m); };
+  const page = async url => { const p = await ctx.newPage(); p.on("pageerror", e => errs.push(url + ": " + e)); await p.goto(url); await p.waitForTimeout(400); return p; };
 
-  // 1. legacy writes: a saved teardown (with tracked timing), a ticked Build-it step, a practice-log entry, display settings
-  const L = await page(legacy); await analyze(L);
-  await L.click('.tdtabs button:has-text("Build it")'); await L.locator("#plan .pstep input[type=checkbox]").first().check();
-  await L.goto(origin + "index.html#learn"); await L.waitForTimeout(300);
-  await L.fill("#log-min", "25"); await L.fill("#log-note", "from legacy"); await L.click('button:has-text("Log session")');
-  const legacyKeys = await L.evaluate(() => Object.keys(localStorage).sort());
+  // 1. the legacy page saves a teardown, a practice-log entry and a journal card
+  const L = await page(legacy);
+  await L.setInputFiles("#file", SONG); await L.waitForFunction(() => /ready|Couldn/.test(document.querySelector("#status").textContent), null, { timeout: 120000 });
+  await L.goto(origin + "index.html#learn"); await L.waitForTimeout(300); await L.fill("#log-min", "20"); await L.fill("#log-note", "legacy only"); await L.click('button:has-text("Log session")');
+  await L.evaluate(() => localStorage.setItem("beat_journal_v1", JSON.stringify([{ id: "jr-x", type: "journal", title: "kept", ref: { bpm: 1, key: "A", camelot: "1A", style: "x" }, exports: [] }])));
+  const legacyData = await L.evaluate(() => Object.fromEntries(Object.keys(localStorage).map(k => [k, localStorage.getItem(k)])));
   await L.close();
+  ok(["teardown_history_v1", "fl_log_v1", "beat_journal_v1"].every(k => legacyData[k]), "the legacy page saved a teardown, a log entry and a journal card");
 
-  // 2. the Svelte app on the same origin reads all of it
+  // 2. the app opens the legacy teardown, with its tracked beats, and corrects the key
   const S = await page(app);
-  ok((await S.textContent("#hist")).includes("pop127_Amaj"), "Svelte shows the teardown the legacy page saved");
-  await S.click("#hist button"); await S.waitForTimeout(300);
-  ok(await S.evaluate(() => !!window.__td.grid && window.__td.grid.beats.length > 16), "the saved tracked beats come back as the grid (TimingStore.attach)");
-  await S.click('[role="tab"]:has-text("Build it")'); await S.waitForTimeout(200);
-  ok(await S.locator("#plan .pstep input[type=checkbox]").first().isChecked(), "the step ticked in the legacy page is ticked");
-  await S.goto(app.replace("#teardown", "#learn")); await S.waitForTimeout(300);
-  ok((await S.textContent("#log")).includes("from legacy"), "the practice-log entry from the legacy page is listed");
-
-  // 3. the Svelte app writes: tick the second step, log a session
-  await S.goto(app); await S.waitForTimeout(300); await S.click("#hist button"); await S.click('[role="tab"]:has-text("Build it")'); await S.waitForTimeout(200);
-  await S.locator("#plan .pstep input[type=checkbox]").nth(1).check(); await S.waitForTimeout(100);
-  await S.goto(app.replace("#teardown", "#learn")); await S.waitForTimeout(300);
-  await S.fill("#log-min", "15"); await S.fill("#log-note", "from svelte"); await S.click('button:has-text("Log session")'); await S.waitForTimeout(100);
-  const appKeys = await S.evaluate(() => Object.keys(localStorage).sort());
+  ok((await S.textContent("#hist")).includes("pop127_Amaj"), "the app lists the teardown the legacy page saved");
+  await S.click("#hist button"); await S.waitForTimeout(400);
+  ok(await S.evaluate(() => !!window.__td.grid && window.__td.grid.beats.length > 16), "its saved tracked beats come back as the grid");
+  ok(await S.locator('[data-finding="tempo"] .small').first().innerText().then(t => /Steady/.test(t)), "and the tempo finding is computed from them (steady), not from a fallback");
+  await S.locator('select[aria-label="Set the key yourself"]').selectOption("C minor"); await S.waitForTimeout(300);
+  const after = await S.evaluate(() => Object.fromEntries(Object.keys(localStorage).map(k => [k, localStorage.getItem(k)])));
   await S.close();
+  const allowed = new Set([...Object.keys(legacyData), "app_volume_v1"]);
+  ok(Object.keys(after).every(k => allowed.has(k)), `the app writes no new storage keys (${Object.keys(after).join(", ")})`);
+  ok(after.fl_log_v1 === legacyData.fl_log_v1 && after.beat_journal_v1 === legacyData.beat_journal_v1, "the legacy journal and practice log were left untouched");
+  ok(JSON.parse(after.teardown_history_v1)[0].keyFixed === true && JSON.parse(after.teardown_history_v1)[0].key === "C minor", "the key correction was saved to the shared history");
 
-  // 4. the legacy page reads what the Svelte app wrote (rollback)
+  // 3. the legacy page reads what the app saved (rollback)
   const L2 = await page(legacy);
-  await L2.click("#hist button"); await L2.waitForTimeout(400); await L2.click('.tdtabs button:has-text("Build it")'); await L2.waitForTimeout(200);
-  ok(await L2.locator("#plan .pstep input[type=checkbox]").nth(1).isChecked(), "the step ticked in the Svelte app is ticked in the legacy page");
-  await L2.goto(origin + "index.html#learn"); await L2.waitForTimeout(300);
-  ok((await L2.textContent("#log")).includes("from svelte"), "the practice-log entry from the Svelte app is listed in the legacy page");
-  ok(appKeys.every(k => legacyKeys.includes(k) || ["app_volume_v1", "display_v1", "ear_training_v1"].includes(k)), `the Svelte app writes no new storage keys (${appKeys.join(", ")})`);
+  await L2.click("#hist button"); await L2.waitForTimeout(500);
+  ok(await L2.evaluate(() => window.__td.key === "C minor" && window.__td.keyFixed === true && !!window.__td.grid), "the legacy page opens the app's corrected teardown, with its tracked beats");
   ok(errs.length === 0, "no page errors: " + errs.join(" | "));
-  await b.close(); await t.stop();
+  clearTimeout(guard); await b.close(); await t.stop();
   console.log(`storage round-trip tests passed (${checks})`);
-})().catch(e => { console.error(e); process.exit(1); });
+})().catch(e => { console.error(e.message || e); process.exit(1); });

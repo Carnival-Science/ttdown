@@ -133,14 +133,11 @@ jobs:
       - name: "Analyzer parity: the Svelte app and the legacy page give identical predictions on every track"
         run: npm run app:parity
 
-      - name: "Feature parity: the legacy browser tests, run against the Svelte app"
-        run: npm run app:feature-tests
+      - name: "Product tests: behaviour of the v1 app (stale jobs, cancel, limits, bars, sections, saved timing, exports, labels, timeline, volume, no removed features)"
+        run: npm run app:product-tests
 
       - name: "Data compatibility: legacy page and Svelte app read each other's saved data on the same origin"
         run: node tests/app-storage-roundtrip.test.js
-
-      - name: "Account sync and optional runtime: late connection, refused writes, failed capabilities (mock Claude runtime)"
-        run: node tests/app-account.test.js
 
       - name: "Saved-data variants: records with missing optional fields open in the Svelte app wherever the legacy page opens them"
         run: node tests/app-saved-data-variants.test.js

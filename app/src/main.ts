@@ -1,11 +1,10 @@
-// Fonts are self-hosted (no third-party font CDN): Archivo (variable, with width), IBM Plex Sans, JetBrains Mono. OFL-1.1.
-import "@fontsource-variable/archivo/wdth.css";
-import "@fontsource/ibm-plex-sans/400.css";
-import "@fontsource/ibm-plex-sans/500.css";
-import "@fontsource/ibm-plex-sans/600.css";
-import "@fontsource/jetbrains-mono/500.css";
-import "@fontsource/jetbrains-mono/600.css";
-import "@ui-sdk/core/web.css";
+// Fonts are self-hosted (no third-party font CDN), Latin subset only: Archivo (variable), IBM Plex Sans, JetBrains Mono. OFL-1.1.
+import "./lib/design/fonts.css";
+import "@fontsource/ibm-plex-sans/latin-400.css";
+import "@fontsource/ibm-plex-sans/latin-500.css";
+import "@fontsource/ibm-plex-sans/latin-600.css";
+import "@fontsource/jetbrains-mono/latin-500.css";
+import "@fontsource/jetbrains-mono/latin-600.css";
 import "./lib/design/tokens.css";
 import "./lib/design/components.css";
 import "./lib/design/app.css";
