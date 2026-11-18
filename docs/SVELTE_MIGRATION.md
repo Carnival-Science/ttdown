@@ -105,6 +105,8 @@ Enumerable fields (what history, account sync, share pages and the coach see): `
 
 ### 2.5 Persisted data
 
+> **Update (cross-session message, 2026-11-18):** PR #20 adds one additive field to each `teardown_history_v1` record: `timing` (v1: tracker `beats`, `downbeats`, `meter` with provenance, and the tracker's measured `basis`), plus `timingCorrections` for user tempo corrections. Key, document ids and every other field are unchanged, and records without `timing` keep working. The tables below describe the record at the M0 source commit; §8.2 has the contract the Svelte app must follow. Until #19/#20 merge, the shape on `main` is the one below.
+
 **localStorage** (all JSON; every read/write wrapped in try/catch via `lsGet`/`lsSet`, except volume which has its own try):
 
 | Constant | Key | Shape | Limit / notes |
@@ -194,6 +196,7 @@ Corrections mutate the result in place and are saved via `saveHist`.
 | Work | Where | Impact on the migration |
 |---|---|---|
 | **Phase 2c consumer migration onto TimeMap**: step 1 (ruler, metronome, loop) merged in #16; **step 2 (sections and arrangement) in progress in another session right now** (no branch pushed at the time of writing); then chords + chord-check loops, drum/bass event timing + overlay, MIDI + aligned-audio exports behind the three-state gate | `index.html` (`render`, `gridOf`, `songNotes`, overlay), `src/timemap.js`, `tests/timing-consumers.test.js`, `bench/baselines/version-a/consumers/` | **The largest conflict risk.** Every Phase 2c step changes exactly the timeline code the Svelte app must reproduce. The legacy app keeps moving during M1–M3, so the parity target is a moving commit (see §7) |
+| **Saved-teardown timing persistence** (PRs #19 → #20, `src/timing-store.js`, `docs/PERSISTENCE.md`; not merged at the time of writing) | `saveHist`, `loadHist`, `retempo`, section rendering; new `src/timing-store.js`, `tests/timing-store.test.js`, `tests/test31.js` | Changes the saved-record shape (additive `timing`, `timingCorrections`). **The Svelte app must adopt this contract (§8.2 and parity row 6a), not the shape in §2.5 below.** Any change to the contract goes through the analysis workstream, not this branch |
 | Phase 2d corrections (recompute/invalidate, no hard-coded 99) | `setKey`, `retempo`, TimeMap fingerprint | Not started. Must land in one place only; see §7 |
 | Export confirmation UI (metronome audition, first-downbeat check, meter confirm) | not built | Founder decision 2026-11-18 (roadmap PR #17 §8). Building it in legacy *and* in Svelte would double the work: decide where (§11 question 3) |
 | Roadmap PR #17 | `docs/ROADMAP.md` | Edits the same file the migration's roadmap row lives in; not touched here |
@@ -356,9 +359,10 @@ Status column is for the migration PRs to fill (`–` = not started).
 | 3 | Input limits (200 MB, empty, < 8 s, > 8:00 from header and after decode) | `analyze`, test28 | – | port test28 | – |
 | 4 | Cancel button + Esc; stale-job guard; object-URL ownership | test25–27 | – | port test25–27 | – |
 | 5 | Example teardown before upload | `EXAMPLE` | – | renders, not saved | – |
-| 6 | History list, open saved teardown (supersedes running job) | `showHist` | `teardown_history_v1` / `teardown` docs | load legacy data | – |
+| 6 | History list, open saved teardown (supersedes running job) | `showHist` | `teardown_history_v1` / `teardown` docs | load legacy data (records with and without `timing`) | – |
+| 6a | **Saved-teardown timing persistence** (PR #20): write `forStorage`, read `attach`, statuses none/tracked/invalid/newer-version, invalid and newer blocks left untouched, never persist buffer/URL/TimeMap, quota failure never silent (save without beats + notice, or write nothing + notice) | `src/timing-store.js`, `tests/timing-store.test.js`, `tests/test31.js`, `docs/PERSISTENCE.md` | `teardown_history_v1` additive `timing`, `timingCorrections`; `teardown` docs | port `tests/test31.js` and the cases of `tests/timing-store.test.js` that touch the page; round-trip with the legacy page on the same origin | – (contract not on `main` yet) |
 | 7 | Teardown tabs, reset to Overview on new analysis | `applyTabs` | – | keepMounted players | – |
-| 8 | Overview stats, LCD, key check by ear, set key, BPM correction | `setKey`, `retempo` | saved via history | corrections persist identically (incl. `99`) | – |
+| 8 | Overview stats, LCD, key check by ear, set key, BPM correction | `setKey`, `retempo` | saved via history | corrections persist identically (incl. `99`); a tempo correction follows the `timingCorrections` rules of row 6a (replacement, original `basis` and beats kept, `bpmFixed`, section `tracked` markers dropped) | – |
 | 9 | Accuracy checklist + stem uploads | line 2418, test17 | – | stems analysed | – |
 | 10 | Build-it plan, step ticks, MIDI pictures, per-step MIDI, warnings | test16, test22 | `td_plan_v1` / `plan-*` | port test22 | – |
 | 11 | Session timer pill | `buildSession`, test14, test18 | `td_session_v1`, log | timer + log entry | – |
@@ -409,6 +413,15 @@ Status column is for the migration PRs to fill (`–` = not started).
 - Same account collection path `data/users/<uid>`, same doc ids and `type` values, same `migrateLocal` semantics (once, only missing docs).
 - `tdId` unchanged, so history, plans and journal entries stay linked (and keep the existing overwrite-on-same-title-and-duration defect).
 - A test fixture of real legacy localStorage contents (captured from the legacy page after scripted use) is loaded by the Svelte app and must render the same history, plans, journal, progress and settings; and data written by Svelte must load in legacy (rollback depends on this). **Both directions are tested with both apps served from the same origin** (same scheme, host and port): `localStorage` is per origin, so `file://`, `localhost:5173`, `localhost:5174` and any preview domain each have separate, empty storage. Matching keys alone does not make data available.
+- **Saved-teardown timing contract (PR #20; executable spec `tests/timing-store.test.js`, `tests/test31.js`; docs `docs/PERSISTENCE.md` on branch `persist/tracked-timing`).** The Svelte app:
+  - imports `src/timing-store.js` **as is** (UMD, no DOM, no storage) and does not reimplement the schema, the same way it imports `src/timemap.js`; the canonical-module Vite plugin in `app/vite.config.ts` is TimeMap-specific today and must be generalised to cover this second UMD file (M2/M3 work, once #20 is on `main`);
+  - writes records with `TimingStore.forStorage(analysis)` and, after reading a record, calls `TimingStore.attach(record)`, which attaches the non-enumerable `grid` TimeMap needs and returns a status: `none`, `tracked`, `invalid` or `newer-version`;
+  - **never persists** the decoded buffer, the audio URL or TimeMap instances;
+  - leaves an `invalid` or `newer-version` `timing` block **untouched in storage** (re-saving must not destroy it) and shows the labelled constant-tempo fallback; records without `timing` (everything saved before) keep working the same way;
+  - **never fails silently on storage quota**: save without beats and tell the user it will reopen with a constant-tempo ruler, or, if even that does not fit, write nothing, keep earlier teardowns exactly as they were, and tell the user. Older history entries are never dropped or stripped to make room;
+  - records a **tempo correction** as a `timingCorrections` entry, sets `bpmFixed`, keeps the original `basis` and beats, and drops `timing: "tracked"` from every section so times are recomputed. By the replacement rule in §0 this is `applyCorrection(result, edit) → newResult`, never an in-place mutation;
+  - treats the account-sync document as carrying the same record (same fields, same rules).
+  Known limits stated by that contract and inherited as existing defects: the meter is still the analyzer's assumption (no confirmation UI yet); records saved by the intermediate build between the sections change and #20 carry tracked section times but no beats, so their ruler is the labelled fallback; tempo correction by ×2, ÷2 or tapping still uses the old section-bar rounding.
 - Claude account storage is optional: when `window.claude` is absent (any non-artifact host), the app works from `localStorage` only, as the legacy page does.
 - Saved teardowns still have no `grid` (non-enumerable): the Svelte app must show the same labelled fallback grid.
 
