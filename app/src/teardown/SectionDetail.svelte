@@ -1,0 +1,118 @@
+<!-- The selected section: its rhythm, harmony and rough notes. Each tab says how it is known, and says "unknown" where the analyzer
+     found nothing, instead of filling the space. -->
+<script lang="ts">
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  import { teardown } from "../lib/state/teardown.svelte";
+  import { player } from "../lib/state/player.svelte";
+  import { patternPlayer } from "../lib/audio/pattern.svelte";
+  import { domain } from "../lib/domain";
+  import Tabs from "../lib/ui/Tabs.svelte";
+  import Basis from "../lib/ui/Basis.svelte";
+  import Rack from "../lib/ui/music/Rack.svelte";
+  import PianoRoll from "../lib/ui/music/PianoRoll.svelte";
+
+  let { index }: { index: number } = $props();
+  const { fmtT, keyChords, chordNotes, keyInfo, chordFromDegree, recomputeLoop } = domain as any;
+  const a = $derived(teardown.result as any);
+  const s = $derived(a.sections[index] as any);
+  const playable = $derived(!!teardown.audioURL);
+  const TABS = [{ value: "rhythm", label: "Rhythm" }, { value: "harmony", label: "Harmony" }, { value: "notes", label: "Notes" }] as const;
+  let tab = $state<string | null>("rhythm");
+
+  // ---- rhythm
+  const gh = $derived(a.pattern.ghost || {});
+  const edited = (lane: string) => (i: number, val: boolean) => teardown.replace(x => {
+    const y: any = x; y.patternEdited = true; y.pattern[lane][i] = val; if (y.pattern.ghost && y.pattern.ghost[lane]) y.pattern.ghost[lane][i] = false;
+    (y.drumParts || []).forEach((pt: any) => { if (pt.kick.some(Boolean) || pt.snare.some(Boolean)) pt[lane][i] = val; });
+  });
+  const part = $derived(((a.drumParts || []) as any[]).find(pt => s.startBar >= pt.startBar && s.startBar < pt.startBar + pt.bars));
+  const same = (p: any, q: any) => ["kick", "snare", "hats"].every(k => p[k].join() === q[k].join());
+  const none = $derived(!!part && !part.kick.some(Boolean) && !part.snare.some(Boolean));
+
+  // ---- harmony
+  const ch = $derived(a.chords as any), bars = $derived(((ch && ch.bars) || []) as string[]);
+  const inKey = $derived(keyChords(a.key) as Set<string>);
+  const count = $derived.by(() => { const c: Record<string, number> = {}; bars.forEach(x => { if (x && x !== "–") c[x] = (c[x] || 0) + 1; }); return c; });
+  const shaky = (c: string) => !!c && c !== "–" && (!inKey.has(c) || count[c]! <= 2);
+  const barList = $derived(Array.from({ length: Math.max(0, Math.min(s.startBar + s.bars, bars.length) - s.startBar) }, (_, k) => s.startBar + k));
+  let cur = $state<number | null>(null);
+  $effect(() => { void index; cur = null; });
+  const checks = $derived((a.chordChecks || {}) as Record<string, string>);
+  const opts = $derived.by(() => { const k = keyInfo(a); return Array.from({ length: 7 }, (_, d) => chordFromDegree(k, d, false).name as string); });
+  function hear(b: number) { cur = b; if (!playable) return; const st = (a.firstDown || 0) + b * a.barSec; player.loopRange?.(st, st + a.barSec, 0.75); player.overlayOnly?.("chords"); }
+  function setChord(name: string, mark: string) { const b = cur; if (b == null) return; teardown.replace(x => { const y: any = x; y.chords.bars[b] = name; y.chordChecks = { ...(y.chordChecks || {}), [b]: mark }; recomputeLoop(y); }); player.overlayRestart?.(); }
+  function sounds() { const b = cur; if (b == null) return; teardown.replace(x => { const y: any = x; y.chordChecks = { ...(y.chordChecks || {}), [b]: "ok" }; }); }
+
+  // ---- notes (transcribed from one section only)
+  const hook = $derived(a.hook && a.hook.notes && a.hook.notes.length >= 3 ? a.hook : null);
+  const bass = $derived(a.bassline && a.bassline.notes && a.bassline.notes.length >= 2 ? a.bassline : null);
+  const mine = (t: any) => t && t.bar === s.startBar + 1;
+  const sourceIdx = $derived(a.sections.findIndex((x: any) => (hook && hook.bar === x.startBar + 1) || (!hook && bass && bass.bar === x.startBar + 1)));
+</script>
+
+<div class="detail" data-section={index}>
+  <div class="row dhead" style="justify-content:space-between">
+    <h3>{s.label} <span class="small mono">bars {s.startBar + 1}–{s.startBar + s.bars} · {fmtT(s.start)}–{fmtT(s.end)}</span></h3>
+    {#if playable}<div class="row" style="gap:6px"><button class="btn cool" type="button" onclick={() => player.seek(s.start)}>▶ Play from here</button><button class="btn" type="button" onclick={() => player.loopSection?.(index, 1)}>Loop this section</button></div>{/if}
+  </div>
+
+  <Tabs items={TABS} label="Parts of this section" listClass="dtabs" bind:value={tab}>
+    {#snippet panel(item)}
+      {#if item.value === "rhythm"}
+        <div class="dpanel" data-part="rhythm">
+          <div class="row"><b>Drums</b><Basis kind="estimated" note="A one-bar, 16-step pattern: a step is on if a hit appears in most bars." /></div>
+          {#if none}
+            <p>No kick or snare was found in this section. <Basis kind="unknown" note="Drums may be absent here, or too quiet or too washed out to detect." /></p>
+          {:else if part && same(part, a.pattern)}
+            <p class="small">This section plays the main groove.</p>
+          {:else if part}
+            <p class="small">This section's drums differ from the main groove:</p>
+            <Rack rows={[{ name: "Kick", steps: part.kick }, { name: "Snare / clap", steps: part.snare }, { name: "Hi-hats", steps: part.hats }]} />
+          {/if}
+          <p class="small">Main groove: one bar, four squares per beat. Orange hits appear in most bars; dim ones are ghost notes. {a.pattern.tracked ? `Found by following the beat through ${a.pattern.bars} bars. ` : ""}Click a square to correct it; the change applies to the whole track.</p>
+          <Rack rows={[{ name: "Kick", steps: a.pattern.kick, onEdit: edited("kick") }, { name: "Snare / clap", steps: a.pattern.snare, ghost: gh.snare, onEdit: edited("snare") }, { name: "Hi-hats", steps: a.pattern.hats, ghost: gh.hats, onEdit: edited("hats") }]} />
+          <div class="row"><button class="btn cool" onclick={() => patternPlayer.toggle(a)}>{patternPlayer.on ? "■ Stop" : "▶ Hear this pattern at " + a.bpm + " BPM"}</button></div>
+          <p class="small">{#if a.swing}Swing: the in-between 16th notes land about {Math.round(a.swing.late * 100)}% of a step late (0% is straight).{:else}Swing: unknown, there were not enough in-between notes to measure it.{/if}</p>
+        </div>
+      {:else if item.value === "harmony"}
+        <div class="dpanel" data-part="harmony">
+          <div class="row"><b>Chords</b><Basis kind="estimated" note="One major or minor triad per bar, chosen from the audio's pitch content. Seventh chords, inversions and modal chords are not detected." /></div>
+          {#if !bars.length}
+            <p>No chords were found. <Basis kind="unknown" /></p>
+          {:else}
+            {#if ch.loop}<p class="small">Most repeated 4-bar loop: <b class="mono">{ch.loop.join(" · ")}</b> (heard {ch.loopCount}×).</p>{/if}
+            <p class="small">One square per bar. Click a bar to hear it with the detected chord played over the song. <span class="sw shaky"></span>? marks a shaky guess (rare, or outside {a.key}); <span class="sw none"></span>· means no clear chord (unknown).</p>
+            <div class="chrow wide">
+              {#each barList as b (b)}
+                {@const c = bars[b]!}{@const nochord = !c || c === "–"}{@const sh = shaky(c)}
+                <button type="button" class={"chcell" + (nochord ? " none" : "") + (sh ? " shaky" : "") + (checks[b] ? " " + checks[b] : "") + (cur === b ? " cur" : "")} title={nochord ? `Bar ${b + 1}: no clear chord` : `Bar ${b + 1}: ${c} (${chordNotes(c)})${sh ? " · shaky guess" : ""}`} onclick={() => hear(b)}><span class="chnum">{b + 1}</span><b>{nochord ? "·" : c + (sh ? "?" : "")}</b></button>
+              {/each}
+            </div>
+            {#if cur != null}
+              <div class="row" style="gap:8px">
+                <b>Bar {cur + 1}: {bars[cur]}</b>
+                <button class="btn" type="button" onclick={sounds}>✓ Sounds right</button>
+                <select class="isel" aria-label="Change this bar's chord" value="" onchange={e => { const v = e.currentTarget.value; if (v) setChord(v, "fixed"); e.currentTarget.value = ""; }}>
+                  <option value="">Change chord…</option>{#each opts as o (o)}<option value={o}>{o}</option>{/each}<option value="–">No chord</option>
+                </select>
+              </div>
+            {/if}
+          {/if}
+        </div>
+      {:else}
+        <div class="dpanel" data-part="notes">
+          <div class="row"><b>Notes</b><Basis kind="estimated" note="A rough transcription from the full mix, from one section only, folded into a 4-bar loop. Expect wrong and missing notes." /></div>
+          {#if !hook && !bass}
+            <p>No top line or bass notes could be read reliably. <Basis kind="unknown" /></p>
+          {:else if !mine(hook) && !(!hook && mine(bass))}
+            <p class="small">Notes are transcribed from one section only, to keep the guesswork small{sourceIdx >= 0 ? `: ${a.sections[sourceIdx].label}, bars ${a.sections[sourceIdx].startBar + 1}–${a.sections[sourceIdx].startBar + a.sections[sourceIdx].bars}` : ""}. {#if sourceIdx >= 0}<button class="btn" type="button" onclick={() => { teardown.selected = sourceIdx; }}>Go to that section</button>{/if}</p>
+          {:else}
+            <p class="small">Read from this section and folded into a 4-bar loop. Rough: dense mixes make the top line and bass hard to hear, and this has not been checked against real recordings. Use "Check by ear" above to hear it over the song.</p>
+            {#if hook}<div class="layer"><h3>Top line</h3><PianoRoll notes={hook.notes} total={64} aria="Piano roll of the top line" /></div>{/if}
+            {#if bass}<div class="layer"><h3>Bass (one note per 8th)</h3><PianoRoll notes={bass.notes} total={64} aria="Piano roll of the bass" /></div>{/if}
+          {/if}
+        </div>
+      {/if}
+    {/snippet}
+  </Tabs>
+</div>

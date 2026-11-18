@@ -1,0 +1,42 @@
+/* Track Teardown design tokens. TTdown owns these; components.css and UI SDK parts are styled from them, never the reverse.
+   Colours and type are carried over from the legacy page so both apps look like one product during the migration. Fonts are
+   self-hosted (main.ts). The Display menu changes --tt-fs, --tt-accent and --tt-lcd at runtime. */
+:root {
+  /* colour */
+  --tt-bg: #121317;
+  --tt-chassis: #1a1c21;
+  --tt-panel: #1e2026;
+  --tt-inset: #0d0e11;
+  --tt-ink: #ecebe6;
+  --tt-ink-2: #b3b2ab;
+  --tt-ink-3: #7e7d77;
+  --tt-line: #2c2f37;
+  --tt-accent: #ff7a1a;
+  --tt-accent-ink: #1a0c02;
+  --tt-lcd: #ffb547;
+  --tt-cool: #79a8ff;
+  --tt-good: #5cd492;
+  --tt-warn: #f2c14e;
+  --tt-step-off: #24262d;
+  --tt-focus: #8fb8ff;
+
+  /* type */
+  --tt-font-display: "Archivo Variable", "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --tt-font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --tt-font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --tt-fs: 16px;
+  --tt-fs-sm: 0.88rem;
+  --tt-fs-xs: 0.76rem;
+
+  /* space, shape, motion */
+  --tt-gutter: 16px;
+  --tt-gap: 18px;
+  --tt-radius: 16px;
+  --tt-radius-sm: 9px;
+  --tt-max: 1060px;
+  --tt-tap: 44px;
+  --tt-ease: 160ms ease;
+
+  color-scheme: dark;
+}
+@media (prefers-reduced-motion: reduce) { :root { --tt-ease: 0ms linear; } }

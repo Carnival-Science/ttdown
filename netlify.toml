@@ -1,0 +1,28 @@
+# Track Teardown on Netlify (migration M5, docs/SVELTE_MIGRATION.md §9).
+# Builds the Svelte application and publishes it at the site root. The previous single-file page is published next to it as
+# /legacy.html, on the same origin, so users' saved data (localStorage) is shared by both and rolling back loses nothing.
+# This file takes effect for deploy previews immediately and for production only when it is merged into main.
+[build]
+  command = "npm ci --prefix app && npm --prefix app run build && cp index.html app/dist/production/legacy.html"
+  publish = "app/dist/production"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# The app is a static single page with hash routes: no redirects or functions. Hashed assets can be cached for a long time;
+# the page itself and the build manifest must not be.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+    X-Content-Type-Options = "nosniff"
+
+[[headers]]
+  for = "/build-manifest.json"
+  [headers.values]
+    Cache-Control = "no-cache"

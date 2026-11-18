@@ -1,0 +1,49 @@
+// bench/lib/target.js: which build the harness measures and how it is identified. Pure checks, no browser.
+//   node tests/bench-target.test.js
+"use strict";
+const assert = require("node:assert/strict"), fs = require("node:fs"), os = require("node:os"), path = require("node:path");
+const { createTarget, TargetError, VERSION_A_PAGE_SHA256 } = require("../bench/lib/target");
+
+const ROOT = path.resolve(__dirname, "..");
+let n = 0; const ok = (name, fn) => { fn(); n++; };
+
+ok("legacy is the default target and keeps the file:// URL the harness always used", () => {
+  const eng = require("node:crypto").createHash("sha256").update(fs.readFileSync(path.join(ROOT, "src", "engine.js"))).digest("hex");
+  const t = createTarget({ root: ROOT });
+  assert.equal(t.kind, "legacy"); assert.equal(t.canAnalyze, true);
+  assert.equal(t.url(), `file://${ROOT}/index.html#teardown`);
+  const d = t.describe(); assert.equal(d.loadedFrom, "file"); assert.equal(d.page, "index.html"); assert.match(d.pageSha256, /^[0-9a-f]{64}$/);
+  assert.equal(d.variant, d.pageSha256 === VERSION_A_PAGE_SHA256 ? "frozen-version-a" : "working");
+  assert.equal(d.engineSha256, eng, "the engine inlined in index.html is src/engine.js byte for byte");
+});
+ok("a legacy page with Version A's hash is labelled frozen", () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tt-target-")); fs.writeFileSync(path.join(tmp, "p.html"), "x");
+  assert.equal(createTarget({ root: tmp, page: "p.html" }).describe().variant, "working");
+  assert.equal(VERSION_A_PAGE_SHA256, "a14fea96191784e1c0c40c2d1da64e7b2a60b318f07d56b1faecc524836a7bab"); // docs/BASELINE_A.md
+});
+ok("unknown kinds, missing pages and missing builds are refused", () => {
+  assert.throws(() => createTarget({ kind: "react", root: ROOT }), e => e instanceof TargetError && e.code === "bad-kind");
+  assert.throws(() => createTarget({ root: ROOT, page: "nope.html" }), e => e.code === "missing-page");
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tt-target-"));
+  assert.throws(() => createTarget({ kind: "svelte", root: tmp }), e => e.code === "missing-build");
+  assert.throws(() => createTarget({ kind: "svelte", root: tmp, build: "../x" }), e => e.code === "bad-build");
+});
+ok("the svelte target is identified by its external manifest; only the bench build analyses", async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tt-target-"));
+  const man = { mode: "bench", gitSha: "a".repeat(40), gitDirty: false, timemapSha256: "b".repeat(64), engineSha256: "e".repeat(64), domainSha256: "d".repeat(64), bundleSha256: "c".repeat(64) };
+  for (const build of ["bench", "production"]) { const dist = path.join(tmp, "app", "dist", build); fs.mkdirSync(dist, { recursive: true }); fs.writeFileSync(path.join(dist, "build-manifest.json"), JSON.stringify({ ...man, mode: build })); }
+  const t = createTarget({ kind: "svelte", root: tmp }), prod = createTarget({ kind: "svelte", root: tmp, build: "production" });
+  assert.equal(t.canAnalyze, true); assert.equal(prod.canAnalyze, false);
+  assert.deepEqual(t.describe(), { kind: "svelte", variant: "bench", loadedFrom: "http://localhost", entry: "app/dist/bench/index.html",
+    bundleSha256: man.bundleSha256, buildGitSha: man.gitSha, buildGitDirty: false, timemapSha256: man.timemapSha256, engineSha256: man.engineSha256, domainSha256: man.domainSha256 });
+  assert.throws(() => t.url(), e => e.code === "not-started");
+  const id = { gitSha: man.gitSha, timemapSha256: man.timemapSha256, engineSha256: man.engineSha256, domainSha256: man.domainSha256, mode: "bench" };
+  return Promise.all([
+    assert.rejects(prod.analyzeTrack(), e => e.code === "cannot-analyze"),
+    assert.rejects(t.verifyIdentity({ evaluate: async () => ({ ...id, timemapSha256: "f".repeat(64) }) }), e => e.code === "identity-mismatch"),
+    assert.rejects(t.verifyIdentity({ evaluate: async () => ({ ...id, engineSha256: "f".repeat(64) }) }), e => e.code === "identity-mismatch"),
+    assert.rejects(t.verifyIdentity({ evaluate: async () => ({ ...id, domainSha256: "f".repeat(64) }) }), e => e.code === "identity-mismatch"),
+    assert.rejects(t.verifyIdentity({ evaluate: async () => null }), e => e.code === "no-identity"),
+    t.verifyIdentity({ evaluate: async () => id }),
+  ]).then(() => console.log(`bench target tests passed (${n})`));
+});

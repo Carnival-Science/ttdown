@@ -9,7 +9,7 @@ const ROOT = path.resolve(__dirname, '..'), ARR = path.join(ROOT, 'test-songs', 
   const b = await chromium.launch(); const errs = []; let failed = 0;
   const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'} ${msg}`); if (!ok) failed++; };
   const ctx = await b.newContext(); // one context = one localStorage across the page reloads below
-  const open = async () => { const p = await ctx.newPage(); p.on('pageerror', e => errs.push(String(e))); await p.goto(`file://${ROOT}/index.html#teardown`); await p.waitForTimeout(300); return p; };
+  const open = async () => { const p = await ctx.newPage(); p.on('pageerror', e => errs.push(String(e))); await p.goto(`${process.env.TT_APP_URL || `file://${ROOT}/`}index.html#teardown`); await p.waitForTimeout(300); return p; };
   const analyse = async (p, file, title) => { await p.setInputFiles('#file', file); await p.waitForFunction(t => document.querySelector('#status').textContent.includes('Teardown ready for “' + t + '”'), title, { timeout: 120000 }); };
   const store = p => p.evaluate(k => JSON.parse(localStorage.getItem(k) || '[]'), HK);
   const view = p => p.evaluate(() => { const a = window.__td; return { title: a.title, bpm: a.bpm, barSec: a.barSec, firstDown: a.firstDown, bpmConf: a.bpmConf, duration: a.duration, hasGrid: !!a.grid, sections: a.sections.map(s => [s.label, s.startBar, s.bars, s.start, s.end]),
@@ -52,7 +52,7 @@ const ROOT = path.resolve(__dirname, '..'), ARR = path.join(ROOT, 'test-songs', 
   await p.close();
 
   // 4. storage quota: never silent, and never at the expense of earlier saved teardowns
-  { const q = await (await b.newContext()).newPage(); q.on('pageerror', e => errs.push(String(e))); await q.goto(`file://${ROOT}/index.html#teardown`); await q.waitForTimeout(300); // its own empty storage
+  { const q = await (await b.newContext()).newPage(); q.on('pageerror', e => errs.push(String(e))); await q.goto(`${process.env.TT_APP_URL || `file://${ROOT}/`}index.html#teardown`); await q.waitForTimeout(300); // its own empty storage
     await q.evaluate(() => { window.__limit = Infinity; const set = Storage.prototype.setItem; Storage.prototype.setItem = function (k, v) { if (String(v).length > window.__limit) { const e = new Error('quota'); e.name = 'QuotaExceededError'; throw e; } return set.call(this, k, v); }; });
     await analyse(q, path.join(ARR, 'arrangement_constant.wav'), 'arrangement_constant'); const first = await store(q);
     const sz = JSON.stringify(first).length, lean = JSON.stringify(Object.assign({}, first[0], { timing: undefined })).length, beatsBytes = JSON.stringify(first[0].timing).length;

@@ -35,7 +35,7 @@ function repeatedSong(file, srcWav, times, decimate) { // channel 0 of a synthet
       const d = OfflineAudioContext.prototype.decodeAudioData; OfflineAudioContext.prototype.decodeAudioData = function (...a) { window.__calls.decode++; return d.apply(this, a); };
       const r = File.prototype.arrayBuffer; File.prototype.arrayBuffer = function () { window.__calls.read++; return r.call(this); };
     });
-    await p.goto(`file://${ROOT}/index.html#teardown`); await p.waitForTimeout(300); return p;
+    await p.goto(`${process.env.TT_APP_URL || `file://${ROOT}/`}index.html#teardown`); await p.waitForTimeout(300); return p;
   };
   const outcome = async (p, file) => { await p.setInputFiles('#file', file); await p.waitForFunction(() => /Teardown ready|Couldn|That file|limit/i.test(document.querySelector('#status').textContent), null, { timeout: 180000 });
     return p.evaluate(() => ({ status: document.querySelector('#status').textContent, err: document.querySelector('#status').classList.contains('err'), calls: { ...window.__calls }, td: window.__td && window.__td.title })); };

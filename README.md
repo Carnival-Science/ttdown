@@ -1,30 +1,21 @@
 # Track Teardown
 
-**Upload a song, get a step-by-step plan to rebuild it in FL Studio.**
+**Upload a track and see how it is built.**
 
-Track Teardown listens to an MP3 in your browser and works out the tempo, key, song sections, drum pattern, chords, 808/bass line and a rough hook. It then turns that into a 13-step Build-it plan with MIDI you can import straight into FL Studio's Piano roll. It's a learning tool for producers: you study how a song is made by rebuilding it yourself, then make something original.
+Track Teardown listens to an audio file in your browser and tells you what it can work out about how the track is constructed: tempo and whether it stays steady, key, the arrangement as sections on a bar-numbered timeline, the drum pattern and chords of each section, and what can be measured in the sound (level, dynamics, stereo width, where the energy sits). You can play any section, loop it, slow it down, and play the detected parts over the real song to check them by ear. When something is wrong you correct it, and you can take the timing, the notes and the analysis data into any DAW.
 
-Everything runs in one HTML file. The audio is analyzed locally in the browser and is never uploaded anywhere.
+Everything runs in the browser. The audio is analyzed locally and is never uploaded anywhere. There are no accounts.
 
-![Build it plan](docs/build-it.png)
+![Track Teardown](docs/teardown.png)
 
 ## What it does
 
-| Tab | What you get |
-|---|---|
-| **Overview** | Tempo, key (with a "play the key" ear check), mood, energy and a quick read of the mix |
-| **Build it** | A step-by-step FL Studio plan (Piano roll and Playlist only), with a MIDI picture and a download for every part, warnings when a detection looks shaky, and a 25-minute session timer |
-| **Song map** | Arrangement timeline lined up with the audio, bar ruler, loop/slow-down tools, "Check by ear" (synth plays the detected parts over the song), bar-by-bar chord grid |
-| **Idea generator** | Original drum, 808, chord and melody ideas in the song's key and tempo, exportable as MIDI |
-| **Sounds and mix** | Which samples and plugins suit the style, and mix moves |
-| **Compare** | Upload your version and get a closeness score (tempo, key, drums, mix) |
+1. **Analyze.** Tempo (with half and double as possibilities), key (with the keys it could also be), meter (assumed 4/4), the arrangement, and the measured sound: level, peak, crest factor, stereo width and energy by frequency band.
+2. **Explore.** The arrangement timeline is the centre of the page. Click a section to select it, hear it and see its rhythm, harmony and rough notes. The player loops, slows down, clicks the tracked beats, and plays the detected drums, bass, chords and top line over the song.
+3. **Correct.** Change the tempo (×2, ÷2 or type it), the key, a bar's chord or a drum step. What you change is labelled as corrected; the page says plainly when results that depend on it were not recomputed.
+4. **Export.** Analysis data (.json) always. The MIDI parts and the song lined up to bar 1 only when the bar grid can be trusted: they are locked until you check the bar lines with the beat clicks, and refused when the tempo changes or drifts or after you corrected the tempo.
 
-Plus a **Sample Lab** (sort and tag your sample folders), a **Journal** (practice log and habits), a **Learn** tab with ear training, and a **Display** menu (text size, spacing, accent color).
-
-## Exports that line up in FL Studio
-
-- **Full-song MIDI per part** (kick, snare, hats, 808, chords, hook): every file starts at bar 1, and every note sits on the 16th-note grid.
-- **The reference song, lined up**: a WAV copy of the song, padded or trimmed so its first downbeat lands exactly on bar 1. Drop it on Track 1 at bar 1, and the MIDI matches it, as long as the song keeps one steady tempo (the export uses a single tempo for the whole song).
+Every finding says how it is known: **measured** (computed from the audio), **estimated** (inferred: listen, check, correct), **assumed** (not detected, like four beats per bar) or **unknown** (the analyzer can't tell, and says so). It does not give style or mood guesses, mixing advice or plugin recommendations: nothing here has been validated well enough to claim it.
 
 ## How accurate is it?
 
@@ -62,11 +53,15 @@ Every benchmark run saves a full record to `tests/out/` and fails if any score d
 
 ## Run it
 
-Open `index.html` in a browser. That's it.
+The app is a Svelte 5 + Vite + TypeScript application in `app/` (see `docs/SVELTE_MIGRATION.md`). Its analysis comes from framework-free modules in `src/` (`engine.js`, `domain.js`, `timemap.js`, `timing-store.js`). The earlier single-file page (`index.html`) uses the same modules; it is kept as the benchmark harness's reference page and is published at `/legacy.html` for one release.
 
-For development, `npm run dev` serves it at http://localhost:5173. It serves only the app, `docs/`, `test-songs/` and `tests/samples/`, and only to this computer.
+```bash
+npm ci --prefix app
+npm --prefix app run dev          # http://127.0.0.1:5174, local only
+npm run app:build                 # app/dist/production (the site) and app/dist/bench (with test hooks)
+```
 
-When it runs as a Claude artifact, saved teardowns, the journal and progress sync to your Claude account. On its own it falls back to your browser's local storage.
+`npm run dev` serves the legacy page at http://localhost:5173, plus the compiled app under `/app/dist/`. It serves only those, `docs/`, `test-songs/` and `tests/samples/`, and only to this computer. Saved teardowns are kept in this browser only.
 
 ## Tests
 
@@ -85,10 +80,11 @@ GitHub Actions runs all of this on every pull request (`.github/workflows/ci.yml
 | `tests/benchmark.js` | Scorecard against synthetic songs with known answers, with regression floors (`tests/benchmark-gates.json`) |
 | `tests/metrics.test.js` | The scoring code itself, on hand-made cases |
 | `tests/dev-server.test.js` | `npm run dev` never serves git history, packages, dotfiles or other local files |
-| `tests/test21.js` | MIDI and the reference WAV start exactly on bar 1 |
-| `tests/test22.js` | Build-it plan: step order, MIDI pictures, warnings |
-| `tests/test23.js` | Chord grid and click-to-hear |
-| others | Sample Lab, idea generator, overlay, stems, the 8 coaching features, volume (these mostly fail only on page errors; they print what they see rather than check it) |
+| `npm run app:parity` | The app and the legacy page give identical predictions, tracked grid and exported note times on every benchmark track |
+| `npm run app:product-tests` | The app's behaviour: stale jobs, cancel, input limits, bars and loops on the tracked grid, section times, saved timing, export gating, labels, the timeline, volume, no removed features, nothing leaving the browser |
+| `npm run app:data-tests` | Saved data is read both ways between the legacy page and the app on the same origin; saved records with missing fields still open |
+| `npm run app:smoke` | The app in the Vite dev server and both builds, desktop and phone |
+| `tests/test*.js` | The legacy page's own browser tests (it still ships as the benchmark reference) |
 
 ## Habits this project follows
 
@@ -107,4 +103,4 @@ GitHub Actions runs all of this on every pull request (`.github/workflows/ci.yml
 
 ## Credits
 
-Built by Ethan Goodwin with Claude (Anthropic), as a way to learn music production by taking songs apart.
+Built by Ethan Goodwin with Claude (Anthropic).

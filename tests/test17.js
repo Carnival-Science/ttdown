@@ -1,4 +1,4 @@
-const path = require('path'), ROOTURL = 'file://' + path.resolve(__dirname, '..') + '/', SONGS = path.resolve(__dirname, '../test-songs') + '/', SAMPLES = path.resolve(__dirname, 'samples') + '/', OUT = path.resolve(__dirname, 'out') + '/'; require('fs').mkdirSync(OUT, { recursive: true });
+const path = require('path'), ROOTURL = process.env.TT_APP_URL || ('file://' + path.resolve(__dirname, '..') + '/'), SONGS = path.resolve(__dirname, '../test-songs') + '/', SAMPLES = path.resolve(__dirname, 'samples') + '/', OUT = path.resolve(__dirname, 'out') + '/'; require('fs').mkdirSync(OUT, { recursive: true });
 const { chromium } = require('playwright');
 (async () => {
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] }); const errs = [];
@@ -12,7 +12,7 @@ const { chromium } = require('playwright');
   let a = await p.evaluate(() => window.__td); console.log('before K', st(a.pattern.kick), 'S', st(a.pattern.snare), 'bass', a.bassline && a.bassline.notes.map(n=>n.midi+'@'+n.t).join(' '));
   console.log('acc panel', (await p.locator('#accuracy').innerText()).slice(0, 300).replace(/\n/g,' | '));
   await p.locator('#accuracy button:has-text("with drums")').click(); await p.waitForTimeout(1200);
-  console.log('after drums btn: tab', await p.locator('.tdtabs button[aria-pressed=true]').innerText(), 'rate', await p.evaluate(() => document.querySelector('audio').playbackRate), 'playing', await p.evaluate(() => !document.querySelector('audio').paused), 'overlay', await p.locator('button:has-text("Stop checking")').count());
+  console.log('after drums btn: tab', await p.locator('.tdtabs button[aria-pressed=true], .tdtabs [role=tab][aria-selected=true]').innerText(), 'rate', await p.evaluate(() => document.querySelector('audio').playbackRate), 'playing', await p.evaluate(() => !document.querySelector('audio').paused), 'overlay', await p.locator('button:has-text("Stop checking")').count());
   await p.locator('button:has-text("Stop checking")').click();
   await p.locator('.tdtabs button:has-text("Overview")').click();
   await p.locator('#accuracy input[type=checkbox]').first().check();

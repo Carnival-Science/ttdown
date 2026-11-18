@@ -1,0 +1,22 @@
+// Saved teardowns (teardown_history_v1), with the persisted-timing contract (docs/PERSISTENCE.md). Same key, shape and limits as the
+// legacy page, so both read each other's saves. Browser-only: no accounts, nothing leaves this device.
+import { KEYS, lsGet, lsTrySet } from "./local";
+import { TimingStore } from "../persistence/timing";
+import type { AnalysisResult } from "../engine";
+
+export function loadHist(): AnalysisResult[] {
+  const list = lsGet<AnalysisResult[]>(KEYS.history, []);
+  list.forEach(r => TimingStore.attach(r)); // saved tracked beats become the (non-enumerable) grid again
+  return list;
+}
+/** Returns the user-facing note ("" when saved normally) and whether it is an error. Storage failures are never silent. */
+export function saveHist(a: AnalysisResult): { note: string; bad: boolean } {
+  const rest = lsGet<AnalysisResult[]>(KEYS.history, []).filter(x => x.title !== a.title || x.duration !== a.duration);
+  let rec = TimingStore.forStorage(a), note = "", bad = false, ok = lsTrySet(KEYS.history, [rec].concat(rest).slice(0, 12));
+  if (!ok && rec.timing !== undefined) {
+    const lean = { ...rec }; delete lean.timing;
+    if (lsTrySet(KEYS.history, [lean].concat(rest).slice(0, 12))) { ok = true; rec = lean; note = "Saved, but without its tracked beats: this browser's storage is nearly full. It will reopen with a constant-tempo ruler. Delete old teardowns to make room."; }
+  }
+  if (!ok) { note = "Couldn't save this teardown: this browser's storage is full. Your earlier saved teardowns were not changed. Delete some and try again."; bad = true; }
+  return { note, bad };
+}

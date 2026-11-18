@@ -11,6 +11,7 @@ const { spawnSync } = require("node:child_process");
 const root = path.resolve(__dirname, "..");
 const files = fs.readdirSync(__dirname)
   .filter(name => /^test.*\.js$/.test(name))
+  .filter(name => process.argv.length <= 2 || process.argv.slice(2).includes(name)) // optional: run only the named tests
   .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
 if (files.length === 0) {
