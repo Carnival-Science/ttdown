@@ -2,7 +2,7 @@
   "name": "ttdown-app",
   "version": "0.1.0",
   "private": true,
-  "description": "Track Teardown: upload a track and see how it is built. The v1 interface (Svelte 5). The earlier single-file page is ../index.html.",
+  "description": "Teardown: upload a track and see how it is built. The v1 interface (Svelte 5). The earlier single-file page is ../index.html.",
   "type": "module",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"

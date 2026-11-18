@@ -61,7 +61,7 @@ async function pageChecks(browser, name, baseUrl, expect) {
     await p.goto(baseUrl); await p.waitForSelector("main.wrap");
     const over = async () => p.evaluate(() => ({ over: document.documentElement.scrollWidth - innerWidth, wide: [...document.querySelectorAll("main *")].filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.right > innerWidth + 1 || r.left < -1) && getComputedStyle(e).position !== "fixed" && !e.closest(".scroll,.timeline,.barruler"); }).slice(0, 3).map(e => e.tagName + "." + e.className) }));
 
-    check((await p.textContent("h1")).includes("Track Teardown"), `${name}/${label}: heading`);
+    check((await p.textContent("h1")).includes("Teardown"), `${name}/${label}: heading`);
     check(await p.locator("#file").count() === 1 && await p.locator("#empty").count() === 1, `${name}/${label}: upload and the empty state are shown`);
     let o = await over(); check(o.over <= 0 && o.wide.length === 0, `${name}/${label}: empty state fits the screen (${o.over}px, ${o.wide})`);
 

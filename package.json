@@ -1,5 +1,5 @@
 {
-  "name": "track-teardown",
+  "name": "teardown",
   "version": "1.0.0",
   "description": "Upload a song, get a step-by-step plan and MIDI to rebuild it in FL Studio.",
   "private": true,

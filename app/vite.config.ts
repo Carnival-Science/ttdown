@@ -1,4 +1,4 @@
-// Track Teardown, Svelte 5 application. A conventional multi-file Vite build (founder decision, M1):
+// Teardown, Svelte 5 application. A conventional multi-file Vite build (founder decision, M1):
 //   npm run build        -> dist/production   (no test hooks)
 //   npm run build:bench  -> dist/bench        (test hooks for the benchmark harness and browser tests)
 // Build identity is embedded as source facts only (git commit, versions, the TimeMap source hash). Hashes of the

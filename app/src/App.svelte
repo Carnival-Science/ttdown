@@ -1,4 +1,4 @@
-<!-- Track Teardown: upload a track and see how it is constructed. One view: findings, an arrangement timeline to explore, and exports.
+<!-- Teardown: upload a track and see how it is constructed. One view: findings, an arrangement timeline to explore, and exports.
      Everything shown says how it is known (measured, estimated, assumed or unknown). -->
 <script lang="ts">
   import { installTestHooks } from "./lib/testing/hooks";
@@ -20,8 +20,8 @@
 
 <main class="wrap" data-timemap-schema={tm.schema} data-timemap-fingerprint={tm.fingerprint}>
   <header class="top">
-    <span class="logo" aria-hidden="true">TT</span>
-    <div><h1>Track Teardown</h1><p class="lead">Upload a track. See how it is built: tempo, key, arrangement, drums and chords, and what can be measured in the sound. Listen to each part, correct what's wrong, and take the timing and notes into any DAW.</p></div>
+    <span class="logo" aria-hidden="true">T</span>
+    <div><h1>Teardown</h1><p class="lead">Upload a track. See how it is built: tempo, key, arrangement, drums and chords, and what can be measured in the sound. Listen to each part, correct what's wrong, and take the timing and notes into any DAW.</p></div>
   </header>
 
   <Upload />
@@ -53,7 +53,7 @@
     <p><Basis kind="estimated" /> Inferred by the analyzer, like the key, the sections or the drum pattern. Listen to it, check it, and correct it if it is wrong.</p>
     <p><Basis kind="assumed" /> Not detected: the analyzer assumes it, like four beats per bar.</p>
     <p><Basis kind="unknown" /> The analyzer can't tell, and says so instead of guessing.</p>
-    <p class="small"><b>How reliable is it?</b> Track Teardown has so far been checked only on computer-generated songs with known answers. It has not been measured on real recordings, so treat every estimate as something to verify by ear. It follows one tempo and four beats per bar, and relative keys (such as A minor and C major) are easily confused.</p>
+    <p class="small"><b>How reliable is it?</b> Teardown has so far been checked only on computer-generated songs with known answers. It has not been measured on real recordings, so treat every estimate as something to verify by ear. It follows one tempo and four beats per bar, and relative keys (such as A minor and C major) are easily confused.</p>
   </section>
 
   <footer class="about-build">

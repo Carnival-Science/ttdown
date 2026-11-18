@@ -1,6 +1,6 @@
 # Svelte 5 migration: plan, M0 baseline and M1 record
 
-Status: **v1 product focus applied (§14).** The Svelte app is now one view that answers one question: what can Track Teardown tell a producer, accurately, about how an uploaded track is built. The earlier feature-complete port (§13) was cut back accordingly. The analysis algorithms, Version A, benchmark thresholds, TimeMap and all benchmark infrastructure are unchanged. Production changes only when PR #18 is merged: that is the founder's decision (§9).
+Status: **v1 product focus applied (§14).** The Svelte app is now one view that answers one question: what can Teardown tell a producer, accurately, about how an uploaded track is built. The earlier feature-complete port (§13) was cut back accordingly. The analysis algorithms, Version A, benchmark thresholds, TimeMap and all benchmark infrastructure are unchanged. Production changes only when PR #18 is merged: that is the founder's decision (§9).
 
 | | |
 |---|---|
@@ -610,7 +610,7 @@ Production build: about 1.5 MB in 61 files, most of it self-hosted font subsets;
 
 ## 14. v1 product focus (2026-11-18)
 
-**Guiding question (founder):** when a producer uploads a track, what can Track Teardown tell them accurately that would otherwise take significant time and effort to discover? A feature that doesn't contribute to that outcome doesn't belong in v1. The space the cuts leave is **deliberately not refilled**: a smaller product with a few trustworthy findings beats a larger one with many questionable ones.
+**Guiding question (founder):** when a producer uploads a track, what can Teardown tell them accurately that would otherwise take significant time and effort to discover? A feature that doesn't contribute to that outcome doesn't belong in v1. The space the cuts leave is **deliberately not refilled**: a smaller product with a few trustworthy findings beats a larger one with many questionable ones.
 
 ### What changed
 

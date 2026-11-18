@@ -1,4 +1,4 @@
-/* Track Teardown analysis engine: decoding, tempo, beats, downbeat, drums, sections, key, chords, bass and hook.
+/* Teardown analysis engine: decoding, tempo, beats, downbeat, drums, sections, key, chords, bass and hook.
  *
  * Moved out of index.html verbatim (migration M2, docs/SVELTE_MIGRATION.md) so the current page and the Svelte application run the
  * SAME analysis code. The only source change: the diagnostic counters are returned as ANALYSIS_STATS instead of being written to
@@ -20,7 +20,7 @@
 })(typeof self !== "undefined" ? self : this, function createEngine(deps) {
 "use strict";
 const TimeMap = deps && deps.TimeMap;
-if (!TimeMap || typeof TimeMap.forAnalysis !== "function") throw new Error("Track Teardown engine: createEngine({ TimeMap }) needs the TimeMap module (src/timemap.js)");
+if (!TimeMap || typeof TimeMap.forAnalysis !== "function") throw new Error("Teardown engine: createEngine({ TimeMap }) needs the TimeMap module (src/timemap.js)");
 /* ================= DSP ================= */
 const fftCache = {};
 function tables(n) {

@@ -1,4 +1,4 @@
-# Track Teardown — Technical Audit, Phases 1–5
+# Teardown — Technical Audit, Phases 1–5
 
 Date: 16 November 2026 · Audited revision: `main` @ `eb796ff` (inner clone `ttdown/`) · Status: **read-only audit; no application code changed**
 

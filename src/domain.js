@@ -1,4 +1,4 @@
-/* Track Teardown domain logic: everything the app decides that is not analysis and not drawing.
+/* Teardown domain logic: everything the app decides that is not analysis and not drawing.
  *
  * Teaching rules and genre guesses, the 13-step Build-it plan, the idea generator, the whole song as notes (songNotes), MIDI files,
  * zip packing, the lined-up reference WAV, Compare scoring, sample analysis and naming, curriculum data, share and review pages,
@@ -21,8 +21,8 @@
 })(typeof self !== "undefined" ? self : this, function createDomain(deps) {
 "use strict";
 const TimingStore = deps && deps.TimingStore, engine = deps && deps.engine;
-if (!TimingStore || typeof TimingStore.ensure !== "function") throw new Error("Track Teardown domain: createDomain needs TimingStore (src/timing-store.js)");
-if (!engine || typeof engine.mag !== "function") throw new Error("Track Teardown domain: createDomain needs the engine (src/engine.js)");
+if (!TimingStore || typeof TimingStore.ensure !== "function") throw new Error("Teardown domain: createDomain needs TimingStore (src/timing-store.js)");
+if (!engine || typeof engine.mag !== "function") throw new Error("Teardown domain: createDomain needs the engine (src/engine.js)");
 const { tick, mag, detrend, acfAt, NAMES, CAM_MAJ, CAM_MIN } = engine;
 const BANDS = ["Sub 20–60 Hz", "Bass 60–250 Hz", "Low mids 250–800", "Mids 0.8–2.5 kHz", "Presence 2.5–6 kHz", "Air 6–11 kHz"];
 const REF = [14, 32, 22, 16, 10, 6]; // rough modern electronic reference, % of energy
@@ -862,7 +862,7 @@ const CAMPAIGN = [
       `Select the Hat channel, ${K("F7")}, and draw hats at 1.3, 2.3, 3.3 and 4.3 (between the kicks). That's the offbeat dance hat.`,
       `Make it human: in the Hat's Piano roll, drag some bars down in the velocity lane at the bottom.`,
       `For swing: select the in-between notes, hold Alt (snap off) and drag them slightly right. Listen as you go.`
-    ], done: "Kick, clap and hats loop together and don't sound robotic.", tip: "Use Track Teardown on a song you love, then copy its drum positions (like 2.1, 4.1) into each Piano roll." }
+    ], done: "Kick, clap and hats loop together and don't sound robotic.", tip: "Use Teardown on a song you love, then copy its drum positions (like 2.1, 4.1) into each Piano roll." }
   ]},
   { ch: "Chapter 3 · Melody, chords and bass", missions: [
     { id: "m5", t: "Chords in key", goal: "4 chords that sound good together.", steps: [
@@ -890,7 +890,7 @@ const CAMPAIGN = [
       `Switch to Song mode (${K("L")}) and open the Playlist (${K("F5")}). Paint patterns in with the brush (${K("B")}).`,
       `Intro: 8 bars of chords and hats. Build: 8 bars adding drums. Drop: 16 bars with everything.`,
       `Cut the kick in the last bar before the drop. That moment of space makes the drop hit.`
-    ], done: "A 32-bar song structure plays from start to finish.", tip: "Use Track Teardown's arrangement map from a real song as your template." },
+    ], done: "A 32-bar song structure plays from start to finish.", tip: "Use Teardown's arrangement map from a real song as your template." },
     { id: "m9", t: "Mixer basics", goal: "Clean, balanced levels.", steps: [
       `Route each channel to its own mixer track: select the channel, then set the number in the box ("Track") on the left of the Channel Rack.`,
       `In the Mixer (${K("F9")}), click an empty effect slot → Fruity Parametric EQ 2. High-pass everything except kick and bass at about 100–150 Hz.`,
@@ -905,12 +905,12 @@ const CAMPAIGN = [
       `Send it to your mentor and ask for one fix.`
     ], done: "An MP3 of your track exists outside FL Studio.", tip: "Finishing beats perfect. Export something every week." },
     { id: "m11", t: "Teardown and rebuild", goal: "Learn a real producer's choices.", steps: [
-      `Go to the <a href="#teardown">Track Teardown</a> tab and upload a song you love.`,
+      `Go to the <a href="#teardown">Teardown</a> tab and upload a song you love.`,
       `Set FL to its BPM and key, then copy its drum pattern and arrangement.`,
       `Rebuild 8 bars of its drop. Get the feel, then change one thing to make it yours.`
     ], done: "8 bars that remind you of the original.", tip: "Ask the coach for a step-by-step lesson on the part you're stuck on." },
     { id: "m12", t: "Compare and level up", goal: "See exactly what to fix.", steps: [
-      `Export your rebuild and upload it in Track Teardown's Compare my version.`,
+      `Export your rebuild and upload it in Teardown's Compare my version.`,
       `Fix the top 3 items on the list, then export and compare again.`,
       `Write down your closeness score each round. Watching it go up is your progress log.`
     ], done: "Your closeness score went up between two versions.", tip: "After 5 songs, you'll start hearing these things without the app." }

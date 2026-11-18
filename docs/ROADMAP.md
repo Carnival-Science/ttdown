@@ -1,4 +1,4 @@
-# Track Teardown: Living Roadmap and Phase 0 Record
+# Teardown: Living Roadmap and Phase 0 Record
 
 Status values: **implemented · in progress · deferred · blocked · rejected · open** (not started).
 Last updated: 2026-11-18 (after PRs #6 to #16 merged and the second founder review). Update this file in every PR that changes an item's status.

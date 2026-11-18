@@ -86,7 +86,7 @@ Founder decision needed: which sources to use, budget, and whether legal review 
 ## 5. Ground truth protocol
 
 **General:**
-- Annotators are independent of engineering and never see Track Teardown's output for the track.
+- Annotators are independent of engineering and never see Teardown's output for the track.
 - Tooling: Sonic Visualiser, with annotations exported as plain text.
 - The files go in versioned annotation folders, each with an annotation-protocol version number.
 

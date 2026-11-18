@@ -17,7 +17,7 @@ Each step has an owner and a definition of done. Tick boxes as you go, and recor
 |---|---|---|
 | **Founder** | Approves sources, agreement, budget, storage; signs off at the end | – |
 | **Data lead** | Recruits contributors, collects files, keeps the intake log, maintains the manifest | Annotator for the same track |
-| **Annotator A, Annotator B** | Annotate independently; never see Track Teardown output for the track | Data lead, Engineer |
+| **Annotator A, Annotator B** | Annotate independently; never see Teardown output for the track | Data lead, Engineer |
 | **Adjudicator** | Resolves A/B disagreements; keeps the QA log | Annotator for the same track |
 | **Engineer** | Runs the harness, investigates failures, writes the pilot report | Annotator; must not see the final holdout later |
 | **Holdout custodian** | Not used in G1a. Name this person now so they stay independent of pilot work, for the final holdout | Engineer |
@@ -93,7 +93,7 @@ Twelve slots. Each covers a style plus a condition that stresses a known risk fr
 
 **Done when:** 12 rows are complete in the intake log, and the slot table is satisfied or deviations are noted with reasons.
 
-## 4. Annotation protocol v1.0 (annotators work independently and never open Track Teardown on these tracks)
+## 4. Annotation protocol v1.0 (annotators work independently and never open Teardown on these tracks)
 
 Tool: Sonic Visualiser (record the version). Export plain text in the formats in `bench/README.md`. Log minutes spent per task.
 

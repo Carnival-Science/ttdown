@@ -1,4 +1,4 @@
-# Track Teardown app (Svelte 5 + Vite + TypeScript)
+# Teardown app (Svelte 5 + Vite + TypeScript)
 
 ## ui-sdk
 

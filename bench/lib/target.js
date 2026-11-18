@@ -1,4 +1,4 @@
-// Benchmark targets: WHICH build of Track Teardown the harness drives, and how it is identified in every output.
+// Benchmark targets: WHICH build of Teardown the harness drives, and how it is identified in every output.
 //
 //   legacy  the single-file page (index.html, or a frozen copy such as Version A), loaded from file:// exactly as before
 //   svelte  the compiled Svelte application (app/dist/<build>/), served over http://localhost by scripts/dev-server.js

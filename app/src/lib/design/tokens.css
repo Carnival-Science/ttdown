@@ -1,4 +1,4 @@
-/* Track Teardown design tokens. TTdown owns these; components.css and UI SDK parts are styled from them, never the reverse.
+/* Teardown design tokens. TTdown owns these; components.css and UI SDK parts are styled from them, never the reverse.
    Colours and type are carried over from the legacy page so both apps look like one product during the migration. Fonts are
    self-hosted (main.ts). The Display menu changes --tt-fs, --tt-accent and --tt-lcd at runtime. */
 :root {

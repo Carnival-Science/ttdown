@@ -1,12 +1,12 @@
-# Track Teardown
+# Teardown
 
 **Upload a track and see how it is built.**
 
-Track Teardown listens to an audio file in your browser and tells you what it can work out about how the track is constructed: tempo and whether it stays steady, key, the arrangement as sections on a bar-numbered timeline, the drum pattern and chords of each section, and what can be measured in the sound (level, dynamics, stereo width, where the energy sits). You can play any section, loop it, slow it down, and play the detected parts over the real song to check them by ear. When something is wrong you correct it, and you can take the timing, the notes and the analysis data into any DAW.
+Teardown listens to an audio file in your browser and tells you what it can work out about how the track is constructed: tempo and whether it stays steady, key, the arrangement as sections on a bar-numbered timeline, the drum pattern and chords of each section, and what can be measured in the sound (level, dynamics, stereo width, where the energy sits). You can play any section, loop it, slow it down, and play the detected parts over the real song to check them by ear. When something is wrong you correct it, and you can take the timing, the notes and the analysis data into any DAW.
 
 Everything runs in the browser. The audio is analyzed locally and is never uploaded anywhere. There are no accounts.
 
-![Track Teardown](docs/teardown.png)
+![Teardown](docs/teardown.png)
 
 ## What it does
 

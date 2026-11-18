@@ -1,4 +1,4 @@
-# Track Teardown on Netlify (migration M5, docs/SVELTE_MIGRATION.md §9).
+# Teardown on Netlify (migration M5, docs/SVELTE_MIGRATION.md §9).
 # Builds the Svelte application and publishes it at the site root. The previous single-file page is published next to it as
 # /legacy.html, on the same origin, so users' saved data (localStorage) is shared by both and rolling back loses nothing.
 # This file takes effect for deploy previews immediately and for production only when it is merged into main.

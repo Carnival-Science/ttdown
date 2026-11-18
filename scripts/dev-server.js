@@ -50,4 +50,4 @@ const server = http.createServer((req, res) => {
     });
   });
 });
-server.listen(PORT, HOST, () => console.log(`Track Teardown dev server: http://localhost:${server.address().port}/  (Ctrl+C to stop)`));
+server.listen(PORT, HOST, () => console.log(`Teardown dev server: http://localhost:${server.address().port}/  (Ctrl+C to stop)`));
