@@ -52,8 +52,13 @@ fs.mkdirSync(OUT, { recursive: true });
   { const p = await open();
     await p.setInputFiles('#file', path.join(SONGS, 'pop127_Amaj.wav')); await ready(p, 'pop127_Amaj');
     await p.evaluate(() => { window.__log.td.length = 0; window.__log.status.length = 0; });
-    await p.setInputFiles('#file', path.join(SONGS, 'sections120.mp3')); await p.waitForTimeout(200);
-    await p.locator('#hist button').first().click();
+    // The click is made from inside the page the moment analysis reports it has started. A Playwright click waits for the button
+    // to be stable, which needs animation frames the page cannot give while it is busy analysing, so it used to land after the
+    // upload had finished and the test then opened the wrong history entry (intermittent failure on a loaded machine).
+    await p.evaluate(() => { const st = document.querySelector('#status'); const mo = new MutationObserver(() => { if (/Finding the tempo/.test(st.textContent)) { mo.disconnect();
+      [...document.querySelectorAll('#hist button')].find(b => /^pop127_Amaj/.test(b.textContent)).click(); } }); mo.observe(st, { childList: true, characterData: true, subtree: true }); });
+    await p.setInputFiles('#file', path.join(SONGS, 'sections120.mp3'));
+    await p.waitForFunction(() => /stopped/.test(document.querySelector('#status').textContent), null, { timeout: 60000 });
     await p.waitForTimeout(6000);
     const s = await p.evaluate(() => ({ log: window.__log.td, status: document.querySelector('#status').textContent, hist: [...document.querySelectorAll('#hist button')].map(x => x.textContent) }));
     check(s.log.length === 1 && s.log[0] === 'pop127_Amaj', `3: the saved teardown the user opened is what remains (rendered: ${JSON.stringify(s.log)})`);
