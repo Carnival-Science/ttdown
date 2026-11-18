@@ -104,9 +104,14 @@ test("tempo drift: the map follows it, a fixed grid does not", () => {
   const e = m.exportEligibility(); assert.equal(e.eligible, false); assert.ok(/tempo/.test(e.reasons[0]));
 });
 
-test("slight drift within tolerance is still constant (0.5 BPM over 200 beats)", () => {
-  const b = []; let t = 0; for (let k = 0; k < 200; k++) { b.push(t); t += 60 / (128 - 0.5 * k / 199); }
-  const m = build(b, 0, b[199] + 1); assert.equal(m.tempo().isConstant, true); assert.equal(m.exportEligibility().eligible, true);
+test("steady-looking drift: tempo is 'constant' by local variation, but export is refused when one tempo misses beats by > 20 ms", () => {
+  const drift = bpmEnd => { const b = []; let t = 0; for (let k = 0; k < 200; k++) { b.push(t); t += 60 / (128 + (bpmEnd - 128) * k / 199); } return build(b, 0, b[199] + 1); };
+  const big = drift(127.5), e = big.exportEligibility(); // 0.4 % over ~94 s
+  assert.equal(big.tempo().isConstant, true, "local tempo varies by well under 3 %");
+  assert.ok(big.tempo().constantGrid.maxDeviationMs > 20 && big.tempo().constantGrid.maxDeviationMs < 40, "best constant grid is " + big.tempo().constantGrid.maxDeviationMs.toFixed(1) + " ms off");
+  assert.equal(e.eligible, false); assert.deepEqual(e.reasons, ["tempo-drift"]); assert.ok(e.constantGridDeviationMs > 20);
+  const small = drift(127.85), es = small.exportEligibility(); // 0.12 %
+  assert.ok(small.tempo().constantGrid.maxDeviationMs < 15); assert.equal(es.eligible, true);
 });
 
 test("jitter in a constant tempo (±5 ms tracker noise) is still constant", () => {
@@ -155,6 +160,12 @@ test("fixed-grid fallback is labelled and reproduces the app's current grid form
   }
   const e = m.exportEligibility(); assert.equal(e.eligible, true); assert.equal(e.grade, "legacy-fixed-grid"); assert.equal(e.verified, false);
   assert.ok(e.caveats.some(c => /fallback/.test(c)));
+});
+
+test("export eligibility discloses audio beyond the tracked beats (e.g. a tracker that stops at 8:00 on a 10:00 track)", () => {
+  const b = constBeats(128, 1024), m = build(b, 0, 600); // beats cover 0..479 s of 600 s
+  const e = m.exportEligibility(); assert.equal(e.eligible, true); assert.ok(e.caveats.some(c => /end 120 s before the audio ends/.test(c)), e.caveats.join("|"));
+  assert.ok(!build(constBeats(128, 100), 0, 48.5).exportEligibility().caveats.some(c => /extrapolated/.test(c)), "no caveat when the beats cover the audio");
 });
 
 test("quantize() is explicit and keeps the deviation (the groove)", () => {

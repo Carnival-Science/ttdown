@@ -38,7 +38,8 @@
     constantTolerance: 0.03, // local tempo within 3 % of the median everywhere => "constant"
     changeTolerance: 0.04,   // a tempo segment ends when the local tempo leaves ±4 % of the segment's own tempo
     changeMinBeats: 8,       // ...for at least this many consecutive beats
-    snapFraction: 0.5        // a downbeat must lie within this fraction of a beat interval of a tracked beat
+    snapFraction: 0.5,       // a downbeat must lie within this fraction of a beat interval of a tracked beat
+    gridTolerance: 0.02      // export needs ONE tempo to reproduce every tracked beat within 20 ms (a bit under a third of the ±70 ms beat tolerance)
   });
 
   class TimeMapError extends Error {
@@ -169,8 +170,13 @@
       }
       close(c.length);
       const changes = segs.slice(1).map((g, k) => ({ t: g.start, fromBpm: segs[k].bpm, toBpm: g.bpm, ratio: g.bpm / segs[k].bpm }));
+      // How well ONE constant tempo reproduces the tracked beats: least-squares line through (index, time), largest residual.
+      // Local tempo can look steady while a small steady drift still pushes a constant grid tens of ms off by the end.
+      const n = T.length, per = 60 / lsBpm(T, 0, n - 1); let sx = 0, sy = 0; for (let i = 0; i < n; i++) { sx += i; sy += T[i]; }
+      const icpt = sy / n - per * (sx / n); let maxRes = 0; for (let i = 0; i < n; i++) maxRes = Math.max(maxRes, Math.abs(T[i] - (icpt + per * i)));
       return (this._cache.tempo = {
         bpm, min: Math.min(...c), max: Math.max(...c), maxDeviation: dev,
+        constantGrid: { bpm: 60 / per, maxDeviationMs: maxRes * 1000, within: maxRes <= s.gridTolerance },
         isConstant: dev <= s.constantTolerance && changes.length === 0, segments: segs, changes,
         source: this.source === "tracker" ? "measured-from-beats" : this.source, hypotheses: this.tempoHypotheses
       });
@@ -184,9 +190,13 @@
       if (!this.hasBars) reasons.push(this.anchor == null ? "downbeat-unknown" : "meter-" + this.meter.status);
       else if (this.meter.beatsPerBar !== 4) reasons.push("meter-not-4/4");
       const tp = this.tempo();
-      if (!tp.isConstant) reasons.push(tp.changes.length ? "tempo-changes" : "tempo-not-constant");
-      if (reasons.length) return { eligible: false, verified: false, reasons, caveats };
+      if (tp.changes.length) reasons.push("tempo-changes");
+      else if (!tp.isConstant) reasons.push("tempo-not-constant");
+      else if (!tp.constantGrid.within) reasons.push("tempo-drift"); // steady-looking tempo, but one constant tempo misses tracked beats by more than the tolerance
+      if (reasons.length) return { eligible: false, verified: false, reasons, caveats, constantGridDeviationMs: tp.constantGrid.maxDeviationMs };
       if (this.meter.status === "assumed") caveats.push("meter is assumed to be 4/4, not measured");
+      const tail = this.duration - this.t[this.t.length - 1];
+      if (tail > 8) caveats.push(`tracked beats end ${Math.round(tail)} s before the audio ends; the rest is extrapolated`);
       if (this.downbeat.status !== MEASURED && this.downbeat.status !== USER) caveats.push("downbeat not measured");
       if (!this.measured) caveats.push("grid is a fixed constant-tempo fallback, not tracked from the audio");
       const verified = this.measured && (this.meter.status === MEASURED || this.meter.status === USER) && (this.downbeat.status === MEASURED || this.downbeat.status === USER);

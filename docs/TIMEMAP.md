@@ -51,11 +51,11 @@ Derived results (chords, sections, MIDI) should store the `fingerprint()` of the
 
 ## Export gating
 
-`exportEligibility()` refuses (`eligible: false`) for an unknown downbeat, `ambiguous`/`unsupported` meter, a meter other than 4/4, and any tempo change or non-constant tempo, and names the reasons. For tracked constant-tempo 4/4 it returns `eligible: true`. `verified` is `true` only when the meter and downbeat are measured or user-confirmed; with the analyzer's assumed 4/4 it is `false` with the caveat "meter is assumed to be 4/4, not measured". **Decision needed:** whether the product should allow export with that caveat (current default of this module) or require user confirmation first.
+`exportEligibility()` refuses (`eligible: false`) for an unknown downbeat, `ambiguous`/`unsupported` meter, a meter other than 4/4, any tempo change or non-constant tempo, and **tempo drift**: a steady-looking tempo where the best single constant tempo (`tempo().constantGrid`) still misses a tracked beat by more than `gridTolerance` (20 ms). It names the reasons. It adds a caveat when the tracked beats end more than 8 s before the audio does (the rest is extrapolated). For tracked constant-tempo 4/4 it returns `eligible: true`. `verified` is `true` only when the meter and downbeat are measured or user-confirmed; with the analyzer's assumed 4/4 it is `false` with the caveat "meter is assumed to be 4/4, not measured". **Decision needed:** whether the product should allow export with that caveat (current default of this module) or require user confirmation first.
 
 ## Provisional thresholds (not calibrated)
 
-`DEFAULTS` in the module: local tempo within 3 % of the median is "constant"; a tempo segment ends after 8 consecutive beats outside ±4 %; a downbeat must lie within half a beat interval of a tracked beat. These are reasoned values, not tuned on any data. The fixtures in `tests/timemap.test.js` pin their behaviour on synthetic cases only; they need checking against real tracks before they gate anything the user sees.
+`DEFAULTS` in the module: local tempo within 3 % of the median is "constant"; a tempo segment ends after 8 consecutive beats outside ±4 %; a downbeat must lie within half a beat interval of a tracked beat; one constant tempo must reproduce every tracked beat within 20 ms to allow export. These are reasoned values, not tuned on real data. The 20 ms value was chosen after the time-model fixtures (`docs/TIME_FIXTURES_BASELINE.md`): every constant-tempo synthetic track measured 5.6 to 8.8 ms, `drift_slow` 41 ms. That is 20 synthetic tracks; real recordings may need a different value.
 
 ## Tempo estimation note
 
@@ -63,7 +63,7 @@ The analyzer places beats on a ~11.6 ms frame grid, so single beat intervals alt
 
 ## Tests
 
-- `tests/timemap.test.js` (Node, 25 cases, in `npm test`): conversion round trips; leading silence; pickups; nonzero first downbeat; unknown/ambiguous/unsupported/3-4 meter; half/double alternatives; drift (fixed grid drifts out of ±70 ms, the map does not); tempo change and half-time breakdown; a 10-minute recording; fallback parity with the app's current `firstDown + bar*barSec + step*barSec/16`; quantize; corrections, immutability, JSON round trip and tamper detection; input validation. Three deliberate mutations of the module were each caught.
+- `tests/timemap.test.js` (Node, 26 cases, in `npm test`): conversion round trips; leading silence; pickups; nonzero first downbeat; unknown/ambiguous/unsupported/3-4 meter; half/double alternatives; drift (fixed grid drifts out of ±70 ms, the map does not); tempo change and half-time breakdown; a 10-minute recording; fallback parity with the app's current `firstDown + bar*barSec + step*barSec/16`; quantize; corrections, immutability, JSON round trip and tamper detection; input validation. Three deliberate mutations of the module were each caught.
 - `tests/test24.js` (browser, in `npm test`): TimeMap built from the real analyzer's grid for 6 synthetic songs: measured, constant tempo, tempo within 0.5 %, beat F >= 0.98, bar 1 within 70 ms of a true downbeat, same fingerprint in page and Node.
 
 ## Not done yet
