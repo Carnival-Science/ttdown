@@ -380,5 +380,54 @@
     return m;
   }
 
-  return { SCHEMA, DEFAULTS, TimeMapError, fromGrid, fromConstantGrid, fromJSON };
+  /**
+   * The musical grid for one analysis result, in the analysis's own bar numbering (UI bar 0 = the bar that contains `firstDown`),
+   * for consumers such as the ruler, the metronome and playback loops.
+   * `a` = { duration, bpm, barSec, firstDown, bpmConf?, grid?: { beats, downbeats } }, the analyzer's result.
+   *  kind "tracked"       built from the tracked beats: bars follow tempo drift (the analyzer's 4/4 stays labelled "assumed")
+   *  kind "fallback-grid" one constant tempo from `firstDown` and `barSec`, labelled as such. Used when the result has no tracked grid
+   *                       (a saved teardown), the grid is too short, or the user has corrected the BPM (bpmConf 99): a stale tracked grid
+   *                       must not override a correction. With barSec taken from the result, it reproduces the legacy
+   *                       `firstDown + bar * barSec` exactly, so saved teardowns look as they always did.
+   * `reason` says why a fallback was used. Never throws: any failure becomes a labelled fallback.
+   */
+  function forAnalysis(a, opts) {
+    opts = opts || {}; const n = 4, dur = a.duration, fd = a.firstDown || 0;
+    function wrap(map, off, kind, reason) {
+      const toBar = q => Math.floor((q - off * n) / n + 1e-12);
+      return Object.freeze({
+        kind, reason, map, barOffset: off, tracked: kind === "tracked", beatsPerBar: n,
+        /** start time (s) of UI bar b (0-based, as the chord grid and sections number them) */
+        barStart: b => map.beatToTime((b + off) * n),
+        /** UI bar index containing time t */
+        barOf: t => toBar(map.timeToBeat(t)),
+        /** is t outside the tracked beats (extrapolated), or on a fallback grid */
+        isExtrapolated: t => kind !== "tracked" || map.position(t).extrapolated,
+        /** every beat in [from - slack, to): { t, bar, beat (1..4), downbeat }. A beat up to `slack` s (default 20 ms) BEFORE `from` is
+         *  included, so a first beat that lands a few ms before 0:00 is not lost; callers play or draw it at `from`. */
+        beats(from, to, slack) {
+          const out = [], q0 = Math.ceil(map.timeToBeat(from - (slack == null ? 0.02 : slack)) - 1e-9), q1 = map.timeToBeat(to);
+          for (let q = q0; q < q1 && out.length < 20000; q++) { const t = map.beatToTime(q), r = (((q - off * n) % n) + n) % n; out.push({ t, bar: toBar(q), beat: r + 1, downbeat: r === 0 }); }
+          return out;
+        },
+        label: kind === "tracked" ? "Bars follow the tracked beats." : "Bars use one constant tempo (no tracked beats are available for this teardown)."
+      });
+    }
+    function fallback(reason) {
+      const barSec = a.barSec > 0 ? a.barSec : 240 / a.bpm;
+      return wrap(fromConstantGrid({ bpm: 240 / barSec, firstDownbeat: fd, duration: dur, beatsPerBar: n, settings: opts.settings }), 0, FALLBACK, reason);
+    }
+    try {
+      const g = a.grid;
+      if (!g || !Array.isArray(g.beats) || g.beats.length < 16 || !Array.isArray(g.downbeats) || !g.downbeats.length) return fallback(g ? "tracked-grid-too-short" : "no-tracked-grid");
+      if (a.bpmConf === 99 || a.bpmFixed) return fallback("bpm-corrected-by-user");
+      const m = fromGrid(g, { duration: dur, meter: { beatsPerBar: n, status: "assumed" }, settings: opts.settings });
+      if (!m.hasBars) return fallback("no-bar-layer");
+      const q = m.timeToBeat(fd), off = Math.round(q / n);
+      if (Math.abs(q / n - off) > 0.1) return fallback("first-downbeat-disagrees-with-tracked-grid");
+      return wrap(m, off, "tracked", null);
+    } catch (e) { return fallback("map-error: " + (e.code || e.message)); }
+  }
+
+  return { SCHEMA, DEFAULTS, TimeMapError, fromGrid, fromConstantGrid, fromJSON, forAnalysis };
 });
