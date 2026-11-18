@@ -310,4 +310,39 @@ test("fingerprint covers everything a derived result depends on, including setti
   assert.notEqual(TM.fromConstantGrid({ bpm: 120, firstDownbeat: 0, duration: 17 }).fingerprint(), base, "fallback grids differ from tracked ones");
 });
 
+test("forAnalysis: a result with no tracked grid gets a labelled fallback that reproduces the legacy firstDown + bar * barSec exactly", () => {
+  const a = { duration: 228, bpm: 127, barSec: 1.89, firstDown: -0.1, nBars: 120 }, G = TM.forAnalysis(a);
+  assert.equal(G.kind, "fallback-grid"); assert.equal(G.reason, "no-tracked-grid"); assert.equal(G.tracked, false); assert.match(G.label, /constant tempo/); assert.equal(G.barOffset, 0);
+  for (let b = 0; b <= 125; b++) near(G.barStart(b), -0.1 + b * 1.89, 1e-9, "bar " + b);
+  assert.equal(G.barOf(-0.1 + 7 * 1.89 + 0.5), 7); assert.equal(G.barOf(0.5), 0);
+  const bt = G.beats(10, 14); bt.forEach((x, i) => near(x.t, -0.1 + Math.round((x.t + 0.1) / (1.89 / 4)) * (1.89 / 4), 1e-9)); assert.ok(bt.length >= 8 && bt.length <= 10);
+  assert.equal(bt.filter(x => x.downbeat).length, 2); assert.ok(bt.every(x => x.beat >= 1 && x.beat <= 4)); assert.equal(G.isExtrapolated(50), true, "a fallback grid is never 'tracked'");
+});
+
+test("forAnalysis: tracked beats are used, in the analysis's own bar numbering, and follow drift", () => {
+  const b = []; let t = 0.3; for (let k = 0; k < 120; k++) { b.push(t); t += 60 / (120 - 12 * k / 119); } // 120 -> 108 BPM
+  const fd = b[8], a = { duration: b[119] + 1, bpm: 114, barSec: 240 / 114, firstDown: fd, nBars: 30, grid: { beats: b, downbeats: downs(b, 4, 0) } }, G = TM.forAnalysis(a);
+  assert.equal(G.kind, "tracked"); assert.equal(G.reason, null); assert.equal(G.tracked, true); assert.match(G.label, /tracked beats/);
+  near(G.barStart(0), fd, 1e-9); near(G.barStart(1), b[12], 1e-9); near(G.barStart(10), b[48], 1e-9, "bar 10 sits on its tracked downbeat");
+  assert.ok(Math.abs(G.barStart(15) - (fd + 15 * a.barSec)) > 0.4, "a constant grid at the average tempo is about 0.6 s off by bar 15");
+  assert.equal(G.barOf(b[48] + 0.1), 10); assert.equal(G.barOf(fd - 0.1), -1);
+  const bt = G.beats(b[8], b[16]); assert.deepEqual(bt.map(x => x.downbeat), [true, false, false, false, true, false, false, false]); near(bt[1].t, b[9], 1e-9); assert.equal(bt[4].bar, 1);
+  assert.equal(G.isExtrapolated(b[40]), false); assert.equal(G.isExtrapolated(b[119] + 3), true);
+});
+
+test("forAnalysis: a corrected BPM, a short grid or a phase disagreement fall back, labelled; it never throws", () => {
+  const b = constBeats(120, 80), base = { duration: 40, bpm: 120, barSec: 2, firstDown: 0, grid: { beats: b, downbeats: downs(b, 4, 0) } };
+  assert.equal(TM.forAnalysis(base).kind, "tracked");
+  const fixed = TM.forAnalysis(Object.assign({}, base, { bpm: 60, barSec: 4, bpmConf: 99 })); assert.equal(fixed.kind, "fallback-grid"); assert.equal(fixed.reason, "bpm-corrected-by-user"); near(fixed.barStart(3), 12, 1e-9, "uses the corrected tempo, not the stale tracked grid");
+  assert.equal(TM.forAnalysis(Object.assign({}, base, { grid: { beats: b.slice(0, 10), downbeats: [0] } })).reason, "tracked-grid-too-short");
+  assert.equal(TM.forAnalysis(Object.assign({}, base, { grid: { beats: b, downbeats: [] } })).reason, "tracked-grid-too-short");
+  assert.equal(TM.forAnalysis(Object.assign({}, base, { firstDown: 0.5 })).reason, "first-downbeat-disagrees-with-tracked-grid", "engine and tracker disagree by a beat");
+  for (const bad of [{ beats: ["x", 1, 2], downbeats: [0] }, { beats: b.concat([0]), downbeats: [0] }, { beats: [], downbeats: [] }, "nonsense"]) { const g = TM.forAnalysis(Object.assign({}, base, { grid: bad })); assert.equal(g.kind, "fallback-grid"); assert.ok(g.reason); }
+});
+
+test("forAnalysis: a first beat a few ms before the start point is not lost (slack), and callers can see which it was", () => {
+  const b = constBeats(120, 80, -0.01), G = TM.forAnalysis({ duration: 40, bpm: 120, barSec: 2, firstDown: -0.01, grid: { beats: b, downbeats: downs(b, 4, 0) } });
+  const bt = G.beats(0, 2); near(bt[0].t, -0.01, 1e-12); assert.equal(bt[0].downbeat, true); assert.equal(G.beats(0, 2, 0)[0].t > 0, true, "slack 0 restores the strict window");
+});
+
 console.log(`timemap tests passed (${n})`);

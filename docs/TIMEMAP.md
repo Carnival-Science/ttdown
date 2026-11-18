@@ -2,7 +2,17 @@
 
 `src/timemap.js`: one module that answers "when, in the audio, is this musical position?" and "what musical position is this audio time?", and records **how well each answer is known**. It is a plain classic script (no ES modules, no DOM), so it loads in Node with `require` and in `index.html` as a classic script from `file://` as well as from a server.
 
-Status: Phase 2a, **additive and not yet used by the analyzer or the UI**. Consumers (ruler, metronome, sections, chords, drum/bass events, exports) move onto it in Phase 2c, one at a time, each measured against Version A (`docs/BASELINE_A.md`).
+Status: the analyzer is unchanged. Phase 2c is moving the page's consumers onto TimeMap one at a time, each measured against the pinned Version A predictions (`docs/BASELINE_A.md`):
+
+| Consumer | Status |
+|---|---|
+| Bar ruler, metronome clicks, "loop 4 bars from where I am" | **on TimeMap** (this step; table in `bench/baselines/version-a/consumers/ruler-metronome.md`) |
+| Section boundaries and arrangement | open |
+| Chord intervals (and the chord-check loops, which must move with them) | open |
+| Drum and bass event timing; the "check by ear" overlay | open |
+| MIDI and aligned-audio exports | open (gated by `exportEligibility()`) |
+
+**One page, one file, one source of truth.** `index.html` stays a single self-contained file (it also runs as a single-file artifact), so `src/timemap.js` is **inlined** into it between two marker comments. `src/timemap.js` is the only place to edit; `npm run sync:timemap` copies it into the page and `npm test` fails (`tests/timemap-sync.test.js`) if the two differ. The page's tests compare what the page does with what `src/timemap.js` computes in Node.
 
 ## Model
 
@@ -46,9 +56,22 @@ m.exportEligibility();                              // { state, eligible, needs,
 m.withDownbeat(t); m.confirmDownbeat();             // corrections return a NEW map; originals untouched
 m.withMeter(n | { beatsPerBar, numerator, denominator, beatUnit }); m.confirmMeter(); m.withMeterUnsupported(note);
 m.fingerprint();                                    // changes whenever anything a derived result depends on changes
+
+const G = TM.forAnalysis(analysisResult);            // the grid consumers use, in the analysis's own bar numbering
+G.barStart(b); G.barOf(t); G.beats(from, to); G.isExtrapolated(t); G.kind; G.reason; G.label
 ```
 
 Errors are `TimeMapError` with a `code` (`too-few-beats`, `bad-beats`, `bad-duration`, `bad-meter`, `no-downbeat`, `no-meter`, `fingerprint-mismatch`, ...). Bad input is rejected, never repaired.
+
+## `forAnalysis(result)`: the grid the page's consumers use
+
+Given the analyzer's result (`duration`, `bpm`, `barSec`, `firstDown`, optional non-enumerable `grid`), it returns an object whose `barStart(b)`, `barOf(t)` and `beats(from, to)` use the analysis's own bar numbering (bar 0 is the bar containing `firstDown`, exactly as sections and the chord grid number them), so the ruler and the chord and section views cannot disagree about which bar is which.
+
+- `kind: "tracked"`: built from the tracked beats, so bar lines and clicks follow tempo drift. The analyzer's 4/4 stays labelled "assumed".
+- `kind: "fallback-grid"`: one constant tempo, labelled. Used when there is no tracked grid (**a saved teardown does not keep it**), the grid is too short, the tracker and the analyzer disagree about the first downbeat by more than a tenth of a bar, or the user corrected the BPM (a stale tracked grid must not override a correction). With the result's own `barSec` it reproduces the legacy `firstDown + bar * barSec` exactly, so saved teardowns look as they always did. `reason` says why.
+- It never throws; any failure becomes a labelled fallback. The page rebuilds it when the BPM, bar length, first downbeat or duration change.
+- `beats()` includes a beat up to 20 ms before `from` (callers play or draw it at `from`), so a first beat that lands a few ms before 0:00 is not lost.
+- The ruler draws bar lines outside the tracked beats dashed and the ruler carries the provenance (`data-grid`, tooltip).
 
 ## Immutability
 
@@ -84,9 +107,11 @@ The analyzer places beats on a ~11.6 ms frame grid, so single beat intervals alt
 
 ## Tests
 
-- `tests/timemap.test.js` (Node, 31 cases, in `npm test`): conversion round trips; leading silence; pickups; nonzero first downbeat; unknown/ambiguous/unsupported/3-4 meter; half/double alternatives; drift (a fixed grid leaves ±70 ms, the map does not); tempo change and half-time breakdown; a 10-minute recording; fallback parity with the app's `firstDown + bar*barSec + step*barSec/16`; quantize; corrections and confirmations; the three export states; export-grid error and anchor pinning; coverage and export range; the exact last beat; meter representation; deep immutability and input copying; fingerprint coverage; JSON round trip and tamper detection; input validation. Six deliberate mutations of the module were each caught.
+- `tests/timemap.test.js` (Node, 35 cases, in `npm test`; includes `forAnalysis`: legacy parity of the fallback, drift following, corrections, slack): conversion round trips; leading silence; pickups; nonzero first downbeat; unknown/ambiguous/unsupported/3-4 meter; half/double alternatives; drift (a fixed grid leaves ±70 ms, the map does not); tempo change and half-time breakdown; a 10-minute recording; fallback parity with the app's `firstDown + bar*barSec + step*barSec/16`; quantize; corrections and confirmations; the three export states; export-grid error and anchor pinning; coverage and export range; the exact last beat; meter representation; deep immutability and input copying; fingerprint coverage; JSON round trip and tamper detection; input validation. Six deliberate mutations of the module were each caught.
+- `tests/timing-consumers.test.js` (in `npm test`): ruler and metronome, legacy grid versus TimeMap, against the pinned Version A predictions and the annotated truth on all 20 synthetic tracks. Any track that gets worse fails the test unless the regression is listed with its cause; the drift tracks must improve.
+- `tests/test29.js` (browser, in `npm test`): in the real page, ruler ticks, metronome clicks and the 4-bar loop sit exactly where TimeMap puts them on `drift_fast`; a saved teardown shows a labelled fallback with the old ticks; a BPM correction replaces the tracked grid; extrapolated bar lines are dashed. Fails against the previous page.
 - `tests/test24.js` (browser, in `npm test`): TimeMap built from the real analyzer's grid for 6 synthetic songs: measured, steady, tempo within 0.5 %, beat F >= 0.98, bar 1 within 70 ms of a true downbeat, the assumed meter needs confirmation and is allowed once confirmed with the exported grid within 20 ms, same fingerprint in the page and in Node.
 
 ## Not done yet
 
-Tempo-scale (×2 / ÷2) as a correction; meter changes inside a track; compound-meter handling beyond recording what a person states; persisting maps with saved projects; wiring into the page (Phase 2c).
+Tempo-scale (×2 / ÷2) as a correction; meter changes inside a track; compound-meter handling beyond recording what a person states; persisting maps with saved projects; the remaining consumers (table above).

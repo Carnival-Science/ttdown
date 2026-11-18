@@ -16,6 +16,7 @@
 const path = require("node:path"), fs = require("node:fs");
 const M = require("./lib/metrics"), C = require("./lib/classify"), { loadTruth } = require("./lib/loaders"), { summarize } = require("./lib/stats"), { sha256File } = require("./lib/provenance");
 const { annotationIntegrity, checkRequirements } = require("./lib/requirements"), crypto = require("node:crypto");
+const Reg = require("./lib/regions");
 
 const ROOT = path.resolve(__dirname, "..");
 const args = process.argv.slice(2), opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
@@ -50,6 +51,32 @@ function truthSteps(T, cls) {
     return new Set(T.drums[cls].filter(t => t >= d - s16 / 2 && t < d + len - s16 / 2).map(t => Math.round((t - d) / s16))); });
 }
 
+// Mask the truth to the scorable regions (the same masks are applied to the predictions below). A kind with nothing left is dropped,
+// i.e. "not annotated", rather than scored against an empty reference.
+function maskTruth(T, R) {
+  const X = { ...T };
+  if (T.beats) {
+    const keep = T.beats.map(b => Reg.inside(R, b));
+    X.beats = T.beats.filter((_, i) => keep[i]); X.positions = T.positions ? T.positions.filter((_, i) => keep[i]) : null;
+    X.downbeats = X.positions ? X.beats.filter((_, i) => X.positions[i] === 1) : T.downbeats ? Reg.filterTimes(T.downbeats, R) : T.downbeats;
+    if (!X.beats.length) { delete X.beats; delete X.positions; delete X.downbeats; }
+  }
+  if (T.drums) { X.drums = { ...T.drums, kick: Reg.filterTimes(T.drums.kick, R), snare: Reg.filterTimes(T.drums.snare, R), hihat: Reg.filterTimes(T.drums.hihat, R) }; if (!X.drums.kick.length && !X.drums.snare.length && !X.drums.hihat.length) delete X.drums; }
+  if (T.bass) { X.bass = Reg.filterNotes(T.bass, R); if (!X.bass.length) delete X.bass; }
+  if (T.chords) { X.chords = Reg.clipIntervals(T.chords, R); if (!X.chords.length) delete X.chords; }
+  return X;
+}
+// chord accuracy over several regions: each region scored on its own clipped intervals, then weighted by reference seconds
+function chordsByRegion(est, ref, R) {
+  let wr = 0, wm = 0, sr = 0, sm = 0, sec = 0;
+  for (const r of R) {
+    const f = Reg.clipIntervals(ref, [r]); if (!f.length) continue;
+    const c = M.chordScores(Reg.clipIntervals(est, [r]), f); if (!c) continue;
+    if (c.root != null) { wr += c.root * c.refSeconds; sr += c.refSeconds; } if (c.majmin != null) { wm += c.majmin * c.refSeconds; sm += c.refSeconds; } sec += c.refSeconds;
+  }
+  return sec ? { root: sr ? r4(wr / sr) : null, majmin: sm ? r4(wm / sm) : null, refSeconds: r4(sec) } : null;
+}
+
 function scoreTrack(rec) {
   const t = byId[rec.id], out = { id: rec.id, split: rec.split, status: rec.status, tags: (t && t.tags) || {}, runtimeSec: rec.runtimeMs ? r4(rec.runtimeMs / 1000) : null, pageErrors: (rec.pageErrors || []).length,
     pageErrorSamples: (rec.pageErrors || []).slice(0, 3).map(s => String(s).slice(0, 200)), console: rec.console || null };
@@ -62,17 +89,20 @@ function scoreTrack(rec) {
   out.annotationsChangedSincePrediction = !!rec.annotationSha256 && JSON.stringify(rec.annotationSha256) !== JSON.stringify(ai.hashes);
   if (ai.problems.length) { out.status = "annotation-checksum-mismatch"; out.problems = ai.problems; return out; }
   if (rec.status !== "ok") return out;
-  const T = loadTruth(t, mdir), p = rec.full, g = rec.grid, m = {}, cls = {}, inputs = {};
+  const T0 = loadTruth(t, mdir), R = t.scorable ? Reg.normalize(t.scorable) : null, T = R ? maskTruth(T0, R) : T0, p = rec.full, g = rec.grid, m = {}, cls = {}, inputs = {};
+  if (R) out.scorable = { regions: R.length, seconds: r4(Reg.seconds(R)), fractionOfTrack: p && p.duration ? r4(Math.min(1, Reg.seconds(R) / p.duration)) : null };
+  const maskT = a => R ? Reg.filterTimes(a, R) : a;
   // tempo and grid
   m.tempo = T.tempo != null ? M.tempo(p.bpm, T.tempo) : null; cls.tempo = C.tempoClass(m.tempo);
   if (T.beats) {
     // predictions inside declared gaps have no verified truth to be scored against: drop them before matching
-    const G = T.gaps || [], cut = a => M.outsideGaps(a || [], G), eg0 = M.exportGrid(p);
+    const G = T.gaps || [], cut = a => M.outsideGaps(maskT(a || []), G), eg0 = M.exportGrid(p);
+    const driftGaps = R ? G.concat(Reg.complement(R, p.duration)).sort((a, b) => a.start - b.start) : G; // drift restarts at every region edge, as at a declared gap
     const tb = g ? cut(g.beats) : null, td = g ? cut(g.downbeats) : null, eg = { beats: cut(eg0.beats), downbeats: cut(eg0.downbeats) };
     m.beats = g ? M.events(tb, T.beats) : null; cls.beats = C.beatClass(tb, T.beats, cls.tempo);
     inputs.exportBeats = eg.beats; inputs.exportDownbeats = eg.downbeats; inputs.trackedBeats = tb || []; inputs.trackedDownbeats = td || [];
     // drift: phase-locked within each continuous annotated segment; nearest-beat kept alongside for comparison
-    m.exportBeats = M.events(eg.beats, T.beats); m.drift = M.phaseDrift(p, T.beats, G, T.tempoChanges || []); m.driftNearest = M.drift(eg0.beats, T.beats); cls.exportGrid = C.driftClass(m.drift);
+    m.exportBeats = M.events(eg.beats, T.beats); m.drift = M.phaseDrift(p, T.beats, driftGaps, T.tempoChanges || []); m.driftNearest = M.drift(eg0.beats, T.beats); cls.exportGrid = C.driftClass(m.drift);
     if (T.downbeats) { m.downbeats = g ? M.events(td, T.downbeats) : null; m.exportDownbeats = M.events(eg.downbeats, T.downbeats); cls.downbeats = C.downbeatClass(td, T); }
     if (G.length) m.declaredGaps = { count: G.length, seconds: r4(G.reduce((s, x) => s + x.end - x.start, 0)) };
     if ((T.tempoChanges || []).length) m.declaredTempoChanges = T.tempoChanges.length;
@@ -82,20 +112,21 @@ function scoreTrack(rec) {
   // chords: one per exported bar on the app's fixed grid
   if (T.chords) {
     const est = (p.chords && p.chords.bars || []).map((c, i) => ({ start: p.firstDown + i * p.barSec, end: p.firstDown + (i + 1) * p.barSec, label: M.appChordToHarte(c) }));
-    m.chords = M.chordScores(est, T.chords); cls.chords = C.chordClass(m.chords); inputs.chords = est;
+    m.chords = R ? chordsByRegion(est, T.chords, R) : M.chordScores(est, T.chords); cls.chords = C.chordClass(m.chords); inputs.chords = R ? Reg.clipIntervals(est, R) : est;
   }
   // drums: exported MIDI notes in seconds, per class; plus G0's 16-step pattern score
   const ex = rec.exported, sec = steps => steps.map(s => p.firstDown + s * ex.stepSec);
   if (T.drums && ex) {
     m.drums = {}; m.drumSteps = {}; cls.drums = {}; inputs.drums = {};
     for (const [app, k] of [["kick", "kick"], ["snare", "snare"], ["hats", "hihat"]]) {
-      const est = sec(ex[app]); inputs.drums[k] = est;
+      const est = maskT(sec(ex[app])); inputs.drums[k] = est;
       m.drums[k] = { w30: M.events(est, T.drums[k], 0.03), w50: M.events(est, T.drums[k], 0.05), w100: M.events(est, T.drums[k], 0.1) };
       cls.drums[k] = C.drumClass(m.drums[k]);
-      const TS = truthSteps(T, k);
+      const TS = truthSteps(T0, k);
       if (TS) { let tp = 0, fp = 0, fn = 0;
         for (let bar = 1; bar < p.nBars - 1; bar++) {
-          const start = p.firstDown + bar * p.barSec, tb = T.downbeats.findIndex(d => Math.abs(d - start) < p.barSec / 2); if (tb < 0) continue;
+          const start = p.firstDown + bar * p.barSec, tb = T0.downbeats.findIndex(d => Math.abs(d - start) < p.barSec / 2); if (tb < 0) continue;
+          if (R && !Reg.containsInterval(R, start - p.barSec / 32, start + p.barSec)) continue; // only bars wholly inside one scorable region
           const got = new Set(ex[app].filter(s => Math.floor(s / 16) === bar).map(s => s % 16)), truth = TS[tb];
           got.forEach(s => truth.has(s) ? tp++ : fp++); truth.forEach(s => { if (!got.has(s)) fn++; }); }
         m.drumSteps[app] = { tp, fp, fn }; }
@@ -103,7 +134,7 @@ function scoreTrack(rec) {
   }
   // bass: exported 808/bass notes in seconds
   if (T.bass && ex) {
-    const est = ex.bass.map(n => ({ onset: p.firstDown + n.t * ex.stepSec, offset: p.firstDown + (n.t + n.dur) * ex.stepSec, midi: n.midi }));
+    const est = ex.bass.map(n => ({ onset: p.firstDown + n.t * ex.stepSec, offset: p.firstDown + (n.t + n.dur) * ex.stepSec, midi: n.midi })).filter(n => !R || Reg.inside(R, n.onset));
     m.bass = M.noteScores(est, T.bass); cls.bass = C.bassClass(m.bass); inputs.bass = est;
   }
   out.prediction = { bpm: p.bpm, bpmConf: p.bpmConf, key: p.key, keyConf: p.keyConf, firstDown: p.firstDown, barSec: p.barSec };
@@ -201,6 +232,7 @@ const L = [`# Benchmark report: ${P.manifest.name} (${P.split})`, "",
     return !w.length ? "No console warnings or errors." : HOLDOUT ? `${w.length} track(s) logged console warnings/errors.` :
       w.map(t => `- ${t.id}: ${t.console.warning} warning(s), ${t.console.error} console error(s)${t.console.samples.length ? ` · e.g. \`${t.console.samples[0].replace(/`/g, "'")}\`` : ""}`).join("\n"); })(), "",
   "## Ground truth", "", `Annotation protocol: ${manifest.annotationProtocol || "not stated"} · truth fingerprint \`${truthFingerprint.slice(0, 16)}\` (sha256 over every track's annotation-file hashes; any changed answer file changes it)`, "",
+  ...(tracks.some(x => x.scorable) ? ["**Scorable regions:** predictions and references are both masked to the annotated regions (half-open, [start, end)); nothing outside them counts.", "", "| Track | Regions | Seconds | Share of track |", "|---|---|---|---|", ...tracks.filter(x => x.scorable).map(x => `| ${x.id} | ${x.scorable.regions} | ${x.scorable.seconds} | ${x.scorable.fractionOfTrack == null ? "–" : Math.round(x.scorable.fractionOfTrack * 100) + " %"} |`), ""] : []),
   "| Annotation | Tracks | Required |", "|---|---|---|", ...Object.entries(reqCheck.coverage).map(([k, c]) => `| ${k} | ${c.tracks}/${c.of} | ${c.required == null ? "–" : c.required === "all" ? "every track" : `≥ ${Math.round(c.required * 100)} %`} |`), "",
   ...(reqCheck.problems.length || integrityProblems.length ? ["**Requirement / integrity failures (run fails):**", "", ...[...reqCheck.problems, ...integrityProblems].map(x => `- ${x}`), ""] : ["All annotation requirements met; every annotation file matches its pinned sha256.", ""]),
   ...(meta.annotationsChangedSincePrediction.length ? [`**Annotation files changed after these predictions were made:** ${meta.annotationsChangedSincePrediction.join(", ")}`, ""] : []),

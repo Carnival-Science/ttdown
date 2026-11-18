@@ -40,6 +40,9 @@ jobs:
       - name: Generate synthetic test songs and their annotation files
         run: npm run songs
 
+      - name: Generate time-model fixtures (used by the timing tests; also reported below)
+        run: npm run songs:time
+
       - name: Feature tests
         run: npm test
 
@@ -60,9 +63,11 @@ jobs:
 
       - name: "Time-model fixtures (reported, not gated; see docs/TIME_FIXTURES_BASELINE.md)"
         run: |
-          npm run songs:time
           npm run bench:time-fixtures
           node bench/time-fixtures-summary.js bench/out/time-fixtures > bench/out/time-fixtures/summary.md
+
+      - name: Scorable regions scored end to end (on the real predictions)
+        run: npm run bench:regions
 
       - name: Upload run records
         if: always()

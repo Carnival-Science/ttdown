@@ -79,6 +79,22 @@ Every error also gets a **failure class** (`lib/classify.js`, versioned). `repor
 - the **failure atlas**: failed/scored tracks per condition tag;
 - a **reliability table**: is the app's own confidence higher when it's right?
 
+## Scorable regions (partially annotated tracks)
+
+A track may be annotated for an excerpt, or for several disjoint excerpts. Everything the analyzer predicts outside them has no ground truth, so it must not count as a false positive. Declare the annotated parts in the manifest, per track:
+
+```json
+"scorable": [{ "start": 0, "end": 60 }, { "start": 120.5, "end": 180 }]
+```
+
+- **One mask, applied to predictions and references alike**: beats and downbeats (tracked and exported grid), drum events per class, bass notes (by onset), the 16-step pattern score (only bars wholly inside one region), and chords (clipped at each region edge and scored per region, then weighted by reference seconds). Drift restarts at every region edge, exactly as at a declared `gap`.
+- **Half-open** `[start, end)`: an event exactly at `start` counts, one exactly at `end` does not, so adjacent regions never count an event twice.
+- Regions must be finite, ordered, non-overlapping, with `end > start >= 0`. Anything else fails the run (exit 2 at `run.js`, exit 1 at `score.js`) with a message naming the track.
+- A kind with nothing annotated inside the regions is *not scored* (never a vacuous 1.0).
+- Tempo and key are track-level labels and are not masked. The report lists each track's regions, seconds and share of the recording.
+- A track without `scorable` is scored over the whole recording, exactly as before: the synthetic scores are byte-for-byte unchanged by this feature (`tests/bench-regions-score.test.js` also checks that a whole-track region gives identical metrics).
+- `tests/bench-regions.test.js` (helpers, in `npm test`) and `npm run bench:regions` (end to end on the real predictions).
+
 ## Ground-truth integrity and required coverage
 
 `run.js` checks everything before the browser starts and stops with exit 2 if anything fails.
