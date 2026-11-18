@@ -919,30 +919,30 @@ kbd { font: 600 0.74rem var(--font-mono); background: linear-gradient(180deg, #3
 /* END src/timing-store.js */
 </script>
 <script>
+/* BEGIN src/engine.js: inlined copy. Edit src/engine.js, then run `npm run sync:timemap`; `npm test` fails if they differ. */
+/* Track Teardown analysis engine: decoding, tempo, beats, downbeat, drums, sections, key, chords, bass and hook.
+ *
+ * Moved out of index.html verbatim (migration M2, docs/SVELTE_MIGRATION.md) so the current page and the Svelte application run the
+ * SAME analysis code. The only source change: the diagnostic counters are returned as ANALYSIS_STATS instead of being written to
+ * window.__analysisStats here (the page assigns that global; the Svelte app exposes it only in its bench build).
+ *
+ * Framework-free: no UI, no storage. Needs a browser for decoding (OfflineAudioContext) and for reading a file's header duration
+ * (an <audio> element). TimeMap is injected, never looked up implicitly, so a missing dependency fails loudly instead of quietly
+ * dropping the tracked section times.
+ *
+ *   index.html   inlined between marker comments (npm run sync:timemap); creates the global TTEngine = createEngine({ TimeMap })
+ *   Svelte app   import createEngine from "$engine"; createEngine({ TimeMap })
+ *   Node         require("./src/engine.js") is the factory; the DSP helpers work, analyze() needs Web Audio
+ *
+ * Changing anything below changes analysis results: measure it against Version A (docs/BASELINE_A.md) like any analyzer change.
+ */
+(function (root, factory) {
+  if (typeof module === "object" && module.exports) module.exports = factory;
+  else root.TTEngine = factory({ TimeMap: root.TimeMap });
+})(typeof self !== "undefined" ? self : this, function createEngine(deps) {
 "use strict";
-(() => {
-/* ================= Volume: one control for the whole app ================= */
-const VK = "app_volume_v1";
-const VOL = (() => { try { return Object.assign({ song: 0.9, sounds: 0.7, muted: false }, JSON.parse(localStorage.getItem(VK) || "{}")); } catch (e) { return { song: 0.9, sounds: 0.7, muted: false }; } })();
-const liveCtx = new Set();
-const soundsGain = () => VOL.muted ? 0 : VOL.sounds;
-const songVol = () => VOL.muted ? 0 : VOL.song;
-(() => {
-  const RealAC = window.AudioContext || window.webkitAudioContext; if (!RealAC) return;
-  const destGet = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(RealAC.prototype), "destination") || Object.getOwnPropertyDescriptor(RealAC.prototype, "destination");
-  if (!destGet || !destGet.get) return;
-  class VolumeAC extends RealAC {
-    constructor(...args) { super(...args); const real = destGet.get.call(this); this.__vol = RealAC.prototype.createGain.call(this); this.__vol.gain.value = soundsGain(); this.__vol.connect(real); liveCtx.add(this); }
-    get destination() { return this.__vol || destGet.get.call(this); }
-    close() { liveCtx.delete(this); return super.close(); }
-  }
-  window.AudioContext = VolumeAC; if (window.webkitAudioContext) window.webkitAudioContext = VolumeAC;
-})();
-function applyVolume() {
-  liveCtx.forEach(c => { try { if (c.state !== "closed") c.__vol.gain.setTargetAtTime(soundsGain(), c.currentTime, 0.02); } catch (e) {} });
-  document.querySelectorAll("audio").forEach(a => { a.volume = songVol(); });
-  try { localStorage.setItem(VK, JSON.stringify(VOL)); } catch (e) {}
-}
+const TimeMap = deps && deps.TimeMap;
+if (!TimeMap || typeof TimeMap.forAnalysis !== "function") throw new Error("Track Teardown engine: createEngine({ TimeMap }) needs the TimeMap module (src/timemap.js)");
 /* ================= DSP ================= */
 const fftCache = {};
 function tables(n) {
@@ -1072,7 +1072,7 @@ function checkDuration(sec) {
   if (sec < LIMITS.minSeconds) throw new InputLimitError(`That file is only ${sec.toFixed(1)} s long. A teardown needs at least ${LIMITS.minSeconds} s to find a tempo and bars. For a single sound or a short loop, use Sample Lab.`);
 }
 /* Counters for tests and diagnostics: checkpoints reached, analyses stopped early. */
-const ANALYSIS_STATS = window.__analysisStats = { checkpoints: 0, aborted: 0 };
+const ANALYSIS_STATS = { checkpoints: 0, aborted: 0 }; // the page exposes it as window.__analysisStats
 /* `signal` (optional AbortSignal) is honoured at every checkpoint: between decoding and each analysis stage, and every
    few percent inside the long arrangement pass. The stages themselves are synchronous, so a cancel takes effect at the next
    checkpoint, not instantly (moving the work to a Web Worker is a separate, later change). */
@@ -1465,6 +1465,41 @@ async function analyze(file, onProg, opts_compare, signal) {
   if (!opts_compare) try { Object.defineProperty(result, "__buf", { value: ab, enumerable: false, configurable: true }); } catch (e) {}
   return result;
 }
+
+return Object.freeze({ analyze, transcribe, mag, detrend, acfAt, NAMES, CAM_MAJ, CAM_MIN, LIMITS, InputLimitError, fmtLen, ANALYSIS_STATS });
+});
+/* END src/engine.js */
+</script>
+<script>
+"use strict";
+(() => {
+/* ================= Volume: one control for the whole app ================= */
+const VK = "app_volume_v1";
+const VOL = (() => { try { return Object.assign({ song: 0.9, sounds: 0.7, muted: false }, JSON.parse(localStorage.getItem(VK) || "{}")); } catch (e) { return { song: 0.9, sounds: 0.7, muted: false }; } })();
+const liveCtx = new Set();
+const soundsGain = () => VOL.muted ? 0 : VOL.sounds;
+const songVol = () => VOL.muted ? 0 : VOL.song;
+(() => {
+  const RealAC = window.AudioContext || window.webkitAudioContext; if (!RealAC) return;
+  const destGet = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(RealAC.prototype), "destination") || Object.getOwnPropertyDescriptor(RealAC.prototype, "destination");
+  if (!destGet || !destGet.get) return;
+  class VolumeAC extends RealAC {
+    constructor(...args) { super(...args); const real = destGet.get.call(this); this.__vol = RealAC.prototype.createGain.call(this); this.__vol.gain.value = soundsGain(); this.__vol.connect(real); liveCtx.add(this); }
+    get destination() { return this.__vol || destGet.get.call(this); }
+    close() { liveCtx.delete(this); return super.close(); }
+  }
+  window.AudioContext = VolumeAC; if (window.webkitAudioContext) window.webkitAudioContext = VolumeAC;
+})();
+function applyVolume() {
+  liveCtx.forEach(c => { try { if (c.state !== "closed") c.__vol.gain.setTargetAtTime(soundsGain(), c.currentTime, 0.02); } catch (e) {} });
+  document.querySelectorAll("audio").forEach(a => { a.volume = songVol(); });
+  try { localStorage.setItem(VK, JSON.stringify(VOL)); } catch (e) {}
+}
+/* ================= DSP ================= */
+/* The analysis engine is src/engine.js, inlined in the <script> above as TTEngine (migration M2). These are the names the rest of
+   this page uses; everything else stays private to the engine. */
+const { analyze, mag, detrend, acfAt, NAMES, CAM_MAJ, CAM_MIN, LIMITS, InputLimitError, fmtLen, ANALYSIS_STATS } = TTEngine;
+window.__analysisStats = ANALYSIS_STATS; // counters for tests and diagnostics: checkpoints reached, analyses stopped early
 
 /* ================= Teaching rules ================= */
 const BANDS = ["Sub 20–60 Hz", "Bass 60–250 Hz", "Low mids 250–800", "Mids 0.8–2.5 kHz", "Presence 2.5–6 kHz", "Air 6–11 kHz"];

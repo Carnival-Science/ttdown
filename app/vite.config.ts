@@ -13,22 +13,28 @@ import path from "node:path";
 
 const APP = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(APP, "..");
-// The one canonical TimeMap. Never copied into app/; the legacy page inlines the same file (npm run sync:timemap).
-const TIMEMAP = path.join(REPO, "src", "timemap.js");
+// The framework-free modules shared with the legacy page. Never copied into app/; the legacy page inlines the same files
+// (npm run sync:timemap). Each is a classic UMD script.
+const SHARED = {
+  timemap: path.join(REPO, "src", "timemap.js"),        // musical time model
+  timingStore: path.join(REPO, "src", "timing-store.js"), // saved-teardown timing contract (docs/PERSISTENCE.md)
+  engine: path.join(REPO, "src", "engine.js"),           // the analysis engine (exports a factory: createEngine({ TimeMap }))
+};
+const SHARED_FILES = new Set(Object.values(SHARED));
 
 const sha256 = (file: string) => createHash("sha256").update(readFileSync(file)).digest("hex");
 const git = (cmd: string) => { try { return execSync(`git ${cmd}`, { cwd: REPO, stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); } catch { return null; } };
 const pkgVersion = (name: string) => JSON.parse(readFileSync(path.join(APP, "node_modules", name, "package.json"), "utf8")).version as string;
 
-/* src/timemap.js is a classic UMD script (module.exports in Node, a global in the legacy page). Give Vite an ES module
+/* The shared modules are classic UMD scripts (module.exports in Node, globals in the legacy page). Give Vite an ES module
    view of the same bytes: a local `module` object for the UMD branch, then a default export. Works identically in the
-   dev server and the production build, and never creates a window.TimeMap global. */
-function canonicalTimeMap(): Plugin {
+   dev server and the production build, and never creates a global (no window.TimeMap, TimingStore or TTEngine). */
+function canonicalSharedModules(): Plugin {
   return {
-    name: "ttdown-canonical-timemap",
+    name: "ttdown-canonical-shared-modules",
     enforce: "pre",
     transform(code, id) {
-      if (path.resolve(id.split("?")[0]) !== TIMEMAP) return null;
+      if (!SHARED_FILES.has(path.resolve(id.split("?")[0]))) return null;
       return { code: `const module = { exports: {} };\n${code}\nexport default module.exports;\n`, map: null };
     },
   };
@@ -44,19 +50,21 @@ export default defineConfig(({ mode }) => {
     testHooks: mode === "bench",
     gitSha: git("rev-parse HEAD"),
     gitDirty: (git("status --porcelain --untracked-files=no") ?? "") !== "",
-    timemapSha256: sha256(TIMEMAP),
+    timemapSha256: sha256(SHARED.timemap),
+    timingStoreSha256: sha256(SHARED.timingStore),
+    engineSha256: sha256(SHARED.engine),
     versions: { svelte: pkgVersion("svelte"), vite: pkgVersion("vite"), uiSdk: pkgVersion("@ui-sdk/svelte") },
   };
   return {
     base: "./",
-    plugins: [canonicalTimeMap(), svelte()],
-    resolve: { alias: { $timemap: TIMEMAP } },
+    plugins: [canonicalSharedModules(), svelte()],
+    resolve: { alias: { $timemap: SHARED.timemap, $timingstore: SHARED.timingStore, $engine: SHARED.engine } },
     define: {
       __BUILD_INFO__: JSON.stringify(build),
       __TEST_HOOKS__: JSON.stringify(mode === "bench"),
     },
     build: { outDir: `dist/${mode}`, emptyOutDir: true, sourcemap: false, target: "es2022" },
-    server: { host: "127.0.0.1", port: 5174, strictPort: true, fs: { strict: true, allow: [APP, TIMEMAP] } },
+    server: { host: "127.0.0.1", port: 5174, strictPort: true, fs: { strict: true, allow: [APP, ...SHARED_FILES] } },
     preview: { host: "127.0.0.1", port: 4174, strictPort: true },
   };
 });

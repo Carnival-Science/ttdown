@@ -15,6 +15,12 @@ const { sha256File } = require("./provenance");
 const VERSION_A_PAGE_SHA256 = "a14fea96191784e1c0c40c2d1da64e7b2a60b318f07d56b1faecc524836a7bab";
 const KINDS = ["legacy", "svelte"];
 
+// sha256 of src/engine.js as inlined in a page (same bytes the sync script writes), so legacy and Svelte runs name the engine alike.
+function inlinedEngineSha256(html) {
+  const m = html.match(/\/\* BEGIN src\/engine\.js[^\n]*\*\/\n([\s\S]*?)\n\/\* END src\/engine\.js \*\//);
+  return m ? require("node:crypto").createHash("sha256").update(m[1] + "\n").digest("hex") : null;
+}
+
 class TargetError extends Error { constructor(code, msg) { super(msg); this.name = "TargetError"; this.code = code; } }
 
 function legacyTarget({ root, page = "index.html" }) {
@@ -25,7 +31,9 @@ function legacyTarget({ root, page = "index.html" }) {
     kind: "legacy", canAnalyze: true,
     async start() {}, async stop() {},
     url: () => `file://${root}/${page}#teardown`,
-    describe: () => ({ kind: "legacy", variant: pageSha256 === VERSION_A_PAGE_SHA256 ? "frozen-version-a" : "working", loadedFrom: "file", page, pageSha256 }),
+    describe: () => ({ kind: "legacy", variant: pageSha256 === VERSION_A_PAGE_SHA256 ? "frozen-version-a" : "working", loadedFrom: "file", page, pageSha256,
+      // the engine inlined in this page: hash of the text between its markers (null for pages from before the engine was a module)
+      engineSha256: inlinedEngineSha256(fs.readFileSync(file, "utf8")) }),
     async verifyIdentity() { return null; },
     // Same steps, timeouts and record fields as the original inline code in run.js.
     async analyzeTrack(p, audioPath, rec) {
@@ -69,12 +77,12 @@ function svelteTarget({ root, build = "bench" }) {
     async stop() { if (server) { server.kill(); server = null; base = null; } },
     url() { if (!base) throw new TargetError("not-started", "start() the target first"); return `${base}app/dist/${build}/index.html#teardown`; },
     describe: () => ({ kind: "svelte", variant: build, loadedFrom: "http://localhost", entry: `app/dist/${build}/index.html`,
-      bundleSha256: manifest.bundleSha256, buildGitSha: manifest.gitSha, buildGitDirty: manifest.gitDirty, timemapSha256: manifest.timemapSha256 }),
+      bundleSha256: manifest.bundleSha256, buildGitSha: manifest.gitSha, buildGitDirty: manifest.gitDirty, timemapSha256: manifest.timemapSha256, engineSha256: manifest.engineSha256 }),
     // The page's own window.__build must match the externally computed manifest (same commit, same TimeMap source).
     async verifyIdentity(p) {
       const id = await p.evaluate(() => window.__build || null);
       if (!id) throw new TargetError("no-identity", "The page has no window.__build");
-      const bad = [["gitSha", id.gitSha, manifest.gitSha], ["timemapSha256", id.timemapSha256, manifest.timemapSha256], ["mode", id.mode, manifest.mode]].filter(([, a, b]) => a !== b);
+      const bad = [["gitSha", id.gitSha, manifest.gitSha], ["timemapSha256", id.timemapSha256, manifest.timemapSha256], ["mode", id.mode, manifest.mode], ["engineSha256", id.engineSha256, manifest.engineSha256]].filter(([, a, b]) => a !== b);
       if (bad.length) throw new TargetError("identity-mismatch", "Page identity does not match build-manifest.json: " + bad.map(([k, a, b]) => `${k} ${a} != ${b}`).join(", "));
       return id;
     },

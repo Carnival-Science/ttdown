@@ -10,6 +10,8 @@ export interface BuildInfo {
   gitSha: string | null;
   gitDirty: boolean;
   timemapSha256: string;
+  timingStoreSha256: string;
+  engineSha256: string;
   versions: { svelte: string; vite: string; uiSdk: string };
 }
 declare const __BUILD_INFO__: BuildInfo;

@@ -6,7 +6,7 @@
 //   node scripts/sync-timemap.js --check  exit 1 if any inlined copy differs from its src file (run by npm test)
 "use strict";
 const fs = require("node:fs"), path = require("node:path");
-const ROOT = path.resolve(__dirname, ".."), PAGE = path.join(ROOT, "index.html"), MODULES = ["timemap", "timing-store"];
+const ROOT = path.resolve(__dirname, ".."), PAGE = path.join(ROOT, "index.html"), MODULES = ["timemap", "timing-store", "engine"];
 let page = fs.readFileSync(PAGE, "utf8"), bad = 0, changed = 0;
 for (const name of MODULES) {
   const SRC = path.join(ROOT, "src", name + ".js"), file = `src/${name}.js`;

@@ -12,7 +12,11 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "paths": { "$timemap": ["./src/lib/timemap/timemap-module.d.ts"] }
+    "paths": {
+      "$timemap": ["./src/lib/timemap/timemap-module.d.ts"],
+      "$timingstore": ["./src/lib/persistence/timing-store-module.d.ts"],
+      "$engine": ["./src/lib/engine/engine-module.d.ts"]
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.svelte"]
 }
