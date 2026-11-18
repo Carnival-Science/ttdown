@@ -353,11 +353,32 @@ function genArrangement(a, gk) {
   return { label: `${t.n}, ${bar - 1} bars (about ${fmtT((bar - 1) * 240 / a.bpm)} at ${a.bpm} BPM)`, rows };
 }
 function drumBar(d, b, noFill) { return !noFill && b % 4 === 3 && d.fill ? Object.assign({ ghost: B16([]), roll: [], open: [] }, d.fill) : d; }
-function midiBytes(notes, bpm) {
-  const TPS = 24, ev = []; notes.forEach(n => { const on = Math.round(n.t * TPS), off = Math.max(on + 1, Math.round((n.t + n.dur) * TPS) - 1); ev.push([on, 0x90, n.midi, n.vel || 100]); ev.push([off, 0x80, n.midi, 0]); });
-  ev.sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+/* One Standard MIDI File (format 0, one track, 96 ticks per quarter). Note times are in 16th STEPS from bar 1 (n.t, n.dur), so what is written
+   is grid-quantized: onsets are whole steps, 24 ticks each (docs/MIDI_EXPORT.md). Every note ends one tick early, a short release gap.
+   Same-pitch notes never overlap in the file: a note still sounding when the next one of that pitch starts is cut off just before it
+   (the SMF spec leaves overlapping same-pitch notes ambiguous, and players disagree), and a second note with the same pitch and onset
+   is dropped as a duplicate. meta = { name, text } adds a track name and a text event; 4/4 is always stated, since exports are 4/4 only. */
+function midiBytes(notes, bpm, meta) {
+  if (!(bpm >= 20 && bpm <= 400)) throw new Error("midiBytes: tempo " + bpm + " BPM is outside 20 to 400");
+  const TPS = 24, ev = [], byPitch = new Map();
+  notes.forEach(n => {
+    const on = Math.round(n.t * TPS); if (!(on >= 0)) throw new Error("midiBytes: a note starts before bar 1 (step " + n.t + ")");
+    const off = Math.max(on + 1, Math.round((n.t + n.dur) * TPS) - 1); (byPitch.get(n.midi) || byPitch.set(n.midi, []).get(n.midi)).push({ on, off, midi: n.midi, vel: Math.max(1, Math.min(127, n.vel || 100)) });
+  });
+  byPitch.forEach(list => {
+    list.sort((x, y) => x.on - y.on || y.off - x.off);
+    for (let i = 0; i < list.length; i++) {
+      const x = list[i], nx = list.slice(i + 1).find(y => y.on > x.on); if (nx) x.off = Math.min(x.off, Math.max(x.on + 1, nx.on - 1));
+      if (i && list[i - 1].on === x.on) continue; // same pitch, same onset: the longer note (sorted first) stands
+      ev.push([x.on, 0x90, x.midi, x.vel], [x.off, 0x80, x.midi, 0]);
+    }
+  });
+  ev.sort((x, y) => x[0] - y[0] || x[1] - y[1] || x[2] - y[2]); // at one tick the note-offs come before the note-ons
   const vl = v => { const b = [v & 0x7f]; while ((v >>= 7)) b.unshift((v & 0x7f) | 0x80); return b; };
-  const us = Math.round(60000000 / bpm), trk = [0, 0xff, 0x51, 3, (us >> 16) & 255, (us >> 8) & 255, us & 255]; let last = 0;
+  const us = Math.round(60000000 / bpm), trk = []; let last = 0;
+  const text = (type, str) => { const b = Array.from(new TextEncoder().encode(str)); trk.push(0, 0xff, type, ...vl(b.length), ...b); };
+  if (meta && meta.name) text(0x03, meta.name); if (meta && meta.text) text(0x01, meta.text);
+  trk.push(0, 0xff, 0x51, 3, (us >> 16) & 255, (us >> 8) & 255, us & 255, 0, 0xff, 0x58, 4, 4, 2, 24, 8);
   ev.forEach(e => { trk.push(...vl(e[0] - last), e[1], e[2], e[3]); last = e[0]; }); trk.push(0, 0xff, 0x2f, 0);
   const n = trk.length; return new Uint8Array([0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1, 0, 96, 0x4d, 0x54, 0x72, 0x6b, (n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].concat(trk));
 }
@@ -426,10 +447,31 @@ function alignedWav(a) {
     else for (let c = 0; c < 2; c++) { const v = j >= 0 && j < ab.length ? src[c][j] : 0; dv.setInt16(o, Math.max(-1, Math.min(1, v)) * 32767, true); o += 2; } }
   return data;
 }
-function songMidiFiles(a) {
-  const N = songNotes(a), al = songAlign(a), sh = arr => arr.map(n => Object.assign({}, n, { t: n.t + al.ofs }));
-  const files = [["1 Kick", N.D.kick], ["2 Snare or clap", N.D.snare], ["3 Hi-hats", N.D.hats], [is808(a, genreOf(a)) ? "4 808" : "4 Bass", N.bass], ["5 Chords", N.chords], ["6 Hook (rough)", N.hook]];
-  return files.filter(f => f[1].length).map(([n, notes]) => ({ name: `${n} - full song.mid`, data: midiBytes(sh(notes), a.bpm) }));
+/* The MIDI files. Quantized and rough, and labelled so in the file names and track metadata: Kick, Snare and Hi-hats are the detected pattern;
+   808/Bass and Hook are the detected line folded to a 4-bar loop and repeated; Chords are SUGGESTED voicings built from the detected chord
+   names, not notes heard in the audio. opts.tempo is the BPM to write: the app passes the TimeMap export grid's tempo (what the tracked
+   beats actually follow, unrounded) so a long track does not drift off the audio; without it the analysis' tempo (a.bpm, 0.1 BPM steps) is used. */
+function songMidiFiles(a, opts) {
+  const N = songNotes(a), al = songAlign(a), sh = arr => arr.map(n => Object.assign({}, n, { t: n.t + al.ofs })), bpm = opts && opts.tempo != null ? opts.tempo : a.bpm;
+  const q = `quantized to the 16th-note grid from bar 1 at ${Math.round(bpm * 1000) / 1000} BPM, 4/4; not the original timing`;
+  const files = [
+    ["1 Kick", "1 Kick", N.D.kick, `Kick: detected pattern, ${q}`], ["2 Snare or clap", "2 Snare or clap", N.D.snare, `Snare or clap: detected pattern, ${q}`],
+    ["3 Hi-hats", "3 Hi-hats", N.D.hats, `Hi-hats: detected pattern, ${q}`],
+    is808(a, genreOf(a)) ? ["4 808", "4 808", N.bass, `808: detected bass line folded to 4 bars and repeated, ${q}`] : ["4 Bass", "4 Bass", N.bass, `Bass: detected bass line folded to 4 bars and repeated, ${q}`],
+    ["5 Chords (suggested)", "5 Chords", N.chords, `Chords: SUGGESTED voicings generated from the detected chord names, not transcribed from the audio; ${q}`],
+    ["6 Hook (rough)", "6 Hook", N.hook, `Hook: rough melody estimate folded to 4 bars and repeated, ${q}`]];
+  return files.filter(f => f[2].length).map(([n, label, notes, text]) => ({ name: `${n} - full song.mid`, data: midiBytes(sh(notes), bpm, { name: label, text }) }));
+}
+/* May the bar-aligned exports run, and why not. map is the TimeMap for this analysis (callers pass it: the domain has no TimeMap dependency);
+   confirmed is whether the person has confirmed the downbeat and 4/4. A tempo or meter correction made without the audio blocks everything
+   built on bars (stale), a refused grid (tempo changes, drift, other meters) stays refused whatever was confirmed, and a grid that is only
+   an assumption needs the confirmation. Returns { canExport, state, stale, reasons, needs, caveats, tempo } where tempo is the BPM to write. */
+function exportGate(a, map, confirmed) {
+  const stale = staleReasons(a); let el;
+  try { el = (confirmed ? map.confirmDownbeat().confirmMeter() : map).exportEligibility(); }
+  catch (e) { el = { state: "refused", reasons: ["no-grid"], needs: [], caveats: [], exportGrid: null }; }
+  const tempo = el.exportGrid ? el.exportGrid.bpm : null, canExport = !stale.length && el.state !== "refused" && (el.state === "allowed" || !!confirmed) && tempo != null;
+  return { canExport, state: el.state, stale, reasons: el.reasons, needs: el.needs, caveats: el.caveats, tempo };
 }
 const PART_NAMES = [["tempo", "Tempo"], ["key", "Key"], ["drums", "Drums"], ["mix", "Mix balance"]];
 function partScores(ref, me, c) {
@@ -896,5 +938,5 @@ const EXAMPLE = {
   sections: [{ label: "Intro", startBar: 0, bars: 16 }, { label: "Build", startBar: 16, bars: 8 }, { label: "Drop", startBar: 24, bars: 32 }, { label: "Breakdown", startBar: 56, bars: 16 }, { label: "Build", startBar: 72, bars: 8 }, { label: "Drop", startBar: 80, bars: 24 }, { label: "Outro", startBar: 104, bars: 15 }].map(s => Object.assign(s, { start: +(s.startBar * 1.92).toFixed(1), end: +((s.startBar + s.bars) * 1.92).toFixed(1) })),
   barSec: 1.92, nBars: 119, balance: [17, 33, 19, 15, 10, 6], width: 0.31, loudRms: -8.9, crest: 8.2, peakDb: -0.3
 };
-return Object.freeze({ recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
+return Object.freeze({ exportGate, recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
 });

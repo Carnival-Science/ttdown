@@ -11,16 +11,17 @@
   import { TimingStore } from "../lib/persistence/timing";
   import { saveFile, safeName } from "../lib/files/download";
 
-  const { zipStore, songMidiFiles, alignedWav, tdId, staleReasons } = domain as any;
+  const { zipStore, songMidiFiles, alignedWav, tdId, exportGate } = domain as any;
   const a = $derived(teardown.result as any);
   const map = $derived((gridOf(a) as any).map);
-  const staleWhy = $derived(staleReasons(a) as string[]);
-  const stale = $derived(staleWhy.length > 0);
   let confirmedFor = $state(""), downbeatOk = $state(false), meterOk = $state(false), note = $state("");
   const id = $derived(tdId(a) + "|" + (map ? map.fingerprint() : ""));
   const confirmed = $derived(confirmedFor === id);
   $effect(() => { void id; downbeatOk = false; meterOk = false; note = ""; });
-  const elig = $derived.by(() => { try { return (confirmed ? map.confirmDownbeat().confirmMeter() : map).exportEligibility(); } catch { return { state: "refused", reasons: ["no-grid"], needs: [], caveats: [] }; } });
+  // one decision for the page and for the download: stale results, refused grids and unconfirmed assumptions are all settled in domain.exportGate
+  const elig = $derived(exportGate(a, map, confirmed) as { canExport: boolean; state: string; stale: string[]; reasons: string[]; needs: string[]; caveats: string[]; tempo: number | null });
+  const staleWhy = $derived(elig.stale);
+  const stale = $derived(staleWhy.length > 0);
   const REASONS: Record<string, string> = {
     "tempo-changes": "The tempo changes during the track, so one fixed bar grid can't line up with it.",
     "tempo-not-constant": "The tempo isn't steady enough for one fixed bar grid.",
@@ -28,13 +29,16 @@
     "meter-not-4/4": "The meter isn't 4/4, and exports only support four beats per bar.",
     "meter-ambiguous": "The meter is ambiguous.", "meter-unsupported": "The meter isn't supported.", "no-grid": "There is no usable bar grid.",
   };
-  const blocked = $derived(stale || elig.state === "refused");
-  const canExport = $derived(!blocked && (elig.state === "allowed" || confirmed));
+  const canExport = $derived(elig.canExport);
   const buffer = $derived(bufferOf(a));
   const base = $derived(safeName(a.title, "song"));
   async function run(fn: () => Promise<string>) { try { note = await fn(); } catch (e) { note = "Couldn't save the file" + ((e as Error)?.message ? ": " + (e as Error).message.slice(0, 80) : "."); } }
   const data = () => run(async () => { await saveFile(`${base} - analysis.json`, JSON.stringify(TimingStore.forStorage(a), null, 1), "application/json"); return "Saved the analysis data, including the tracked beat times."; });
-  const midi = () => run(async () => { await saveFile(`${base} - full song MIDI ${Math.round(a.bpm)} BPM.zip`, zipStore(songMidiFiles(a)), "application/zip"); return "Saved. Unzip it: each file is one detected part and starts at bar 1. Put the song lined up to bar 1 (.wav) at bar 1 too and they match."; });
+  const midi = () => run(async () => {
+    const g = exportGate(a, map, confirmed); if (!g.canExport) throw new Error("these exports are blocked"); // decided again at the click, from the same rule as the button
+    await saveFile(`${base} - full song MIDI ${Math.round(g.tempo)} BPM.zip`, zipStore(songMidiFiles(a, { tempo: g.tempo })), "application/zip");
+    return "Saved. Unzip it: each file is one part and starts at bar 1, so put the song lined up to bar 1 (.wav) at bar 1 too. Notes are snapped to the 16th-note grid, not the original timing, and the chords are suggested voicings, not transcribed.";
+  });
   const wav = () => run(async () => {
     note = "Preparing the file…"; await new Promise(r => setTimeout(r, 30));
     await saveFile(`${base} - reference lined up to bar 1.wav`, alignedWav(a), "audio/wav");
