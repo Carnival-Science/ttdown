@@ -11,7 +11,7 @@ fs.mkdirSync(OUT, { recursive: true });
   const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'} ${msg}`); if (!ok) failed++; };
   const open = async () => {
     const p = await b.newPage(); p.on('pageerror', e => errs.push(String(e)));
-    await p.goto(`file://${ROOT}/index.html#teardown`); await p.waitForTimeout(300);
+    await p.goto(`${process.env.TT_APP_URL || `file://${ROOT}/`}index.html#teardown`); await p.waitForTimeout(300);
     // record every teardown the page renders and every status text it shows
     await p.evaluate(() => {
       window.__log = { td: [], status: [] }; let v; Object.defineProperty(window, '__td', { configurable: true, get: () => v, set: x => { v = x; window.__log.td.push(x && x.title); } });

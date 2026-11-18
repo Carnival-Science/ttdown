@@ -16,7 +16,7 @@ const ROOT = path.resolve(__dirname, '..'), SONGS = path.join(ROOT, 'test-songs'
       const os = OscillatorNode.prototype.start; OscillatorNode.prototype.start = function (when) { window.__clicks.push({ when, freq: this.frequency.value }); return os.apply(this, arguments); };
       const bs = AudioBufferSourceNode.prototype.start; AudioBufferSourceNode.prototype.start = function (when, offset) { window.__src = { when, offset }; return bs.apply(this, arguments); };
     });
-    await p.goto(`file://${ROOT}/index.html#teardown`); await p.waitForTimeout(300); return p;
+    await p.goto(`${process.env.TT_APP_URL || `file://${ROOT}/`}index.html#teardown`); await p.waitForTimeout(300); return p;
   };
   const load = async (p, file, title) => { await p.setInputFiles('#file', file); await p.waitForFunction(t => document.querySelector('#status').textContent.includes('Teardown ready for “' + t + '”'), title, { timeout: 120000 }); };
   const analysis = p => p.evaluate(() => { const a = window.__td; return { duration: a.duration, bpm: a.bpm, barSec: a.barSec, firstDown: a.firstDown, bpmConf: a.bpmConf, nBars: a.nBars, grid: a.grid || null }; });

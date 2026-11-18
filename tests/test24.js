@@ -13,7 +13,7 @@ const readRows = file => fs.readFileSync(file, 'utf8').trim().split('\n').map(l 
   const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'} ${msg}`); if (!ok) failed++; };
   for (const f of ['pop127_Amaj', 'pop127_pad300', 'pop127_pad1200', 'swing100_Dmin', 'trap142_Fsmin', 'house124_Cmin']) {
     const p = await b.newPage(); p.on('pageerror', e => errs.push(String(e)));
-    await p.goto(`file://${ROOT}/index.html#teardown`); await p.waitForTimeout(300);
+    await p.goto(`${process.env.TT_APP_URL || `file://${ROOT}/`}index.html#teardown`); await p.waitForTimeout(300);
     await p.addScriptTag({ path: path.join(ROOT, 'src/timemap.js') });
     await p.setInputFiles('#file', path.join(SONGS, `${f}.wav`));
     await p.waitForFunction(() => /ready|Couldn/.test(document.querySelector('#status').textContent), null, { timeout: 120000 });

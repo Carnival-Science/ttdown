@@ -17,7 +17,7 @@
   const mic = () => { if (!dictation) return; if (listening) dictation.stop().catch(() => {}); else dictation.start().catch((e: any) => { if (e && e.code === "not_granted") micHidden = true; }); };
 </script>
 
-<svelte:window onkeydown={e => { if (e.key === "Escape" && coach.isOpen) coach.close(); }} />
+<svelte:document onkeydown={e => { if (e.key === "Escape" && coach.isOpen) coach.close(); }} />
 <button class="coach-fab" type="button" aria-haspopup="dialog" aria-expanded={(coach.isOpen)} onclick={() => coach.toggle()}>{coach.isOpen ? "Hide coach" : "Ask the coach"}</button>
 <div class="coach-drawer" role="dialog" aria-label="Production coach" hidden={!coach.isOpen}>
   <div class="row" style="justify-content:space-between"><h2>Coach</h2><button class="btn" type="button" aria-label="Close the coach" onclick={() => coach.close()}>Close</button></div>

@@ -3,7 +3,8 @@
 //
 // The legacy page's contract (docs/SVELTE_MIGRATION.md §2.8), served the same way so bench/run.js and the browser tests read
 // both apps alike:
-//   window.__td               the result on screen (with its non-enumerable grid and __buf, exactly as the engine made it)
+//   window.__td               the result on screen (with its non-enumerable grid and __buf, exactly as the engine made it);
+//                             assigned once per teardown shown, as the legacy render() did
 //   window.__sn(a)            songNotes(a): the exported note times
 //   window.__analysisStats    { checkpoints, aborted } from the engine
 //   window.__rp(a)            no-op here (the legacy page re-rendered the plan; the Svelte plan is reactive)
@@ -26,7 +27,7 @@ export function installTestHooks(api: { route: () => RouteId; navigate: (id: Rou
   const def = (k: string, v: PropertyDescriptor) => Object.defineProperty(w, k, { configurable: true, ...v });
   def("TimeMap", { value: TimeMap });
   def("__ttdownTest", { value: Object.freeze({ route: api.route, navigate: api.navigate }) });
-  def("__td", { get: () => teardown.result });
+  def("__td", { value: teardown.result, writable: true }); // reassigned by the teardown state each time a teardown is shown
   def("__sn", { value: (a: unknown) => domain.songNotes(a) });
   def("__analysisStats", { value: engine.ANALYSIS_STATS });
   def("__rp", { value: () => {} });

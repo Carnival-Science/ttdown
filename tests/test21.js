@@ -1,4 +1,4 @@
-const path = require('path'), ROOTURL = 'file://' + path.resolve(__dirname, '..') + '/', SONGS = path.resolve(__dirname, '../test-songs') + '/', SAMPLES = path.resolve(__dirname, 'samples') + '/', OUT = path.resolve(__dirname, 'out') + '/'; require('fs').mkdirSync(OUT, { recursive: true });
+const path = require('path'), ROOTURL = process.env.TT_APP_URL || ('file://' + path.resolve(__dirname, '..') + '/'), SONGS = path.resolve(__dirname, '../test-songs') + '/', SAMPLES = path.resolve(__dirname, 'samples') + '/', OUT = path.resolve(__dirname, 'out') + '/'; require('fs').mkdirSync(OUT, { recursive: true });
 const { chromium } = require('playwright');
 (async () => {
   const b = await chromium.launch(); const errs = [];

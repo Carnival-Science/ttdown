@@ -16,7 +16,7 @@ fs.mkdirSync(OUT, { recursive: true });
       URL.createObjectURL = o => { const u = c(o); if (o instanceof File) { window.__live.add(u); window.__made++; } return u; };
       URL.revokeObjectURL = u => { window.__live.delete(u); return r(u); };
     });
-    await p.goto(`file://${ROOT}/index.html#teardown`); await p.waitForTimeout(300);
+    await p.goto(`${process.env.TT_APP_URL || `file://${ROOT}/`}index.html#teardown`); await p.waitForTimeout(300);
     return p;
   };
   const ready = (p, t) => p.waitForFunction(x => document.querySelector('#status').textContent.includes('Teardown ready for “' + x + '”'), t, { timeout: 120000 });

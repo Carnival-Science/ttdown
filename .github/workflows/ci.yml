@@ -93,7 +93,7 @@ jobs:
   # job above is unchanged. The app has its own lockfile (app/package-lock.json); Playwright comes from the root install.
   app:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -132,6 +132,12 @@ jobs:
 
       - name: "Analyzer parity: the Svelte app and the legacy page give identical predictions on every track"
         run: npm run app:parity
+
+      - name: "Feature parity: the legacy browser tests, run against the Svelte app"
+        run: npm run app:feature-tests
+
+      - name: "Data compatibility: legacy page and Svelte app read each other's saved data on the same origin"
+        run: node tests/app-storage-roundtrip.test.js
 
       - name: Upload build manifests and smoke screenshots
         if: always()

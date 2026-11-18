@@ -36,7 +36,7 @@
   const drop = (e: DragEvent) => { e.preventDefault(); over = false; void teardown.analyzeFile(e.dataTransfer?.files[0]); };
 </script>
 
-<svelte:window onkeydown={e => { if (e.key === "Escape" && teardown.running) teardown.cancel(); }} />
+<svelte:document onkeydown={e => { if (e.key === "Escape" && teardown.running) teardown.cancel(); }} />
 
 <header class="hero">
   <span class="eyebrow">Learn from the songs you love</span>

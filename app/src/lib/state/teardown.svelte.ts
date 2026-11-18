@@ -9,6 +9,7 @@ import { domain } from "../domain";
 import { loadHist, saveHist } from "../storage/data";
 
 const { EXAMPLE, fixSectionTimes } = domain;
+declare const __TEST_HOOKS__: boolean;
 const copy = (a: AnalysisResult) => withHidden(a, JSON.parse(JSON.stringify(a)) as AnalysisResult);
 
 class Teardown {
@@ -40,6 +41,8 @@ class Teardown {
     // identical between the two apps, so the same fields are added here.
     if (!example) { a.checks = a.checks || {}; a.stems = a.stems || {}; if (a.chords && (a.chords as { bars?: unknown }).bars) a.chordChecks = a.chordChecks || {}; }
     this.result = a; this.example = example; this.rev++;
+    // bench build only: like the legacy render(), assign window.__td once per teardown shown (tests observe these assignments)
+    if (__TEST_HOOKS__) (window as unknown as { __td: AnalysisResult }).__td = a;
   }
   refreshHistory() { this.history = loadHist(); }
   private save(a: AnalysisResult) { const r = saveHist(a); this.histNote = { text: r.note, bad: r.bad }; this.refreshHistory(); }

@@ -4,7 +4,7 @@
 
 Track Teardown listens to an MP3 in your browser and works out the tempo, key, song sections, drum pattern, chords, 808/bass line and a rough hook. It then turns that into a 13-step Build-it plan with MIDI you can import straight into FL Studio's Piano roll. It's a learning tool for producers: you study how a song is made by rebuilding it yourself, then make something original.
 
-Everything runs in one HTML file. The audio is analyzed locally in the browser and is never uploaded anywhere.
+Everything runs in the browser. The audio is analyzed locally and is never uploaded anywhere.
 
 ![Build it plan](docs/build-it.png)
 
@@ -62,9 +62,15 @@ Every benchmark run saves a full record to `tests/out/` and fails if any score d
 
 ## Run it
 
-Open `index.html` in a browser. That's it.
+The app is a Svelte 5 + Vite + TypeScript application in `app/` (see `docs/SVELTE_MIGRATION.md`). Its analysis and everything it computes come from the framework-free modules in `src/` (`engine.js`, `domain.js`, `timemap.js`, `timing-store.js`), which the previous single-file page (`index.html`, published as `/legacy.html`) also uses.
 
-For development, `npm run dev` serves it at http://localhost:5173. It serves only the app, `docs/`, `test-songs/` and `tests/samples/`, and only to this computer.
+```bash
+npm ci --prefix app
+npm --prefix app run dev          # http://127.0.0.1:5174, local only
+npm run app:build                 # app/dist/production (the site) and app/dist/bench (with test hooks)
+```
+
+The legacy page still opens directly from `index.html`. For development, `npm run dev` serves it at http://localhost:5173, plus the compiled app under `/app/dist/`. It serves only those, `docs/`, `test-songs/` and `tests/samples/`, and only to this computer.
 
 When it runs as a Claude artifact, saved teardowns, the journal and progress sync to your Claude account. On its own it falls back to your browser's local storage.
 
