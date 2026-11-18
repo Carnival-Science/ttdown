@@ -1,7 +1,7 @@
 # Track Teardown: Living Roadmap and Phase 0 Record
 
 Status values: **implemented · in progress · deferred · blocked · rejected · open** (not started).
-Last updated: 2026-11-17 (Phase 0, revised after PR #6 merged and after founder review). Update this file in every PR that changes an item's status.
+Last updated: 2026-11-18 (after PRs #6 to #16 merged and the second founder review). Update this file in every PR that changes an item's status.
 
 **Guiding milestone.** A producer uploads a reference track and learns something useful about its production that would otherwise take them a long time to work out. Benchmarks exist to make that result trustworthy. They are not the product, and nothing here should grow into a research platform ahead of putting the tool in front of producers (alpha study, Phase 11).
 
@@ -76,11 +76,11 @@ Rules: each step is a separate PR; algorithm, UI and architecture changes are no
 |---|---|---|---|
 | 0 | Integration route for PR #6 | – | **Done.** #6 merged; work proceeds from `main`. |
 | 1 | Roadmap update, Version A pinned (tag, stored predictions, reproduction recipe) | 0 | **Done in PR #7.** Frozen page reproduces the stored predictions for all 8 tracks. |
-| 2 | **Phase 2a: `TimeMap`, additive.** *(PR #8, open)* Pure module, no DOM; seconds ↔ beat/bar position; meter; tempo map; per-point provenance; uncertainty flag | 1 | Unit tests (round-trip, leading silence, nonzero first downbeat, pickup, drift, tempo change, unsupported meter, fallback labelled); `bench:parity` 104/104 and the 15 gates unchanged; index.html analysis output byte-identical |
-| 3 | **Reliability PRs** (a) stale-job guard *(PR #9)* (b) cancellation *(PR #10)* (c) object-URL ownership *(PR #11)* (d) input limits *(PR #12)*. Stacked in that order because all four edit `handle()`; each has tests that fail on the previous page | none | Each has Playwright tests that assert behaviour, e.g. a second upload during analysis wins; oversize files error and leave state intact; a cancelled job cannot write results |
-| 4 | **Phase 2b: deterministic fixtures** *(PR #13, stacked on #8; report in `docs/TIME_FIXTURES_BASELINE.md`)* (leading silence, pickup, half/double ambiguity, nonzero first downbeat, drift, tempo change, 3/4 and 6/8, long) with new seeds; run Version A on them | 2 | Fixtures deterministic; per-fixture failure table for Version A published **before any consumer is migrated**; baselines stored, nothing gated up |
-| 5 | **Benchmark scoring: scorable regions** (partial annotations) | 1 | Tests prove predictions outside an annotated span are not false positives, for beats, drums, bass and chords; synthetic scores unchanged. **Prerequisite for the real-music pilot** |
-| 6 | **Phase 2c: route consumers through `TimeMap`**, then exports restricted to verified constant-tempo 4/4 | 2, 4 | Paired Version A vs B on all fixtures; no gate drops; timeline-alignment tests on variable-tempo fixtures; export-refusal tests there; export-alignment tests on constant-tempo ones |
+| 2 | **Phase 2a: `TimeMap`, additive.** *(PR #8, merged; review fixes: confirmation states, pinned export grid, coverage, deep immutability, 64-bit fingerprint, meter fields)* Pure module, no DOM; seconds ↔ beat/bar position; meter; tempo map; per-point provenance; uncertainty flag | 1 | Unit tests (round-trip, leading silence, nonzero first downbeat, pickup, drift, tempo change, unsupported meter, fallback labelled); `bench:parity` 104/104 and the 15 gates unchanged; index.html analysis output byte-identical |
+| 3 | **Reliability PRs** (a) stale-job guard *(PR #9)* (b) cancellation *(PR #10)* (c) object-URL ownership *(PR #11)* (d) input limits *(PR #12; maximum duration reduced to 8:00 = the analysis coverage)*, all merged; test25 flake fixed in #14. Stacked in that order because all four edit `handle()`; each has tests that fail on the previous page | none | Each has Playwright tests that assert behaviour, e.g. a second upload during analysis wins; oversize files error and leave state intact; a cancelled job cannot write results |
+| 4 | **Phase 2b: deterministic fixtures** *(PR #13, merged; report in `docs/TIME_FIXTURES_BASELINE.md`; manifest v2: the 10-minute track became 7 minutes)* (leading silence, pickup, half/double ambiguity, nonzero first downbeat, drift, tempo change, 3/4 and 6/8, long) with new seeds; run Version A on them | 2 | Fixtures deterministic; per-fixture failure table for Version A published **before any consumer is migrated**; baselines stored, nothing gated up |
+| 5 | **Benchmark scoring: scorable regions** (partial annotations) *(PR #15, merged)* | 1 | Tests prove predictions outside an annotated span are not false positives, for beats, drums, bass and chords; synthetic scores unchanged. **Prerequisite for the real-music pilot** |
+| 6 | **Phase 2c: route consumers through `TimeMap`**, one at a time, in this order: (1) ruler, metronome, loops *(PR #16, merged)* (2) section times *(PR #19, open: drifting arrangement boundary F ±0.5 s 0.00 to 1.00 vs Version A; arrangement pass unchanged; in-analyzer re-binning tried and left out, it added false boundaries)* (3) chord intervals and the chord-check loops (4) drum and bass event timing and the check-by-ear overlay (5) MIDI and aligned-audio exports, behind the three-state gate. Original event timestamps stay available when quantized forms are generated. No new detection algorithms. | 2, 4 | Paired Version A vs B on all fixtures; no gate drops; timeline-alignment tests on variable-tempo fixtures; export-refusal tests there; export-alignment tests on constant-tempo ones |
 | 7 | **Phase 2d: corrections** recompute or invalidate dependents; `{original, corrected, source:"user"}`; no hard-coded 99 | 2, 6 | After a BPM/meter/downbeat edit, results equal a fresh analysis at those values or are marked stale and not exported |
 | 8 | Phase 1 pilot: two-track rehearsal then 12-track development set | 5, **rights-cleared audio and independent annotators (human, blocked)** | Manifest passes `run.js` checks; Version A and B reports on identical files; failure atlas; no accuracy claim before review |
 | 9 | Phases 3–10 | 6–8 | Scoped from the fixture and pilot failures. The versioned result schema (Phase 3) is designed with `TimeMap` to avoid two migrations |
@@ -97,11 +97,14 @@ Deliberately not next: UI workspace (Phase 5), comparison rewrite (6), AI contra
 | 0 | Pin Version A (tag, stored predictions, recipe) | **implemented** (`docs/BASELINE_A.md`) |
 | 1 | Synthetic regression gates | implemented (G0) |
 | 1 | Real-music harness, integrity checks, mir_eval cross-check | implemented (PR #6, merged; synthetic data only) |
-| 1 | Scorable regions for partially annotated tracks | open, **required before pilot** (step 5) |
+| 1 | Scorable regions for partially annotated tracks | implemented (PR #15, merged); **required before the pilot** |
 | 1 | Two-track rehearsal, 12-track pilot, held-out set | **blocked** (rights, annotators) |
 | 1 | Bass metrics on real data | blocked (scorer merged; no data). Melody scorer: open |
 | 2 | `TimeMap` (additive, with tests) | implemented (PR #8, open) |
-| 2 | Consumer migration (sections, chords, events, overlays, exports) | open (step 6) |
+| 2 | Consumer migration: ruler, metronome, 4-bar loop | implemented (PR #16, merged): 6 improved, 33 unchanged, 1 regressed with cause, vs pinned Version A |
+| 2 | Consumer migration: section times | implemented (PR #19, open) |
+| 2 | Arrangement measured on tracked bars inside the analyzer (audit D-2b) | deferred: tried, added false boundaries on 3 uniform tracks; needs its own evaluation |
+| 2 | Consumer migration: chords, drum/bass events, overlay, exports | open (step 6, items 3 to 5) |
 | 2 | Time-model fixtures and Version A failure report | implemented (PR #13, open) |
 | 2 | Correction-triggered recompute / invalidation | open (step 7) |
 | 3 | Versioned result schema, provenance, calibrated-or-unknown confidence | open |
@@ -130,3 +133,15 @@ Deliberately not next: UI workspace (Phase 5), comparison rewrite (6), AI contra
 - TimeMap is only as good as the beats it is given, and cannot see an octave error or a regular-but-wrong tracker. Step 6 (consumer migration) should therefore add a visible disclosure of the assumed 4/4 and show tempo alternatives where the fixtures show failures.
 - Step 6 should be done one consumer at a time, each compared against `bench/baselines/version-a/` on the synthetic set and on the time fixtures.
 - Open decisions for the founder: (1) allow export with an *assumed* 4/4 meter and a caveat, or require confirmation; (2) the input-limit values (200 MB, 15:00, 8 s minimum) from PR #12; (3) the 20 ms constant-grid tolerance, to be revisited with real recordings.
+
+## 8. Founder decisions recorded (2026-11-18)
+
+| Question | Decision |
+|---|---|
+| Should an assumed 4/4 require confirmation? | **Yes, before bar-dependent exports.** Analysis stays immediately accessible. Three states: supported grid and confirmed meter = allow; stable grid but assumed meter = request confirmation; significant drift, unreliable timing or unsupported meter = refuse the affected export. Confirmation is lightweight: audition the metronome, verify the first downbeat, confirm the meter. Original-audio playback and exports that need no musical grid are unaffected. Implemented in `TimeMap.exportEligibility()` (PR #8); the confirmation UI is not built yet. |
+| Input limits | 200 MB, 8 s minimum, -80 dBFS accepted provisionally; maximum full-teardown duration reduced to **8:00** (the analysis coverage). Header-duration probing is not a memory guarantee. Cancellation latency (up to about 0.65 s per stage on a 128 s song) accepted for this milestone. Long DJ mixes later, when the architecture supports them. |
+| 20 ms constant-grid tolerance | Accepted as a **provisional grid-export compatibility threshold, not an accuracy claim**. Configurable (`settings.gridTolerance`); max and RMS are reported; measured on the grid that is actually exported, pinned at the bar-one anchor. Revisit with real recordings. |
+| Separate workstreams | Drift: architecture (TimeMap migration). Wrong tempo octave: tempo interpretation. Tempo changes: tracking algorithm. Odd meters: musical structure recognition. Hi-hat recall: unresolved detection problem. Not one undifferentiated "DSP accuracy" bucket. |
+| Order after the migration | Real-music pilot, Version B analysis, paired A/B evaluation, then the professional analysis workspace. Do not become a research platform before putting the tool in front of producers. |
+
+Open: whether saved teardowns should keep the tracked beats (a saved drifting track now shows tracked section times next to a constant-tempo ruler; persisting the beats changes the saved-data format); the confirmation UI (metronome audition, first-downbeat check, meter confirm); the export-range behaviour for tracks longer than the tracked beats; a real-recording check of the 20 ms tolerance; the hi-hat recall investigation.

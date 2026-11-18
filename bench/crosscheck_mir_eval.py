@@ -76,5 +76,11 @@ for t in S["tracks"]:
             f = mir_eval.transcription.precision_recall_f1_overlap(ri, mir_eval.util.midi_to_hz(np.round(rp)), ei, ep, onset_tolerance=0.05, pitch_tolerance=50.0, offset_ratio=None)[2]
             same(f"{t['id']} bass note F", get(m, "bass.noteF"), f)
 
+    if "sections" in A and inp.get("sections"):
+        ri, _ = mir_eval.io.load_labeled_intervals(P("sections"))
+        ei = np.array([[x["start"], x["end"]] for x in inp["sections"]]) + sh
+        for w, key in [(0.5, "w05"), (3.0, "w3")]:
+            same(f"{t['id']} section boundaries F ±{w}s", get(m, f"sections.{key}.f"), mir_eval.segment.detection(ri + sh, ei, window=w, trim=True)[2])
+
 print(f"mir_eval {mir_eval.__version__} cross-check: {checks - fails}/{checks} values agree within {TOL} ({os.path.relpath(scores_path, ROOT)})")
 sys.exit(1 if fails else 0)

@@ -7,7 +7,7 @@ Status: the analyzer is unchanged. Phase 2c is moving the page's consumers onto 
 | Consumer | Status |
 |---|---|
 | Bar ruler, metronome clicks, "loop 4 bars from where I am" | **on TimeMap** (this step; table in `bench/baselines/version-a/consumers/ruler-metronome.md`) |
-| Section boundaries and arrangement | open |
+| Section times (timeline, section table, section loops, plan text) | **on TimeMap** (Phase 2c step 2): a section's bar numbers map to time through the tracked bars; the arrangement pass itself is unchanged |
 | Chord intervals (and the chord-check loops, which must move with them) | open |
 | Drum and bass event timing; the "check by ear" overlay | open |
 | MIDI and aligned-audio exports | open (gated by `exportEligibility()`) |
@@ -68,7 +68,7 @@ Errors are `TimeMapError` with a `code` (`too-few-beats`, `bad-beats`, `bad-dura
 Given the analyzer's result (`duration`, `bpm`, `barSec`, `firstDown`, optional non-enumerable `grid`), it returns an object whose `barStart(b)`, `barOf(t)` and `beats(from, to)` use the analysis's own bar numbering (bar 0 is the bar containing `firstDown`, exactly as sections and the chord grid number them), so the ruler and the chord and section views cannot disagree about which bar is which.
 
 - `kind: "tracked"`: built from the tracked beats, so bar lines and clicks follow tempo drift. The analyzer's 4/4 stays labelled "assumed".
-- `kind: "fallback-grid"`: one constant tempo, labelled. Used when there is no tracked grid (**a saved teardown does not keep it**), the grid is too short, the tracker and the analyzer disagree about the first downbeat by more than a tenth of a bar, or the user corrected the BPM (a stale tracked grid must not override a correction). With the result's own `barSec` it reproduces the legacy `firstDown + bar * barSec` exactly, so saved teardowns look as they always did. `reason` says why.
+- `kind: "fallback-grid"`: one constant tempo, labelled. Used when there is no tracked grid (a record saved before tracked timing was persisted; see `docs/PERSISTENCE.md`), the grid is too short, the tracker and the analyzer disagree about the first downbeat by more than a tenth of a bar, or the user corrected the BPM (a stale tracked grid must not override a correction). With the result's own `barSec` it reproduces the legacy `firstDown + bar * barSec` exactly, so saved teardowns look as they always did. `reason` says why.
 - It never throws; any failure becomes a labelled fallback. The page rebuilds it when the BPM, bar length, first downbeat or duration change.
 - `beats()` includes a beat up to 20 ms before `from` (callers play or draw it at `from`), so a first beat that lands a few ms before 0:00 is not lost.
 - The ruler draws bar lines outside the tracked beats dashed and the ruler carries the provenance (`data-grid`, tooltip).

@@ -16,7 +16,7 @@ const { sha256File } = require("./provenance");
 const { beats, validateBeats } = require("./loaders");
 const { identityProblems } = require("./holdout");
 const Regions = require("./regions");
-const KINDS = ["beats", "downbeats", "key", "chords", "drums", "bass"];
+const KINDS = ["beats", "downbeats", "key", "chords", "drums", "bass", "sections"];
 
 // Hash every annotation file a track lists; compare with the manifest's expected hashes.
 function annotationIntegrity(track, manifestDir) {
