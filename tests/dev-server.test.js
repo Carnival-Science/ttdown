@@ -28,6 +28,10 @@ srv.stdout.on("data", async d => {
     ["/package.json", 403, "not allowlisted"], ["/package-lock.json", 403, "not allowlisted"], ["/tests/out/", 403, "run records"],
     ["/versionA.bak.html", 403, "local copy"], ["/scripts/dev-server.js", 403, "source"], ["/INDEX.HTML", 403, "allowlist is exact-case"],
     ["/docs/missing.md", 404, "allowed but absent"],
+    ["/app/package.json", 403, "svelte app: package file"], ["/app/src/main.ts", 403, "svelte app: source"], ["/app/vite.config.ts", 403, "svelte app: config"],
+    ["/app/node_modules/svelte/package.json", 403, "svelte app: packages"], ["/app/dist/../src/main.ts", 403, "svelte app: traversal out of dist"],
+    ["/app/dist/%2e%2e/package.json", 403, "svelte app: encoded traversal"], ["/APP/dist/production/index.html", 403, "svelte app: exact case"],
+    ["/app/dist/no-such-build/index.html", 404, "svelte app: allowed but absent"],
   ];
   let fails = 0;
   for (const [p, want, why] of cases) { const got = await get(port, p); if (got !== want) { fails++; console.log(`FAIL ${p} -> ${got} (want ${want}, ${why})`); } }

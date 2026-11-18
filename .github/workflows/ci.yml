@@ -80,3 +80,46 @@ jobs:
             bench/out/time-fixtures/
           if-no-files-found: warn
           retention-days: 30
+
+  # Svelte application (app/, migration M1): type check, UI SDK import boundary, both builds, build manifests, and the
+  # browser smoke test against the Vite dev server and both compiled builds over localhost. Separate job, so the legacy
+  # job above is unchanged. The app has its own lockfile (app/package-lock.json); Playwright comes from the root install.
+  app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22 # Vite 8 needs ^20.19 or >= 22.12
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            app/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm ci --prefix app
+
+      - name: Type check (svelte-check, tsc) and UI SDK import boundary
+        run: npm run app:check
+
+      - name: Production and bench builds, with external build manifests
+        run: npm run app:build
+
+      - name: Browser smoke test (dev server, production build, bench build)
+        run: npm run app:smoke
+
+      - name: Upload build manifests and smoke screenshots
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: app-build
+          path: |
+            app/dist/*/build-manifest.json
+            app/tests/out/
+          if-no-files-found: warn
+          retention-days: 30

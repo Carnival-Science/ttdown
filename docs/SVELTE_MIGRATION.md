@@ -1,16 +1,37 @@
-# Svelte 5 migration: Phase M0 (discovery and baseline)
+# Svelte 5 migration: plan, M0 baseline and M1 record
 
-Status: **M0 complete, waiting for founder review before M1.** This branch changes no application code: not `index.html`, not `src/timemap.js`, not the analysis, not Version A, not any benchmark or threshold. New files: this document, the legacy screenshots in `docs/migration/m0/` and the script that captures them.
+Status: **M0 approved (2026-11-18). M1 implemented on this branch (§12), waiting for founder review before M2.** Nothing on this branch changes `index.html`, `src/timemap.js`, the analysis, Version A, any benchmark threshold or the production deployment. M0 added this document and the legacy screenshots (`docs/migration/m0/`); M1 adds the isolated `app/`, the benchmark target adapter and the CI job (§12).
 
 | | |
 |---|---|
 | Migration source commit | `b2f05513b81787cfbc93632db98d1014fd2224ba` (`origin/main`, merge of PR #16, 2026-11-17) |
-| `index.html` at that commit | 411,107 bytes, 3,702 lines, sha256 `416e8d4fee9700576d816ff818ce85c14de7fd96e85f42369dd11f6a6ec3a970` (differs from Version A's `a14fea96…` because of the reliability and Phase 2c step 1 PRs; the analysis output is unchanged, see §5` |
+| `index.html` at that commit | 411,107 bytes, 3,702 lines, sha256 `416e8d4fee9700576d816ff818ce85c14de7fd96e85f42369dd11f6a6ec3a970` (differs from Version A's `a14fea96…` because of the reliability and Phase 2c step 1 PRs; the analysis output is unchanged, see §5) |
 | Version A (never modified) | tag `analyzer-baseline-a` → `07b9012e5e1236137cb49d3d7bbc18554c06be6e` (`docs/BASELINE_A.md`) |
 | Branch | `migration/svelte5`, worked in a separate git worktree so the main checkout (used by other sessions) was not switched |
-| Roadmap note | `docs/ROADMAP.md` §5 lists "Framework migration (React/Svelte/Next/TypeScript)" as *rejected for this assignment*. The founder has now asked for a Svelte 5 migration; the roadmap row should be updated when M1 is approved (not done here, because roadmap PR #17 is open and edits the same file). |
+| Roadmap note | `docs/ROADMAP.md` §5 lists "Framework migration (React/Svelte/Next/TypeScript)" as *rejected for this assignment*. The founder approved the Svelte 5 migration on 2026-11-18 (§0); the roadmap row is updated by whoever next edits `docs/ROADMAP.md` (roadmap PR #17 is open on the same file, so this branch does not touch it). |
 
-**Rule for everything below.** A *migration regression* is a difference between the Svelte app and the legacy app on the same input. An *existing defect* is something the legacy app already does wrong (listed in §8 with its source). The migration must reproduce existing defects faithfully unless a separate, separately reviewed PR fixes them; it must not quietly fix or worsen them. No accuracy claim is made here beyond the synthetic benchmark evidence in §5, which is regression evidence, not real-music accuracy.
+**Rule for everything below.** A *migration regression* is a difference between the Svelte app and the legacy app on the same input. An *existing defect* is something the legacy app already does wrong (listed in §8 with its source). **Analysis results** must match the legacy engine exactly: analysis defects are reproduced faithfully and fixed only by separately reviewed analysis PRs, measured against Version A. **Interface defects** (clipped navigation, controls covering content on phones, mid-word breaks) do not have to be reproduced (founder, 2026-11-18): the new app preserves functionality, not layout bugs. No accuracy claim is made here beyond the synthetic benchmark evidence in §5, which is regression evidence, not real-music accuracy. **No Svelte analyzer parity is claimed until the Svelte app actually executes the extracted analysis engine** (M3).
+
+## 0. Founder decisions (2026-11-18, after M0 review)
+
+| Question | Decision |
+|---|---|
+| Approve M1? | Yes, with the amendments below. |
+| Continue Phase 2c in legacy? | **Yes.** Analysis development is not interrupted. The Svelte app synchronises with it periodically; M2 (engine extraction) is done in a short integration window agreed with the analysis workstream. |
+| Export confirmation screen | **Legacy first**, with reusable, domain-level export validation logic (not UI code), so the Svelte app reuses the same validation later. Owned by the analysis/Phase 2c workstream, not this branch. |
+| UI SDK beta | **Adopt**, pinned to the tested versions, with API dependencies isolated. TTdown owns its design system and audio-specific components; UI SDK is an implementation detail behind `app/src/lib/ui/`. |
+| Single-file Claude artifact | **Not a requirement.** The new app is a conventional multi-file Vite build (room for Web Workers, WebAssembly, lazy-loaded analysis, independently cached assets, larger models). A single-file build may be an optional experiment later. |
+
+| Amendment | What it means here |
+|---|---|
+| Default view | **Teardown** is the default destination of the new app (empty or unknown hash). Learn, Sample Lab and Journal stay reachable as secondary views. |
+| Runtime integrations | Claude integrations (`db`, `user`, `downloads`, `sample`, `dictation`) stay optional. Their absence must not block cutover. |
+| Build provenance | Hashes of the compiled assets are computed **externally**, after the build (`app/scripts/build-manifest.mjs`). The bundle embeds only source facts (commit, versions, TimeMap source hash), never a hash of itself. |
+| Reactive state | `$state.raw` results are never mutated in place: corrections apply by **explicit replacement** (a new result object) or a revision counter, because nested mutations of raw state do not trigger updates. |
+| Test hooks | Compatible hooks exist in the **bench/test build only**. Production builds do not expose decoded audio buffers or analysis internals through globals. |
+| Audio | The global `AudioContext` monkey-patch (volume) is **replaced** by explicit audio ownership (one audio service that owns contexts and gain routing) when playback migrates, under behaviour tests equivalent to the legacy volume tests. |
+| Storage | Matching keys is not enough: bidirectional compatibility is verified **on the same origin**. Different preview or deployment domains have separate storage, so the cutover plan must say which origin the users' data lives on. |
+
 
 ---
 
@@ -188,24 +209,30 @@ Corrections mutate the result in place and are saved via `saveHist`.
 ### 4.1 Layout
 
 ```
-app/                        Svelte 5 + Vite + TypeScript (new; nothing outside app/ moves in M1)
+app/                        Svelte 5 + Vite + TypeScript, own package.json and lockfile (M1: exists)
   index.html                Vite entry
-  vite.config.ts
-  tsconfig.json
+  vite.config.ts            modes: development, production (dist/production), bench (dist/bench, test hooks)
+  tsconfig.json, tsconfig.node.json, svelte.config.js
+  scripts/                  build-manifest.mjs (external asset hashes), check-ui-boundary.mjs
+  tests/smoke.mjs           browser smoke test (dev server, both builds)
   src/
-    main.ts                 mounts App, imports @ui-sdk/core/web.css
-    App.svelte              shell: header, nav, Display, Volume, LCD, routes
-    routes/                 Learn, Teardown, SampleLab, Journal (hash router)
+    main.ts                 imports styles, installs window.__build, mounts App
+    App.svelte              shell: header, nav, about-this-build popover, routes
+    routes/                 Teardown (default), Learn, SampleLab, Journal (hash router)
     teardown/               Overview, BuildIt, IdeaGenerator, SongMap, SoundsMix, Compare
     lib/
       engine/               typed facade over the analysis engine (no Svelte, no DOM beyond Web Audio)
-      timemap.ts            typed re-export of ../../src/timemap.js (single canonical copy)
+      timemap/              typed re-export of ../../src/timemap.js (single canonical copy) + self-check
+      ui/                   TTdown components wrapping UI SDK (the only place that imports @ui-sdk/*)
+      design/               tokens.css (TTdown design tokens), base.css
+      routing/              routes + hash router
+      build/identity.ts     window.__build (source facts only)
       storage/              localStorage + Claude account adapters, same keys and doc ids
       runtime/claude.ts     typed wrappers for window.claude.use(db|user|downloads|sample|dictation)
       export/               MIDI, zip, aligned WAV, share/review pages (pure functions)
-      audio/                volume routing, players, metronome, overlay synth
-      state/*.svelte.ts     runes-based stores ($state, $derived) for current teardown, history, settings
-      testing/hooks.ts      installs window.__td, __sn, __analysisStats, __loop (always on; same contract as legacy)
+      audio/                one audio service that owns AudioContexts and gain routing (replaces the monkey-patch), players, metronome, overlay synth
+      state/*.svelte.ts     runes-based stores; analysis results in $state.raw, replaced (never mutated) on correction
+      testing/hooks.ts      bench build only: window.TimeMap, __ttdownTest now; __td, __sn, __analysisStats, __loop from M3
 src/timemap.js              unchanged, still the single source of truth
 src/engine/                 (M2) analysis engine extracted from index.html, framework-independent, plain JS + .d.ts
 index.html                  legacy app, untouched until cutover
@@ -219,7 +246,7 @@ index.html                  legacy app, untouched until cutover
 
 ### 4.3 Single canonical TimeMap
 
-`src/timemap.js` stays the only implementation. The Svelte app imports it through a tiny typed wrapper (`app/src/lib/timemap.ts` + `timemap.d.ts`); Vite handles the CommonJS/global shape. No TypeScript port, no second copy. The legacy page keeps its inlined copy via `sync:timemap`. A test asserts the Svelte bundle contains no other TimeMap implementation.
+`src/timemap.js` stays the only implementation. The Svelte app imports it as `$timemap` through a typed wrapper (`app/src/lib/timemap/`). A small Vite plugin (`vite.config.ts`, `ttdown-canonical-timemap`) gives Vite an ES-module view of the same bytes (a local `module` object for the UMD branch, then `export default`), identically in the dev server and the production build, and without creating a `window.TimeMap` global. No TypeScript port, no second copy. The legacy page keeps its inlined copy via `sync:timemap`. The smoke test checks that the dev server and both builds compute the same fingerprint as Node, and that every distinctive string of `src/timemap.js` appears exactly once in each bundle.
 
 ### 4.4 Typed engine contract
 
@@ -234,7 +261,7 @@ export function gridOf(r: AnalysisResult): TrackedGrid | undefined;    // reads 
 export function bufferOf(r: AnalysisResult): AudioBuffer | undefined;
 ```
 
-Rules: the engine keeps attaching `grid` and `__buf` with `Object.defineProperty(…, { enumerable: false, configurable: true })`; the TypeScript type **does not** declare them as fields (so `JSON.stringify`, spreading and Svelte `$state` proxies cannot be written to depend on them); access goes only through `gridOf`/`bufferOf`. Results are held with `$state.raw` (not deep `$state`), because a deep proxy would not carry non-enumerable properties through copies and would make `__buf` reactive. A unit test checks that a stored, re-loaded and proxied result keeps the legacy JSON byte-for-byte and that `gridOf` survives where it must.
+Rules: the engine keeps attaching `grid` and `__buf` with `Object.defineProperty(…, { enumerable: false, configurable: true })`; the TypeScript type **does not** declare them as fields (so `JSON.stringify`, spreading and Svelte `$state` proxies cannot be written to depend on them); access goes only through `gridOf`/`bufferOf`. Results are held with `$state.raw` (not deep `$state`), because a deep proxy would not carry non-enumerable properties through copies and would make `__buf` reactive. Because nested mutations of `$state.raw` do not trigger updates, corrections (key, BPM, drum steps) are applied by **replacing** the result: a pure `applyCorrection(result, edit) → newResult` that copies the enumerable fields, re-attaches `grid`/`__buf` with `defineProperty`, and is assigned back (or, where copying a buffer reference is wrong, a `revision` counter in `$state` that views depend on). The legacy in-place mutation is not reproduced; the saved JSON must still be identical. A unit test checks that a stored, re-loaded and proxied result keeps the legacy JSON byte-for-byte and that `gridOf` survives where it must.
 
 ### 4.5 UI SDK (verified, not assumed)
 
@@ -261,7 +288,7 @@ Planned mapping (only documented props; each confirmed against the installed `.d
 
 `svelte` 5.57.3 (≥ 5.33 required by UI SDK), `vite` 8.3.8 (Node ^20.19 or ≥ 22.12; CI uses Node 22, this machine 24.19), `@sveltejs/vite-plugin-svelte` 7.3.1 (peer `vite ^8`, `svelte ^5.46.4`), `svelte-check` 4.7.8. **`typescript` must be pinned to 6.x (6.0.3)**: `latest` is 7.0.2 but `svelte-check` declares `typescript ^5.0.0 || ^6.0.0`. Plain Vite + Svelte (not SvelteKit): the app is a static single page with hash routes and no server.
 
-**Single-file output.** The legacy app also runs as a single-file Claude artifact and from `file://`. The Svelte build should therefore offer a single-file output (`vite-plugin-singlefile` 2.3.4, MIT, peer `vite ^8`) that inlines JS and CSS into one HTML. Inline module scripts run from `file://`, which would let the existing `file://`-based harness load the Svelte build unchanged. To be proven in M1 (it is the main technical unknown).
+**Build output (decided 2026-11-18).** A conventional multi-file Vite build with relative asset paths (`base: "./"`), so it can be served from any static host or sub-path. No single-file build and no Claude-artifact packaging are required; `vite-plugin-singlefile` is not used. The compiled app is loaded over `http://localhost` by the harness and tests; only the legacy targets keep using `file://`. Fonts are not loaded from Google Fonts in the new app (privacy, offline benchmarking); the font stacks fall back to system fonts until the fonts are self-hosted (to decide in M4).
 
 ---
 
@@ -294,11 +321,11 @@ Goal: the same harness, the same manifests and the same scorer measure three bui
 |---|---|---|
 | **Frozen legacy** (Version A) | `git show analyzer-baseline-a:index.html > versionA.bak.html`, `file://` (as today) | Reference; never changes |
 | **Current legacy app** | repo `index.html`, `file://` (as today) | Moves with Phase 2c; the parity target |
-| **Svelte app** | `npm run build` in `app/` → `app/dist/`; single-file build over `file://`, or the multi-file build over `http://localhost` from an allowlisted static server | Candidate |
+| **Svelte app** | `npm run app:build` → `app/dist/bench/` (test hooks) or `app/dist/production/`, served over `http://localhost` by `scripts/dev-server.js` (allowlist extended to `app/dist/` only) | Candidate; cannot analyse until M3 |
 
-1. **Test adapter, not test rewrites.** A small module (`bench/lib/target.js`) gives `run.js` and `tests/benchmark.js` one interface: `open(page)`, `upload(path)`, `waitDone()`, `readResult() → { full, grid, exported }`, `buildIdentity()`. Implementations: `legacyFileTarget` (today's code path, unchanged output) and `svelteTarget` (file or localhost). Both drive `#file` / `#status` and read `window.__td`, `window.__sn`, `gridOf(__td)`; the Svelte app installs the same hooks (§2.8), so the adapter is thin. Default stays the legacy page, so existing commands and stored baselines are unaffected.
-2. **localhost serving.** Extend `scripts/dev-server.js`'s allowlist with `app/dist/` only (keeping deny-by-default, host checks and its 32 security tests), or serve `app/dist` with `vite preview --host 127.0.0.1 --strictPort`. No other paths.
-3. **Build identity in every output.** `predictions.json` already records `page`, `pageSha256`, head SHA and dirty flag. Add `target: "legacy-frozen" | "legacy" | "svelte"`, `appVersion`, `appBuildSha` (git SHA the bundle was built from, injected by Vite `define`), `bundleSha256`, `engineSha256` (hash of the engine file actually loaded) and `timemapSha256`. The Svelte app also exposes them on `window.__build`. `score.js` prints them in `report.md`.
+1. **Test adapter, not test rewrites.** `bench/lib/target.js` (M1: done) gives `run.js` one interface: `start()`, `url()`, `analyzeTrack(page, audio, record)`, `verifyIdentity(page)`, `describe()`, `stop()`. Implementations: `legacy` (the former inline code of `run.js`, moved unchanged; `file://`) and `svelte` (localhost; `canAnalyze: false` until M3, so `run.js --target svelte` exits 2 instead of producing predictions). `tests/benchmark.js` (G0 gates) is not routed through it yet. Both drive `#file` / `#status` and read `window.__td`, `window.__sn`, `gridOf(__td)`; the Svelte app installs the same hooks (§2.8), so the adapter is thin. Default stays the legacy page, so existing commands and stored baselines are unaffected.
+2. **localhost serving.** `scripts/dev-server.js`'s allowlist now includes `app/dist/` only, with JavaScript/CSS/JSON content types (module scripts are refused under `nosniff` otherwise); deny-by-default and host checks unchanged, and its security test grew from 32 to 40 checks (app source, config, packages, traversal out of `dist`, exact case).
+3. **Build identity in every output.** `predictions.json` already records `page`, `pageSha256`, head SHA and dirty flag; it now also records `target` (`{ kind: "legacy", variant: "working" | "frozen-version-a", loadedFrom: "file", page, pageSha256 }`, or for Svelte `{ kind, variant: build, loadedFrom: "http://localhost", entry, bundleSha256, buildGitSha, buildGitDirty, timemapSha256 }`). Compiled-asset hashes come from `app/dist/<build>/build-manifest.json`, written after the build; the page's own `window.__build` (commit, mode, versions, TimeMap source hash) must match it or the target refuses (`verifyIdentity`). `engineSha256` is added in M2, when the engine is a file. Printing `target` in `report.md` is left to M3, when there is a second target to compare.
 4. **Parity acceptance.** For the Svelte target: `predictions.json` per-track `full`, `grid` and `exported` **identical** to the current legacy page at the same engine commit (ignoring runtime/date fields), on the 8 synthetic songs and the 12 time fixtures; `bench:parity` 104/104; 15/15 gates; `bench:crosscheck` 120/120. Any difference is a migration regression until explained.
 5. **Feature tests.** The existing `tests/test*.js` stay as the legacy suite. Svelte gets its own behaviour tests (Playwright against the Svelte build) written from the parity matrix (§7), asserting behaviour rather than copying legacy selectors; the analysis-dependent ones (test21, 24, 25–29) are ported first with the same assertions.
 
@@ -310,13 +337,13 @@ Each milestone is its own PR, measured before and after, and reviewed before the
 
 | | Scope | Acceptance |
 |---|---|---|
-| **M1: scaffold + harness adapter** | `app/` with Vite 8, Svelte 5 (runes), TypeScript 6, `svelte-check`, UI SDK pinned; an empty shell that renders the header and the four routes; typed TimeMap import from `src/timemap.js`; `window.__build`; single-file build proven from `file://` or localhost fallback; `bench/lib/target.js` adapter with the legacy target only (outputs byte-identical to today apart from new identity fields); CI job building the app | `npm test`, `benchmark`, all `bench:*` unchanged; `svelte-check` 0 errors; build works from `file://` (or the documented fallback); no change to `index.html` or `src/timemap.js` |
+| **M1: scaffold + harness adapter** *(done, §12)* | `app/` with Vite 8, Svelte 5 (runes), TypeScript 6, `svelte-check`, UI SDK pinned; shell with Teardown default and three secondary views; initial design tokens; UI SDK behind TTdown components; canonical TimeMap import verified in dev and production builds; build-identity contract with external asset hashes; `bench/lib/target.js` (legacy + svelte targets); CI job; browser smoke test | `npm test`, `benchmark`, all `bench:*` unchanged; legacy predictions identical; `svelte-check` 0 errors, 0 warnings; smoke test green on dev, production and bench; no change to `index.html` or `src/timemap.js` |
 | **M2: engine extraction** | Move lines 851–1366 to `src/engine/` (plain JS + `.d.ts`), inline it back into `index.html` with markers + `sync:engine` + sync test, exactly like TimeMap; inject `probeDuration`; typed facade; **coordinated with Phase 2c** (engine code is not what 2c changes, but `index.html` is; land between 2c steps) | legacy `index.html` analysis output byte-identical (`bench:synthetic`, `bench:time-fixtures` predictions equal to before, ignoring runtime); `bench:parity` 104/104; 15/15 gates |
 | **M3: Teardown in Svelte** | Upload, cancel, limits, job tokens and URL ownership (port test25–28 semantics), history, Overview, Song map (ruler/metronome/loop on TimeMap, whatever Phase 2c state is current), Build it, exports; Svelte target in the adapter | Svelte predictions identical to current legacy on all 20 tracks; ported tests pass on both; desktop + phone screenshots reviewed |
 | **M4: remaining views** | Idea generator, Sounds and mix, Compare, Learn, Sample Lab, Journal, Coach, session timer, Display, Volume; Claude runtime wrappers (db/user/downloads/sample/dictation) with the same keys and doc ids | Every parity-matrix row passes; data written by legacy is read by Svelte and vice versa (§8.2) |
 | **M5: cutover** | Svelte build becomes the default page; legacy kept as `legacy.html` for one release; README, ROADMAP, CI updated | §9 checklist; rollback rehearsed |
 
-**Phase 2c coordination.** Proposal: Phase 2c steps 2–5 continue in the legacy `index.html` (they are measured there against Version A, and the harness runs there today). The Svelte views for the timeline (M3) are built after step 2 lands and re-synced after each later step; the parity target is "current legacy at commit X", recorded in each M3/M4 PR. The alternative, freezing Phase 2c until M3, delays the export fix; not recommended.
+**Phase 2c coordination (decided).** Phase 2c steps 2–5, Phase 2d corrections and the export confirmation screen continue in the legacy `index.html`, measured against Version A. The Svelte timeline views (M3) follow them; the parity target is "current legacy at commit X", recorded in each M3/M4 PR. M2 (engine extraction) needs a short integration window agreed with the analysis workstream: no Phase 2c PR open against the engine lines while it lands.
 
 ### Feature parity matrix
 
@@ -324,7 +351,7 @@ Status column is for the migration PRs to fill (`–` = not started).
 
 | # | Feature | Legacy evidence | Persisted / integration | Svelte test needed | Status |
 |---|---|---|---|---|---|
-| 1 | Hash routes `#learn` (default), `#teardown`, `#samples`, `#journal` | `route()` | – | routing, default, unknown hash | – |
+| 1 | Hash routes `#teardown`, `#learn`, `#samples`, `#journal` (legacy default Learn; **new default Teardown**, §0) | `route()` | – | routing, default, unknown hash | **M1 done** (smoke test) |
 | 2 | Upload (input, drag-drop, title), progress, status text | `handle()` | – | harness contract `#file`, `#status` | – |
 | 3 | Input limits (200 MB, empty, < 8 s, > 8:00 from header and after decode) | `analyze`, test28 | – | port test28 | – |
 | 4 | Cancel button + Esc; stale-job guard; object-URL ownership | test25–27 | – | port test25–27 | – |
@@ -348,12 +375,12 @@ Status column is for the migration PRs to fill (`–` = not started).
 | 22 | Journal cards, exports list | test18 | `beat_journal_v1` / `jr-*` | | – |
 | 23 | Learn: missions, shortcuts, FL coach, practice log, ear training | test18 (ear, today) | `fl_campaign_v1`, `fl_log_v1`, `ear_training_v1`; `progress`, `s-*` | | – |
 | 24 | Coach panel (context per view, streaming, abort, dictation) | | `sample`, `dictation` | runtime mock | – |
-| 25 | Account sync, local fallback, one-time migration, quota message | `initAccount` | `db`, `user` | runtime mock incl. offline/timeout | – |
-| 26 | Volume (song / app sounds / mute) applied to every AudioContext and `<audio>` | lines 829–850, test19 | `app_volume_v1` | | – |
+| 25 | Account sync, local fallback, one-time migration, quota message (optional: absence never blocks) | `initAccount` | `db`, `user` | runtime mock incl. offline/timeout and absent runtime | – |
+| 26 | Volume (song / app sounds / mute) applied to every sound and `<audio>`; via an audio service, not an `AudioContext` monkey-patch (§0) | lines 829–850, test19 | `app_volume_v1` | equivalent of test19 | – |
 | 27 | Display (size, spacing, accent, sticky header) | | `display_v1` | | – |
-| 28 | Test hooks `__td`, `__sn`, `__rp`, `__analysisStats`, `__loop`, `TimeMap`, `grid`, `__buf` | §2.8 | – | contract test | – |
+| 28 | Test hooks `__td`, `__sn`, `__rp`, `__analysisStats`, `__loop`, `TimeMap`, `grid`, `__buf` (bench build only; none in production) | §2.8 | – | contract test | partly: `TimeMap`, `__ttdownTest`, `__build` in M1 |
 | 29 | Accessibility: `aria-pressed` tabs, `role=status`, reduced motion, keyboard | | – | axe + keyboard pass | – |
-| 30 | Phone layout (no horizontal scroll, sticky bars measured) | screenshots §10 | – | 375 px screenshots | – |
+| 30 | Phone layout (no horizontal scroll, nothing clipped or covered; legacy layout defects not reproduced) | screenshots §10 | – | 375 px screenshots | shell: M1 done |
 
 ---
 
@@ -365,13 +392,15 @@ Status column is for the migration PRs to fill (`–` = not started).
 |---|---|
 | Phase 2c changes the timeline code while it is being ported (moving target) | §7 coordination; record the legacy commit each Svelte PR matches |
 | Engine extraction changes analysis by accident (closure variables, `tick()`, constants shared with UI) | Byte-identical predictions gate in M2; sync test like TimeMap |
-| `file://` does not run multi-file Vite output; Claude artifact needs one file | single-file build proven in M1, or localhost adapter |
+| `file://` does not run multi-file Vite output | Decided: the Svelte target is served over localhost; only legacy targets use `file://`. Single-file is not a requirement |
 | Svelte `$state` deep proxies drop or expose non-enumerable `grid`/`__buf`; reactivity on a 100 MB `AudioBuffer` | `$state.raw` for results and buffers; accessor functions; contract test |
-| The `AudioContext` monkey-patch (volume) must be installed before any audio code creates a context, including UI SDK or libraries | install in `main.ts` before mounting; test that every context is routed |
+| The legacy volume control monkey-patches `window.AudioContext` | Decided: replace with explicit audio ownership (one audio service creates every context and owns its gain) when playback migrates (M3/M4), with behaviour tests equivalent to the legacy volume test (test19) |
 | UI SDK is beta (0.1.0-beta.x), APIs may change; docs and typings differ slightly (docs show generic `T` for Tabs value, typings `string`) | pin exact version; wrap in our own thin components; check props against installed `.d.ts`, not memory |
 | TypeScript 7 incompatible with `svelte-check` | pin TS 6.0.3 |
 | Feature tests coupled to legacy DOM/copy | keep legacy suite; write Svelte tests from behaviour; port analysis-related tests first |
-| Bundle size / start-up on phones (legacy is one 411 KB file) | measure in M1 and M3; report, do not gate yet |
+| Bundle size / start-up on phones (legacy is one 411 KB file) | M1 shell: about 302 KB uncompressed in 4 files (most of it UI SDK CSS and JS, ~89 KB CSS, ~174 KB JS); re-measure in M3; report, do not gate yet |
+| Corrections on `$state.raw` results do not re-render if mutated in place | replacement (or revision counter) only; a test per correction type in M3 |
+| Storage is per origin: the Svelte app on another host/port sees none of the legacy data | bidirectional round-trip test on the same origin; cutover plan names the origin (§8.2, §9) |
 | Hidden behaviours in a 3,700-line closure (wrappers such as `renderLearn` re-wrapped to add ear training; tab grouping by heading regex) | parity matrix + screenshot review per milestone |
 
 ### 8.2 Data compatibility
@@ -379,20 +408,21 @@ Status column is for the migration PRs to fill (`–` = not started).
 - Same localStorage keys and shapes (§2.5), read and written by the Svelte app unchanged. No schema migration in M1–M5. Any later schema change (Phase 3 versioned result, Phase 7 IndexedDB) is a separate PR with a reader for every old shape.
 - Same account collection path `data/users/<uid>`, same doc ids and `type` values, same `migrateLocal` semantics (once, only missing docs).
 - `tdId` unchanged, so history, plans and journal entries stay linked (and keep the existing overwrite-on-same-title-and-duration defect).
-- A test fixture of real legacy localStorage contents (captured from the legacy page after scripted use) is loaded by the Svelte app and must render the same history, plans, journal, progress and settings; and data written by Svelte must load in legacy (rollback depends on this).
+- A test fixture of real legacy localStorage contents (captured from the legacy page after scripted use) is loaded by the Svelte app and must render the same history, plans, journal, progress and settings; and data written by Svelte must load in legacy (rollback depends on this). **Both directions are tested with both apps served from the same origin** (same scheme, host and port): `localStorage` is per origin, so `file://`, `localhost:5173`, `localhost:5174` and any preview domain each have separate, empty storage. Matching keys alone does not make data available.
+- Claude account storage is optional: when `window.claude` is absent (any non-artifact host), the app works from `localStorage` only, as the legacy page does.
 - Saved teardowns still have no `grid` (non-enumerable): the Svelte app must show the same labelled fallback grid.
 
 ### 8.3 Existing defects (not migration regressions; reproduced as-is unless a separate PR fixes them)
 
-From the audit, roadmap and fixtures report: corrections write a fake confidence `99` and `retempo` leaves chords, drum grid and first downbeat inconsistent (C1-10, Phase 2d); history keyed and overwritten by title + duration (C1-9); coach can explain results it did not compute (C1-13); sections binned from file start vs reported from `firstDown` (D-2b, Phase 2c step 2 in progress); chords, drum/bass events, overlay and exports still on the constant grid (D-2, Phase 2c steps 3–5); 125 BPM prior, 70–180 BPM range, beat at 0:00 missed; 4/4 hard-coded, no meter detection or tempo map; tempo octave (dnb 174 → 87); tempo steps defeat the tracker; hi-hat recall unexplained; relative-key misses (2 of 6 regression songs); analysis on the main thread; whole-file decode in memory (limits mitigate, not guarantee); only test21 and the newer tests (24–29) assert results, older tests mostly print. Layout defects seen in the screenshots are listed in §10. The example teardown and Learn view being the default page are product behaviours, kept as-is.
+From the audit, roadmap and fixtures report: corrections write a fake confidence `99` and `retempo` leaves chords, drum grid and first downbeat inconsistent (C1-10, Phase 2d); history keyed and overwritten by title + duration (C1-9); coach can explain results it did not compute (C1-13); sections binned from file start vs reported from `firstDown` (D-2b, Phase 2c step 2 in progress); chords, drum/bass events, overlay and exports still on the constant grid (D-2, Phase 2c steps 3–5); 125 BPM prior, 70–180 BPM range, beat at 0:00 missed; 4/4 hard-coded, no meter detection or tempo map; tempo octave (dnb 174 → 87); tempo steps defeat the tracker; hi-hat recall unexplained; relative-key misses (2 of 6 regression songs); analysis on the main thread; whole-file decode in memory (limits mitigate, not guarantee); only test21 and the newer tests (24–29) assert results, older tests mostly print. Layout defects seen in the screenshots are listed in §10; per the founder they are **not** reproduced in the new app. The new app defaults to Teardown (the legacy page defaults to Learn); the example teardown remains a product behaviour.
 
 ---
 
 ## 9. Cutover and rollback
 
-**Cutover (M5) checklist:** all parity rows done; Svelte predictions identical to legacy on all 20 tracks at the cutover engine commit; `npm test` (legacy + Svelte suites), `benchmark` 15/15, `bench:parity` 104/104, `bench:crosscheck` 120/120, `bench:integrity`, `bench:regions`, `bench:time-fixtures` all green; legacy/Svelte storage round-trip test green; artifact runtime checked by hand on claude.ai (db, downloads, coach, dictation); desktop and phone screenshots reviewed by the founder.
+**Cutover (M5) checklist:** all parity rows done; Svelte predictions identical to legacy on all 20 tracks at the cutover engine commit; `npm test` (legacy + Svelte suites), `benchmark` 15/15, `bench:parity` 104/104, `bench:crosscheck` 120/120, `bench:integrity`, `bench:regions`, `bench:time-fixtures` all green; legacy/Svelte storage round-trip test green on the production origin; Claude runtime integrations work where present and their absence is handled (not a blocker); desktop and phone screenshots reviewed by the founder.
 
-**How:** `index.html` becomes the Svelte single-file build; the previous page is kept as `legacy.html` (served by the dev server, runnable by the harness) for at least one release. Version A stays the frozen tag. The harness default target switches to `svelte` only after cutover, and reports keep `target` + build identity so no comparison mixes builds silently.
+**How:** the deployed site serves the Svelte multi-file build at the URL users already use (same origin, so their `localStorage` data is there); the previous page is kept as `legacy.html` on that origin (served by the dev server, runnable by the harness) for at least one release. Version A stays the frozen tag. The harness default target switches to `svelte` only after cutover, and reports keep `target` + build identity so no comparison mixes builds silently.
 
 **Rollback:** one revert commit restores the legacy `index.html`. Because storage keys, shapes and doc ids are unchanged, user data written by the Svelte app is readable by the legacy page (verified by the round-trip test before cutover). No data migration means no data rollback.
 
@@ -417,14 +447,53 @@ Files in `docs/migration/m0/` (re-create with `docs/migration/m0/capture-screens
 | Sample Lab | ![](migration/m0/desktop-samples.png) | ![](migration/m0/phone-samples.png) |
 | Journal | ![](migration/m0/desktop-journal.png) | ![](migration/m0/phone-journal.png) |
 
-Existing layout defects visible in these screenshots (legacy, not migration regressions; listed so they are not mistaken for regressions or silently "fixed" inside a port): the "Journal" nav link is clipped at 1440 px desktop; on phone the style card breaks "Electronic" mid-word; on phone the fixed Session pill and "Ask the coach" button cover content at the bottom of the viewport.
+Existing layout defects visible in these screenshots (legacy; the new app does not reproduce them, per the founder's decision; legacy itself is unchanged): the "Journal" nav link is clipped at 1440 px desktop; on phone the style card breaks "Electronic" mid-word; on phone the fixed Session pill and "Ask the coach" button cover content at the bottom of the viewport.
 
 ---
 
-## 11. Questions for the founder before M1
+## 11. Questions for the founder before M1 (answered 2026-11-18, see §0)
 
-1. Approve the M1 scope (scaffold + legacy-only harness adapter + single-file proof, no feature code)?
-2. Phase 2c continues in legacy `index.html` while Svelte catches up (recommended), or pause Phase 2c until M3?
-3. Build the export confirmation UI (metronome audition, downbeat check, meter confirm) in legacy now, or only in Svelte (M3)?
-4. UI SDK is beta 0.1.0: accept it pinned, with our own wrapper components, or wait for 1.0 for some components?
-5. Does the app need to keep running as a single-file Claude artifact after cutover? (This decides whether the single-file build is a requirement or a convenience.)
+1. Approve the M1 scope? **Yes, amended** (multi-file build, Teardown default, external build hashes, test-build-only hooks).
+2. Phase 2c continues in legacy? **Yes.**
+3. Export confirmation UI? **Legacy first, with reusable domain-level validation.**
+4. UI SDK beta? **Adopt, pinned, isolated.**
+5. Single-file Claude artifact after cutover? **No; optional only.**
+
+---
+
+## 12. M1 record: scaffold, routing, tokens, UI SDK, TimeMap, build identity, target adapter, CI
+
+**Scope delivered** (no feature code; the app cannot analyse, upload or save anything yet):
+
+| Deliverable | Where | Notes |
+|---|---|---|
+| Isolated scaffold | `app/` (own `package.json`, `package-lock.json`, `.gitignore`) | Root install and the legacy CI job are unchanged. Exact pins: `svelte` 5.57.3, `vite` 8.3.8, `@sveltejs/vite-plugin-svelte` 7.3.1, `typescript` 6.0.3, `svelte-check` 4.7.8, `@types/node` 24.19.2, `@ui-sdk/svelte` + `@ui-sdk/core` 0.1.0-beta.6. npm 12 blocked the optional `fsevents` install script; nothing else needs one |
+| Routing | `app/src/lib/routing/` | Hash router; **Teardown is the default** (empty and unknown hashes); Learn, Sample Lab, Journal are secondary; legacy hash names kept, so old links work; back/forward and reload work |
+| Design tokens | `app/src/lib/design/tokens.css`, `base.css` | `--tt-*` tokens carried over from the legacy palette and type, plus space, radius, tap-size and motion tokens (`prefers-reduced-motion` honoured). TTdown owns the tokens; UI SDK parts are styled from them |
+| UI SDK, isolated | `app/src/lib/ui/Popover.svelte`, `Tabs.svelte` | The only files importing `@ui-sdk/*` (plus `@ui-sdk/core/web.css` in `main.ts`), enforced by `app/scripts/check-ui-boundary.mjs` in `npm run app:check`. Props used are checked against the installed typings (Popover: `bind:open`; PopoverContent: `side`, `align`, `sideOffset`; Tabs: `bind:value`, `activation`; TabsPanel: `keepMounted`). Used in the shell: an "About this build" popover and the six teardown tabs (empty panels) |
+| Canonical TimeMap | `app/src/lib/timemap/`, `vite.config.ts` plugin `ttdown-canonical-timemap` | `src/timemap.js` imported as-is (ES-module view generated at build time, no global). Verified in the **Vite dev server** and both **production builds**: the page's self-check fingerprint equals Node's (`tm1-8fcbbec555deff73` for a 120 BPM constant grid); one copy per bundle |
+| Build identity | `window.__build` (`app/src/lib/build/identity.ts`); `app/dist/<build>/build-manifest.json` (`app/scripts/build-manifest.mjs`) | The bundle embeds only source facts: schema, app version, mode, test-hooks flag, git commit + dirty flag, TimeMap source sha256, Svelte/Vite/UI SDK versions. The manifest, written **after** the build, lists every compiled file's sha256 and a `bundleSha256` over them (sha256sum format). The target adapter refuses a page whose `__build` disagrees with its manifest |
+| Test hooks | `app/src/lib/testing/hooks.ts` | Bench build only (`vite build --mode bench` → `app/dist/bench/`): `window.TimeMap`, `window.__ttdownTest`. The production bundle contains no hook code (checked). Nothing exposes audio buffers. The legacy hook contract (`__td`, `__sn`, `__analysisStats`, `__loop`, non-enumerable `grid`/`__buf`) arrives with the engine in M3 |
+| Benchmark target adapter | `bench/lib/target.js`, `bench/run.js --target legacy\|svelte [--build bench]`, `tests/bench-target.test.js` (in `npm test`) | `legacy` (default) is the former inline code of `run.js`, moved unchanged, still `file://`; frozen Version A pages are labelled `frozen-version-a` by hash. `svelte` serves `app/dist/<build>/` over localhost through `scripts/dev-server.js` and verifies identity, but **refuses to analyse** (exit 2) until M3. `predictions.json` gains a `target` field |
+| Localhost serving | `scripts/dev-server.js`, `tests/dev-server.test.js` | Allowlist + `app/dist/`, JS/CSS/JSON/woff2 types; security test 32 → 40 checks |
+| Browser smoke test | `app/tests/smoke.mjs` (`npm run app:smoke`) | Against the dev server, the production build and the bench build, at 1440×900 and 375×812: default route, navigation by click/hash/back/forward/reload/unknown hash, TimeMap fingerprint = Node, `__build` vs manifest, hooks only in bench, no buffer globals, UI SDK popover (click, Escape) and tabs (click, arrow keys, panels kept mounted), no horizontal overflow, no clipped nav link, no page or console errors. 220 checks |
+| CI | `.github/workflows/ci.yml`, new job `app` | `npm ci` + Playwright Chromium + `npm ci --prefix app`, then `app:check`, `app:build`, `app:smoke`; uploads build manifests and smoke screenshots. The legacy `test` job is untouched |
+
+**Results** (this machine, worktree at `7ec5656` + the M1 changes, uncommitted at run time; Node 24.19, Chromium 159; each run once):
+
+| Command | Exit | Wall | Result |
+|---|---|---|---|
+| `npm test` | 0 | 294 s | all unit suites pass incl. new `bench target tests passed (4)`; dev-server **40** checks; feature tests **15/15** |
+| `npm run benchmark` | 0 | 24 s | **15/15 gates**, same values as §5 |
+| `bench:synthetic` | 0 | 16 s | 8/8 tracks; per-track predictions **identical to the M0 run** (ignoring runtimes); only new key `target` |
+| `bench:parity` / `bench:crosscheck` | 0 / 0 | < 1 s / 4 s | **104/104**, **120/120** |
+| `bench:integrity` / `bench:regions` | 0 / 0 | 2 s / 1 s | pass |
+| `bench:time-fixtures` | 0 | 25 s | 12/12; predictions **identical to M0** apart from runtimes and the `target` key |
+| `app:check` | 0 | 3 s | `svelte-check` 0 errors, 0 warnings; `tsc` (config) clean; UI boundary ok |
+| `app:build` | 0 | 2 s | production 302,142 bytes in 4 files (index.html, 1 CSS 89 KB, 2 JS 174 + 38 KB); bench 302,389 bytes |
+| `app:smoke` | 0 | 9 s | **220/220** checks |
+
+**Not done in M1, by design:** no analysis engine in the app and therefore **no analyzer parity claim**; `tests/benchmark.js` (G0) still loads the legacy page directly; `report.md` does not print `target` yet; fonts not self-hosted; no storage, audio, Claude runtime or export code; export confirmation UI (legacy, analysis workstream). The roadmap row (§0 note) is not edited here.
+
+**Proposed M2** (needs the integration window, §7): extract the engine (index.html lines ~851–1366 at the time) to `src/engine/` as plain JS + `.d.ts`, inline it back into `index.html` between markers with `sync:engine` and a sync test, exactly like TimeMap; inject `probeDuration`; stats returned instead of written to a global; add `engineSha256` to `target`. Acceptance: legacy predictions identical on all 20 tracks, 15/15 gates, 104/104, 120/120. The Svelte app imports the engine in M2 only behind the typed facade, with no UI yet.
+
