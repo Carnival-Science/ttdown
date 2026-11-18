@@ -1,7 +1,7 @@
 # Track Teardown: Living Roadmap and Phase 0 Record
 
 Status values: **implemented · in progress · deferred · blocked · rejected · open** (not started).
-Last updated: 2026-11-18 (after PRs #6 to #14 merged and the second founder review). Update this file in every PR that changes an item's status.
+Last updated: 2026-11-18 (after PRs #6 to #16 merged and the second founder review). Update this file in every PR that changes an item's status.
 
 **Guiding milestone.** A producer uploads a reference track and learns something useful about its production that would otherwise take them a long time to work out. Benchmarks exist to make that result trustworthy. They are not the product, and nothing here should grow into a research platform ahead of putting the tool in front of producers (alpha study, Phase 11).
 
@@ -79,8 +79,8 @@ Rules: each step is a separate PR; algorithm, UI and architecture changes are no
 | 2 | **Phase 2a: `TimeMap`, additive.** *(PR #8, merged; review fixes: confirmation states, pinned export grid, coverage, deep immutability, 64-bit fingerprint, meter fields)* Pure module, no DOM; seconds ↔ beat/bar position; meter; tempo map; per-point provenance; uncertainty flag | 1 | Unit tests (round-trip, leading silence, nonzero first downbeat, pickup, drift, tempo change, unsupported meter, fallback labelled); `bench:parity` 104/104 and the 15 gates unchanged; index.html analysis output byte-identical |
 | 3 | **Reliability PRs** (a) stale-job guard *(PR #9)* (b) cancellation *(PR #10)* (c) object-URL ownership *(PR #11)* (d) input limits *(PR #12; maximum duration reduced to 8:00 = the analysis coverage)*, all merged; test25 flake fixed in #14. Stacked in that order because all four edit `handle()`; each has tests that fail on the previous page | none | Each has Playwright tests that assert behaviour, e.g. a second upload during analysis wins; oversize files error and leave state intact; a cancelled job cannot write results |
 | 4 | **Phase 2b: deterministic fixtures** *(PR #13, merged; report in `docs/TIME_FIXTURES_BASELINE.md`; manifest v2: the 10-minute track became 7 minutes)* (leading silence, pickup, half/double ambiguity, nonzero first downbeat, drift, tempo change, 3/4 and 6/8, long) with new seeds; run Version A on them | 2 | Fixtures deterministic; per-fixture failure table for Version A published **before any consumer is migrated**; baselines stored, nothing gated up |
-| 5 | **Benchmark scoring: scorable regions** (partial annotations) *(PR #15, open)* | 1 | Tests prove predictions outside an annotated span are not false positives, for beats, drums, bass and chords; synthetic scores unchanged. **Prerequisite for the real-music pilot** |
-| 6 | **Phase 2c: route consumers through `TimeMap`**, one at a time, in this order: (1) ruler, metronome, loops *(PR #16, open)* (2) sections and arrangement (3) chord intervals and the chord-check loops (4) drum and bass event timing and the check-by-ear overlay (5) MIDI and aligned-audio exports, behind the three-state gate. Original event timestamps stay available when quantized forms are generated. No new detection algorithms. | 2, 4 | Paired Version A vs B on all fixtures; no gate drops; timeline-alignment tests on variable-tempo fixtures; export-refusal tests there; export-alignment tests on constant-tempo ones |
+| 5 | **Benchmark scoring: scorable regions** (partial annotations) *(PR #15, merged)* | 1 | Tests prove predictions outside an annotated span are not false positives, for beats, drums, bass and chords; synthetic scores unchanged. **Prerequisite for the real-music pilot** |
+| 6 | **Phase 2c: route consumers through `TimeMap`**, one at a time, in this order: (1) ruler, metronome, loops *(PR #16, merged)* (2) sections and arrangement (3) chord intervals and the chord-check loops (4) drum and bass event timing and the check-by-ear overlay (5) MIDI and aligned-audio exports, behind the three-state gate. Original event timestamps stay available when quantized forms are generated. No new detection algorithms. | 2, 4 | Paired Version A vs B on all fixtures; no gate drops; timeline-alignment tests on variable-tempo fixtures; export-refusal tests there; export-alignment tests on constant-tempo ones |
 | 7 | **Phase 2d: corrections** recompute or invalidate dependents; `{original, corrected, source:"user"}`; no hard-coded 99 | 2, 6 | After a BPM/meter/downbeat edit, results equal a fresh analysis at those values or are marked stale and not exported |
 | 8 | Phase 1 pilot: two-track rehearsal then 12-track development set | 5, **rights-cleared audio and independent annotators (human, blocked)** | Manifest passes `run.js` checks; Version A and B reports on identical files; failure atlas; no accuracy claim before review |
 | 9 | Phases 3–10 | 6–8 | Scoped from the fixture and pilot failures. The versioned result schema (Phase 3) is designed with `TimeMap` to avoid two migrations |
@@ -97,11 +97,11 @@ Deliberately not next: UI workspace (Phase 5), comparison rewrite (6), AI contra
 | 0 | Pin Version A (tag, stored predictions, recipe) | **implemented** (`docs/BASELINE_A.md`) |
 | 1 | Synthetic regression gates | implemented (G0) |
 | 1 | Real-music harness, integrity checks, mir_eval cross-check | implemented (PR #6, merged; synthetic data only) |
-| 1 | Scorable regions for partially annotated tracks | implemented (PR #15, open); **required before the pilot** |
+| 1 | Scorable regions for partially annotated tracks | implemented (PR #15, merged); **required before the pilot** |
 | 1 | Two-track rehearsal, 12-track pilot, held-out set | **blocked** (rights, annotators) |
 | 1 | Bass metrics on real data | blocked (scorer merged; no data). Melody scorer: open |
 | 2 | `TimeMap` (additive, with tests) | implemented (PR #8, open) |
-| 2 | Consumer migration: ruler, metronome, 4-bar loop | in progress (PR #16): 6 improved, 33 unchanged, 1 regressed with cause, vs pinned Version A |
+| 2 | Consumer migration: ruler, metronome, 4-bar loop | implemented (PR #16, merged): 6 improved, 33 unchanged, 1 regressed with cause, vs pinned Version A |
 | 2 | Consumer migration: sections, chords, drum/bass events, overlay, exports | open (step 6, items 2 to 5) |
 | 2 | Time-model fixtures and Version A failure report | implemented (PR #13, open) |
 | 2 | Correction-triggered recompute / invalidation | open (step 7) |
