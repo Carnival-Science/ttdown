@@ -69,6 +69,12 @@ jobs:
       - name: Scorable regions scored end to end (on the real predictions)
         run: npm run bench:regions
 
+      - name: "Arrangement fixtures: section boundaries vs the pinned Version A (and mir_eval)"
+        run: |
+          npm run bench:arrangement
+          node tests/arrangement-vs-version-a.test.js
+          python bench/crosscheck_mir_eval.py bench/out/arrangement-fixtures/scores.json
+
       - name: Upload run records
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -78,5 +84,6 @@ jobs:
             tests/out/*.json
             bench/out/synthetic/
             bench/out/time-fixtures/
+            bench/out/arrangement-fixtures/
           if-no-files-found: warn
           retention-days: 30

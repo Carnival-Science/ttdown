@@ -114,6 +114,12 @@ function scoreTrack(rec) {
     const est = (p.chords && p.chords.bars || []).map((c, i) => ({ start: p.firstDown + i * p.barSec, end: p.firstDown + (i + 1) * p.barSec, label: M.appChordToHarte(c) }));
     m.chords = R ? chordsByRegion(est, T.chords, R) : M.chordScores(est, T.chords); cls.chords = C.chordClass(m.chords); inputs.chords = R ? Reg.clipIntervals(est, R) : est;
   }
+  // arrangement: section boundaries (the start of every section after the first), one-to-one at ±0.5 s and ±3 s, as mir_eval.segment.detection
+  if (T.sections && p.sections) {
+    const est = maskT((p.sections || []).slice(1).map(s => s.start)), ref = maskT(T.sections.slice(1).map(s => s.start));
+    m.sections = { w05: M.events(est, ref, 0.5), w3: M.events(est, ref, 3), estCount: (p.sections || []).length, refCount: T.sections.length };
+    inputs.sections = (p.sections || []).map(s => ({ start: s.start, end: s.end, label: s.label, timing: s.timing || null }));
+  }
   // drums: exported MIDI notes in seconds, per class; plus G0's 16-step pattern score
   const ex = rec.exported, sec = steps => steps.map(s => p.firstDown + s * ex.stepSec);
   if (T.drums && ex) {
@@ -170,6 +176,7 @@ const METRICS = [
   ["key.exact", "Key exact"], ["key.weighted", "Key MIREX weighted"], ["chords.root", "Chords root (time-weighted)"], ["chords.majmin", "Chords maj/min (time-weighted)"],
   ["drums.kick.w50.f", "Kick F (±50 ms, exported MIDI)"], ["drums.snare.w50.f", "Snare/clap F (±50 ms)"], ["drums.hihat.w50.f", "Hi-hat F (±50 ms)"],
   ["drums.kick.w30.f", "Kick F (±30 ms)"], ["drums.snare.w30.f", "Snare/clap F (±30 ms)"], ["drums.hihat.w30.f", "Hi-hat F (±30 ms)"],
+  ["sections.w05.f", "Section boundaries F (±0.5 s)"], ["sections.w3.f", "Section boundaries F (±3 s)"],
   ["bass.onset.f", "Bass onset F (±50 ms)"], ["bass.noteF", "Bass note F (onset + pitch)"], ["bass.octaveErrorRate", "Bass octave errors (of matched)"],
 ];
 const summary = { metrics: {}, failureClasses: {}, drumStepTotals: {}, runtime: summarize(ok.map(t => t.runtimeSec)), tracks: tracks.length, scored: ok.length,

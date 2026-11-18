@@ -5,6 +5,7 @@
 //             tempo-change time note        (a real tempo change; beats stay continuous)
 //   key     : "<Tonic> <mode>"             (major/minor scored; dorian, phrygian, ... , atonal, ambiguous kept as labels)
 //   chords  : start end label              (Harte syntax, N = no chord, X = unknown)
+//   sections: start end label              (arrangement; boundaries are scored, labels are kept but not scored yet)
 //   drums   : time class                   (kick|bd, snare|sd|clap|cp|rim, hihat|hh|chh|ohh|openhat|closedhat)
 //   bass    : onset offset midi
 "use strict";
@@ -93,6 +94,7 @@ function loadTruth(track, manifestDir) {
   if (A.beats) Object.assign(T, beats(p("beats")));
   if (A.key) T.key = key(p("key"));
   if (A.chords) T.chords = chords(p("chords"));
+  if (A.sections) T.sections = chords(p("sections")); // same start/end/label format
   if (A.drums) T.drums = drums(p("drums"));
   if (A.bass) T.bass = notes(p("bass"));
   if (T.tempo == null && T.beats && T.beats.length > 2) { // tempo from the median inter-beat interval
