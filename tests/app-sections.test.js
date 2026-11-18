@@ -32,7 +32,7 @@ const truth = fs.readFileSync(path.join(ARR, 'truth', 'arrangement_drift.section
   const segTitles = await p.evaluate(() => [...document.querySelectorAll('#out .seg')].map(x => x.title));
   const fmtT = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
   check(segTitles.length === a.sections.length && a.sections.every((s, i) => segTitles[i].includes(`starts ${fmtT(s.start)}`)), `3: timeline segments carry the tracked start times (${segTitles.map(t => t.replace(/^.*starts /, '').replace(')', '')).join(', ')})`);
-  const i = 2; await p.locator('#out select[aria-label="Loop part of the song"]').selectOption(String(i)); await p.waitForTimeout(200);
+  const i = 2; await p.locator('#out .timeline .seg').nth(i).click(); await p.locator('#out [role="radiogroup"][aria-label="Loop"] [role="radio"]:has-text("Section")').click(); await p.waitForTimeout(200);
   const loop = await p.evaluate(() => window.__loop), s2 = a.sections[i];
   check(loop && Math.abs(loop[0] - s2.start) < 1e-6 && Math.abs(loop[1] - Math.min(a.duration - 0.05, s2.end)) < 1e-6, `3: looping "${s2.label}" plays ${loop && loop.map(x => x.toFixed(2)).join('–')} s, the tracked span`);
   // 4. a saved teardown keeps its tracked beats AND its tracked section times, so they still agree after reopening

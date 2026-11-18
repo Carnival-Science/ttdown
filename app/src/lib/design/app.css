@@ -44,10 +44,6 @@
 .notice { margin: 0; padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--tt-warn) 50%, transparent); border-radius: var(--tt-radius-sm); background: color-mix(in srgb, var(--tt-warn) 8%, transparent); color: var(--tt-ink); display: grid; gap: 8px; }
 .notice label { display: flex; gap: 8px; align-items: flex-start; }
 .notice .btn { justify-self: start; }
-.playerbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-.playerbar audio { flex: 1 1 280px; min-width: 0; }
-.vol input[type="range"] { width: 120px; accent-color: var(--tt-accent); }
-.timeline .seg.sel { outline: 3px solid var(--tt-ink); outline-offset: -3px; }
 .detail { display: grid; gap: 12px; border-top: 1px solid var(--tt-line); padding-top: 14px; min-width: 0; }
 .dhead h3 { font-size: 1.1rem; }
 .dpanel { display: grid; gap: 12px; padding-top: 6px; min-width: 0; }
@@ -57,3 +53,32 @@
 .dtabs { position: static; }
 .notice.info { border-color: color-mix(in srgb, var(--tt-cool) 50%, transparent); background: color-mix(in srgb, var(--tt-cool) 8%, transparent); }
 .check { display: flex; gap: 8px; align-items: center; }
+
+/* ---- ui-sdk parts in TTdown's look (lib/ui wrappers) ---- */
+.tt-slider { min-width: 0; }
+.tt-slider .tt-slider-control { height: var(--tt-tap); }
+.tt-slider .tt-slider-track { height: 4px; border-radius: 2px; background: #2c2f37; }
+.tt-slider .tt-slider-fill { background: var(--tt-accent); }
+.tt-slider .tt-slider-thumb { width: 16px; height: 16px; border: 0; background: var(--tt-ink); box-shadow: 0 1px 4px rgb(0 0 0 / .6); transition: scale 120ms cubic-bezier(.23, 1, .32, 1); }
+.tt-slider[data-dragging] .tt-slider-thumb { scale: 1.15; }
+.tt-slider .tt-slider-thumb:has(:focus-visible) { outline: 2px solid var(--tt-focus); outline-offset: 2px; }
+
+.tt-seg { position: relative; display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--tt-inset); box-shadow: inset 0 0 0 1px #000; }
+.tt-seg .tt-seg-item { position: relative; z-index: 1; height: 36px; min-width: 44px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent; color: var(--tt-ink-2); font: 600 .82rem var(--tt-font-body); cursor: pointer; transition: color var(--tt-ease); }
+.tt-seg .tt-seg-item:hover { color: var(--tt-ink); }
+.tt-seg .tt-seg-item[data-checked] { color: var(--tt-accent-ink); }
+.tt-seg .tt-seg-item:focus-visible { outline: 2px solid var(--tt-focus); outline-offset: 1px; }
+.tt-seg .tt-seg-indicator { position: absolute; z-index: 0; border-radius: 7px; background: var(--tt-accent); transition: left 200ms cubic-bezier(.23, 1, .32, 1), width 200ms cubic-bezier(.23, 1, .32, 1); }
+@media (prefers-reduced-motion: reduce) { .tt-seg .tt-seg-indicator { transition: none; } }
+
+.tt-toggle { height: 36px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--tt-line); background: var(--tt-panel); color: var(--tt-ink-2); font: 600 .84rem var(--tt-font-body); cursor: pointer; transition: background-color var(--tt-ease), color var(--tt-ease), border-color var(--tt-ease); }
+.tt-toggle:hover:not(:disabled) { color: var(--tt-ink); border-color: #3a3d46; }
+.tt-toggle[data-pressed] { background: var(--tt-ink); border-color: var(--tt-ink); color: var(--tt-bg); }
+.tt-toggle.cool[data-pressed] { background: var(--tt-cool); border-color: var(--tt-cool); color: #08142b; }
+.tt-toggle:disabled, .tt-toggle[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+.tt-toggle:focus-visible { outline: 2px solid var(--tt-focus); outline-offset: 2px; }
+.tt-tgroup { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.tt-tgroup .tt-toggle { border-radius: 9px; }
+.tt-tgroup .tt-toggle[data-pressed] { background: var(--tt-accent); border-color: var(--tt-accent); color: var(--tt-accent-ink); }
+@media (pointer: coarse) { .tt-seg .tt-seg-item, .tt-toggle { height: var(--tt-tap); } }
+.tt-seg .tt-seg-item, .tt-toggle { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }

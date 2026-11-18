@@ -37,6 +37,22 @@
   --tt-tap: 44px;
   --tt-ease: 160ms ease;
 
+  /* ui-sdk's default stylesheet (web.css) themed from TTdown's tokens, so its parts look like the rest of the app */
+  --ui-background: var(--tt-inset);
+  --ui-foreground: var(--tt-ink);
+  --ui-muted: #24262d;
+  --ui-muted-foreground: var(--tt-ink-2);
+  --ui-border: var(--tt-line);
+  --ui-input: #3a3d46;
+  --ui-primary: var(--tt-accent);
+  --ui-primary-foreground: var(--tt-accent-ink);
+  --ui-ring: var(--tt-focus);
+  --ui-ring-border: var(--tt-focus);
+  --ui-radius: 8px;
+  --ui-font-sans: var(--tt-font-body);
+  --ui-font-mono: var(--tt-font-mono);
+  --ui-font-size: 0.86rem;
+
   color-scheme: dark;
 }
 @media (prefers-reduced-motion: reduce) { :root { --tt-ease: 0ms linear; } }

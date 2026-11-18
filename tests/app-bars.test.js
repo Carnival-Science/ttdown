@@ -36,7 +36,7 @@ const ROOT = path.resolve(__dirname, '..'), SONGS = path.join(ROOT, 'test-songs'
     check(worst > 0.5, `1: they differ from the old constant-tempo ticks by up to ${(worst * a.duration / 100).toFixed(2)} s (${worst.toFixed(2)} % of the width)`);
 
     // 2. metronome: clicks on the tracked beats, downbeats accented
-    await p.locator('#out button:has-text("Play with beat clicks")').click(); await p.waitForTimeout(300);
+    await p.locator('#out button:has-text("Beat clicks")').click(); await p.waitForTimeout(300);
     const m = await p.evaluate(() => ({ clicks: window.__clicks, src: window.__src }));
     const exp = G.beats(0, Math.min(a.duration, 240)), from = m.src.offset, t0 = m.src.when;
     const times = m.clicks.map(c => c.when - t0 + from);
@@ -48,7 +48,7 @@ const ROOT = path.resolve(__dirname, '..'), SONGS = path.join(ROOT, 'test-songs'
 
     // 3. loop 4 bars from where I am
     await p.evaluate(() => { document.querySelector('#out audio').currentTime = 30; });
-    await p.locator('#out select[aria-label="Loop part of the song"]').selectOption('here'); await p.waitForTimeout(150);
+    await p.locator('#out [role="radiogroup"][aria-label="Loop"] [role="radio"]:has-text("4 bars")').click(); await p.waitForTimeout(150);
     const loop = await p.evaluate(() => window.__loop), bar = G.barOf(30);
     check(loop && Math.abs(loop[0] - G.barStart(bar)) < 1e-6 && Math.abs(loop[1] - G.barStart(bar + 4)) < 1e-6, `3: the 4-bar loop starts on the tracked bar line (${loop && loop.map(x => x.toFixed(3))}) and spans four tracked bars`);
     const oldStart = a.firstDown + Math.floor((30 - a.firstDown) / a.barSec) * a.barSec;

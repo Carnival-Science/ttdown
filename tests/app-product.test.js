@@ -45,20 +45,32 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   const secs = await p.evaluate(() => window.__td.sections.map(s => ({ label: s.label, start: s.start, startBar: s.startBar, bars: s.bars })));
   check(secs.length >= 3, `the arrangement has ${secs.length} sections to explore`);
   const segs = p.locator("#explorer .timeline .seg"); check(await segs.count() === secs.length, "one clickable block per section");
-  check(await segs.nth(0).getAttribute("aria-pressed") === "true", "the first section starts selected");
+  check(await segs.nth(0).getAttribute("aria-checked") === "true", "the first section starts selected");
   const hdr0 = await p.locator(".detail h3").first().innerText();
   await segs.nth(2).click(); await p.waitForTimeout(400);
   const hdr2 = await p.locator(".detail h3").first().innerText(), t = await p.evaluate(() => document.querySelector("#explorer audio").currentTime);
   check(hdr2 !== hdr0 && hdr2.includes(secs[2].label) && hdr2.includes(`bars ${secs[2].startBar + 1}–${secs[2].startBar + secs[2].bars}`), `clicking a section shows its detail ("${hdr2.replace(/\s+/g, " ")}")`);
-  check(await segs.nth(2).getAttribute("aria-pressed") === "true" && await segs.nth(0).getAttribute("aria-pressed") === "false", "and marks it selected");
+  check(await segs.nth(2).getAttribute("aria-checked") === "true" && await segs.nth(0).getAttribute("aria-checked") === "false", "and marks it selected");
   check(Math.abs(t - secs[2].start) < 0.5, `and the player seeks to it (${t.toFixed(2)} s, section starts ${secs[2].start} s)`);
+  // the song map: measured loudness per bar inside the estimated sections, a transport, keyboard section choice
+  const nb = await p.evaluate(() => ({ cols: document.querySelectorAll("#explorer svg.loud g").length, bars: window.__td.nBars }));
+  check(nb.cols >= nb.bars - 1 && nb.cols <= nb.bars + 2 && await p.locator("#explorer .keyloud .basis-measured").count() === 1, `the map draws the loudness of each bar, labelled Measured (${nb.cols} columns, ${nb.bars} bars)`);
+  await p.evaluate(() => document.querySelector("#explorer audio").pause()); await p.waitForTimeout(150);
+  await p.click('#explorer button[aria-label="Play"]'); await p.waitForTimeout(500);
+  check(await p.evaluate(() => !document.querySelector("#explorer audio").paused) && await p.locator('#explorer button[aria-label="Pause"]').count() === 1, "the play button plays and turns into Pause");
+  await p.click('#explorer button[aria-label="Pause"]'); await p.waitForTimeout(150);
+  const scrub = p.locator('#explorer .scrub input[type=range]'); await scrub.focus(); await p.keyboard.press("End"); await p.waitForTimeout(150);
+  const tEnd = await p.evaluate(() => document.querySelector("#explorer audio").currentTime);
+  check(tEnd > (await p.evaluate(() => window.__td.duration)) - 1, `the scrubber moves the song (End → ${tEnd.toFixed(1)} s)`);
+  await segs.nth(2).focus(); await p.keyboard.press("ArrowLeft"); await p.waitForTimeout(250);
+  check(await segs.nth(1).getAttribute("aria-checked") === "true" && (await p.locator(".detail h3").first().innerText()).includes(secs[1].label), "arrow keys move between sections and show the chosen one");
   const tabs = await p.locator('.detail [role="tab"]').allInnerTexts(); check(JSON.stringify(tabs) === '["Rhythm","Harmony","Notes"]', `a section's detail has Rhythm, Harmony and Notes (${tabs})`);
   await p.click('.detail [role="tab"]:has-text("Harmony")'); await p.waitForTimeout(150);
   check(await p.locator('.detail [data-part="harmony"] .chcell').count() >= 1, "Harmony lists the chords of the selected section's bars");
 
   // volume is in the player
   check(await p.locator("#explorer .playerbar #volume").count() === 1, "volume is a control inside the player");
-  await p.locator("#volume").evaluate(el => { el.value = "30"; el.dispatchEvent(new Event("input", { bubbles: true })); });
+  const vin = p.locator("#volume input[type=range]"); await vin.focus(); await p.keyboard.press("Home"); for (let k = 0; k < 3; k++) await p.keyboard.press("PageUp"); await p.waitForTimeout(100);
   const vol = await p.evaluate(() => JSON.parse(localStorage.getItem("app_volume_v1")));
   check(Math.abs(vol.song - 0.3) < 0.01 && Math.abs(vol.sounds - 0.3) < 0.01 && vol.muted === false, `it sets the song and the sounds played over it together, and is remembered (${JSON.stringify(vol)})`);
   await p.click("#mute"); check((await p.evaluate(() => JSON.parse(localStorage.getItem("app_volume_v1")))).muted === true && await p.locator("#mute").getAttribute("aria-pressed") === "true", "mute works and says so");
@@ -81,6 +93,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
     check(/could be read reliably/.test(nn) && await q.locator('.detail [data-part="notes"] .basis-unknown').count() === 1, "no top line or bass found: Notes says unknown");
     check(/Swing: unknown/.test(rh), "swing that could not be measured is reported as unknown");
     check(/Saved teardowns don't keep the audio/.test(await q.locator("#explorer").innerText()), "a saved teardown says it has no audio to play");
+    check(await q.locator("#explorer svg.loud").count() === 0 && await q.locator("#explorer .transport").count() === 0 && await q.locator("#explorer .timeline .seg").count() >= 1, "and shows its sections without a loudness shape or a player (nothing measured is invented)");
     await q.close(); }
 
   // nothing leaves the browser
