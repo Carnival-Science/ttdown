@@ -267,20 +267,20 @@ Planned mapping (only documented props; each confirmed against the installed `.d
 
 ## 5. Recorded baseline (this machine, source commit, before any migration work)
 
-Environment: Apple M1, macOS 27.2 (Darwin 27.2.0), Node v24.19.0, npm 12.0.2, Playwright 1.65.1 (Chromium headless shell 159), Python 3.12.0; crosscheck in a venv with numpy 2.5.5 and mir_eval 0.8.2. Songs generated with `python3 test-songs/make_test_songs.py` (4.8 s) and `python3 test-songs/make_time_fixtures.py` (12.4 s) (`python` on this machine has no numpy). Each command run once, sequentially, in a clean worktree at the source commit; wall time measured around `npm run`.
+Environment: Apple M1, macOS 27.2 (Darwin 27.2.0), Node v24.19.0, npm 12.0.2, Playwright 1.65.1 (Chromium headless shell 159), Python 3.12.0; crosscheck in a venv with numpy 2.5.5 and mir_eval 0.8.2. Songs generated with `python3 test-songs/make_test_songs.py` (4.8 s) and `python3 test-songs/make_time_fixtures.py` (12.4 s) (`python` on this machine has no numpy). **Provenance.** The recorded run below was made in a dedicated, clean, detached worktree at `b2f0551` (`git worktree add --detach <dir> b2f0551`): every output records `headSha b2f0551`, `gitDirty: false`, page sha256 `416e8d4f…` (benchmark record `tests/out/benchmark-2026-11-18T03-33-27-587Z.json`). Each command run once, sequentially; wall time measured around `npm run`. An earlier run in this branch's own worktree (HEAD `57d8584` = `b2f0551` + this doc only, so `gitDirty: true`; identical page sha256) gave the same exit codes, and its `bench:synthetic` and `bench:time-fixtures` predictions are **identical** to the clean run's apart from runtimes. Neither run used the shared checkout `/Users/keina/dev/ttdown`, which another session had switched to `phase2c/sections-arrangement` during that time.
 
 | Command | Exit | Wall time | Peak RSS (driver) | Result |
 |---|---|---|---|---|
-| `npm test` | 0 | **365 s** | 375 MB | metrics, TimeMap (35 cases), TimeMap sync, timing consumers, bench metrics, integrity/coverage, holdout, regions tests passed; dev-server 32 checks passed; **feature tests 15 passed, 0 failed** (test8, 14, 16–19, 21–29) |
-| `npm run benchmark` | 0 | **20 s** | 288 MB | **15/15 gates passed**. Kick P0.94 R0.98, snare P1.00 R0.98, hats P1.00 R0.93, chords 213/213, key exact 4/6 (same notes 6/6), hook P0.94 R1.00; tempo Acc1/Acc2 1.000/1.000; tracked beat F 0.994, downbeat F 0.978; exported grid beat F 0.995, downbeat F 0.986; ~1.4–1.6 s per song. Record `tests/out/benchmark-2026-11-18T03-08-13-779Z.json` (not committed) |
-| `npm run bench:synthetic` | 0 | **26 s** | 262 MB | **8/8 tracks scored**, 0 problems. Tempo Acc1 1.000; beats F 0.9936 [0.9921, 0.9953]; downbeats F 0.9776; exported beats/downbeats F 0.995 / 0.9864; key exact 0.75, weighted 0.825; chords root = majmin 0.9948; kick/snare/hat F ±50 ms 0.9453 / 0.9875 / 0.9463; hat ±30 ms 0.8838; bass onset F 0.8575, note F 0.8293, octave errors 0 |
-| `npm run bench:parity` | 0 | 1 s | 69 MB | **104/104** checks match G0 |
-| `npm run bench:crosscheck` (venv) | 0 | 3 s | 100 MB | **120/120** values agree with mir_eval 0.8.2 within 0.001 |
-| `npm run bench:integrity` | 0 | 3 s | 73 MB | score integrity tests passed |
-| `npm run bench:regions` | 0 | 1 s | 73 MB | regions scoring tests passed |
-| `npm run bench:time-fixtures` | 0 | **38 s** | 414 MB | 12/12 fixtures; per-fixture table **identical** to `docs/TIME_FIXTURES_BASELINE.md` (e.g. `dnb_174` 174 → 87 half, `drift_fast` exported beat F 0.31 and refused: tempo-changes, `meter_3_4` downbeat F 0.29, `long_7min` 1.00) |
+| `npm test` | 0 | **315 s** | 516 MB | metrics, TimeMap (35 cases), TimeMap sync, timing consumers, bench metrics, integrity/coverage, holdout, regions tests passed; dev-server 32 checks passed; **feature tests 15 passed, 0 failed** (test8, 14, 16–19, 21–29) |
+| `npm run benchmark` | 0 | **19 s** | 276 MB | **15/15 gates passed**. Kick P0.94 R0.98, snare P1.00 R0.98, hats P1.00 R0.93, chords 213/213, key exact 4/6 (same notes 6/6), hook P0.94 R1.00; tempo Acc1/Acc2 1.000/1.000; tracked beat F 0.994, downbeat F 0.978; exported grid beat F 0.995, downbeat F 0.986; ~1.4–1.6 s per song. Record `tests/out/benchmark-2026-11-18T03-33-27-587Z.json` (not committed) |
+| `npm run bench:synthetic` | 0 | **20 s** | 277 MB | **8/8 tracks scored**, 0 problems. Tempo Acc1 1.000; beats F 0.9936 [0.9921, 0.9953]; downbeats F 0.9776; exported beats/downbeats F 0.995 / 0.9864; key exact 0.75, weighted 0.825; chords root = majmin 0.9948; kick/snare/hat F ±50 ms 0.9453 / 0.9875 / 0.9463; hat ±30 ms 0.8838; bass onset F 0.8575, note F 0.8293, octave errors 0 |
+| `npm run bench:parity` | 0 | < 1 s | 73 MB | **104/104** checks match G0 |
+| `npm run bench:crosscheck` (venv) | 0 | 2 s | 100 MB | **120/120** values agree with mir_eval 0.8.2 within 0.001 |
+| `npm run bench:integrity` | 0 | 2 s | 74 MB | score integrity tests passed |
+| `npm run bench:regions` | 0 | 2 s | 73 MB | regions scoring tests passed |
+| `npm run bench:time-fixtures` | 0 | **34 s** | 415 MB | 12/12 fixtures; per-fixture table **identical** to `docs/TIME_FIXTURES_BASELINE.md` (e.g. `dnb_174` 174 → 87 half, `drift_fast` exported beat F 0.31 and refused: tempo-changes, `meter_3_4` downbeat F 0.29, `long_7min` 1.00) |
 
-All values match the Version A record in `docs/BASELINE_A.md` and the roadmap: the reliability PRs and Phase 2c step 1 changed no analysis output. The feature-test count rose from 9 to 15 since Phase 0 (tests 24–29 added). Total wall time for the suite: about 7.6 minutes, dominated by the browser feature tests.
+All values match the Version A record in `docs/BASELINE_A.md` and the roadmap: the reliability PRs and Phase 2c step 1 changed no analysis output. The feature-test count rose from 9 to 15 since Phase 0 (tests 24–29 added). Total wall time for the suite: about 6.6 minutes (7.6 in the first run), dominated by the browser feature tests; one run each, so timings are indicative only.
 
 These are regression numbers on synthetic songs only. **Real-music performance: not measured.**
 
