@@ -88,6 +88,8 @@ function scoreTrack(rec) {
   const ai = annotationIntegrity(t, mdir); out.annotationSha256 = ai.hashes;
   out.annotationsChangedSincePrediction = !!rec.annotationSha256 && JSON.stringify(rec.annotationSha256) !== JSON.stringify(ai.hashes);
   if (ai.problems.length) { out.status = "annotation-checksum-mismatch"; out.problems = ai.problems; return out; }
+  // declared regions must lie inside the recording (known only now, from the prediction): otherwise only tempo and key could be scored
+  if (t.scorable !== undefined && rec.full && rec.full.duration) { const rp = Reg.problems(t.scorable, t.id, rec.full.duration); if (rp.length) { out.status = "invalid-scorable-region"; out.problems = rp; return out; } }
   if (rec.status !== "ok") return out;
   const T0 = loadTruth(t, mdir), R = t.scorable ? Reg.normalize(t.scorable) : null, T = R ? maskTruth(T0, R) : T0, p = rec.full, g = rec.grid, m = {}, cls = {}, inputs = {};
   if (R) out.scorable = { regions: R.length, seconds: r4(Reg.seconds(R)), fractionOfTrack: p && p.duration ? r4(Math.min(1, Reg.seconds(R) / p.duration)) : null };
@@ -154,14 +156,15 @@ const tracks = [...P.tracks.map(scoreTrack), ...required.filter(t => !predicted.
 const ok = tracks.filter(t => t.metrics);
 // required coverage, checked on the manifest tracks of this split (holdout tracks only for a holdout run)
 const reqCheck = checkRequirements(manifest, required, mdir);
-const integrityProblems = tracks.filter(t => t.status === "annotation-checksum-mismatch").flatMap(t => t.problems);
+const GROUND_TRUTH = new Set(["annotation-checksum-mismatch", "invalid-scorable-region"]);
+const integrityProblems = tracks.filter(t => GROUND_TRUTH.has(t.status)).flatMap(t => t.problems);
 // Run completeness: the benchmark only succeeds if every required track was analyzed and scored. Three kinds of
 // failure are kept apart because they need different owners: the analyzer, the run, or the ground truth.
 const ANALYZER = new Set(["analysis-failed", "timeout"]), INPUT = new Set(["missing-audio", "checksum-mismatch", "audio-changed-since-prediction"]);
 const completeness = { required: required.length, scored: ok.length,
   analyzerFailures: tracks.filter(t => ANALYZER.has(t.status) || (t.pageErrors > 0)).map(t => ({ id: t.id, status: t.pageErrors > 0 && !ANALYZER.has(t.status) ? `page-errors (${t.pageErrors}); metrics kept for diagnosis` : t.status })),
   missingPredictions: tracks.filter(t => t.status === "no-prediction" || INPUT.has(t.status)).map(t => ({ id: t.id, status: t.status })),
-  unscorableAnnotations: tracks.filter(t => t.status === "annotation-checksum-mismatch").map(t => ({ id: t.id, status: t.status })),
+  unscorableAnnotations: tracks.filter(t => GROUND_TRUTH.has(t.status)).map(t => ({ id: t.id, status: t.status })),
   unknownTracks: tracks.filter(t => t.status === "not-in-manifest").map(t => ({ id: t.id, status: t.status })) };
 completeness.complete = !completeness.analyzerFailures.length && !completeness.missingPredictions.length && !completeness.unscorableAnnotations.length && !completeness.unknownTracks.length && ok.length === required.length;
 // one fingerprint for the whole answer set: any changed annotation file changes it
