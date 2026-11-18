@@ -41,9 +41,15 @@ fs.mkdirSync(OUT, { recursive: true });
     const t = await p.locator("#exports").innerText(); check(/Blocked/.test(t) && /tempo changes/i.test(t) && !(await p.locator('#exports button:has-text("Confirm and unlock")').count()), `drift_fast: the reason is given and no confirmation can override it ("${t.match(/Blocked:[^.]*\./)?.[0]}")`);
     await p.close(); }
   { const p = await open(); await analyse(p, path.join(SONGS, "pop127_Amaj.wav"));
-    await p.locator('input[aria-label="Type the BPM"]').fill("63.5"); await p.locator('button:has-text("Set BPM")').click(); await p.waitForTimeout(500);
-    check(await midi(p).isDisabled() && /you corrected the tempo/.test(await p.locator("#exports").innerText()), "a corrected tempo makes the results stale: bar-aligned exports are blocked, and it says why");
-    check(/You corrected the tempo/.test(await p.locator("#out .notice").first().innerText()) && await p.locator('[data-finding="tempo"] .basis-corrected').count() === 1, "and the tempo finding is labelled as corrected, with the detected tempo named");
+    await p.locator('input[aria-label="Type the BPM"]').fill("63.5"); await p.locator('button:has-text("Set BPM")').click(); await p.waitForFunction(() => /Analysed again/.test(document.querySelector('#status').textContent), null, { timeout: 120000 }); await p.waitForTimeout(300);
+    const t = await p.locator("#exports").innerText();
+    check(!/Blocked/.test(t) && /Check the bar lines/.test(t) && await midi(p).isDisabled(), "with the audio a tempo correction analyses again, so the results are fresh: not blocked, but the bar lines must be checked again");
+    check(/Analysed again at your tempo/.test(await p.locator("#out .notice").first().innerText()) && await p.locator('[data-finding="tempo"] .basis-corrected').count() === 1, "the tempo finding is labelled as corrected, with the detected tempo named");
+    await p.reload(); await p.waitForTimeout(400); await p.locator("#hist button").first().click(); await p.waitForTimeout(400);
+    await p.locator('input[aria-label="Type the BPM"]').fill("100"); await p.locator('button:has-text("Set BPM")').click(); await p.waitForTimeout(500);
+    const t2 = await p.locator("#exports").innerText();
+    check(await midi(p).isDisabled() && /Blocked/.test(t2) && /audio isn't here/.test(t2), "without the audio (a saved teardown) a corrected tempo cannot be analysed again: the results are out of date, bar-aligned exports are blocked, and it says why");
+    check(/isn't here to analyse again/.test(await p.locator("#out .notice").first().innerText()), "and the page says the audio is needed");
     check(await json(p).isEnabled(), "analysis data stays available");
     await p.close(); }
   console.log("errors", errs); if (errs.length || failed) process.exitCode = 1; await b.close();

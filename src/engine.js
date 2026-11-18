@@ -154,7 +154,12 @@ const ANALYSIS_STATS = { checkpoints: 0, aborted: 0 }; // the page exposes it as
 /* `signal` (optional AbortSignal) is honoured at every checkpoint: between decoding and each analysis stage, and every
    few percent inside the long arrangement pass. The stages themselves are synchronous, so a cancel takes effect at the next
    checkpoint, not instantly (moving the work to a Web Worker is a separate, later change). */
-async function analyze(file, onProg, opts_compare, signal) {
+/* `forced` (optional) is what a person corrected: { bpm, downbeatShift }. With it, the analysis runs again from the same audio with the tempo
+   fixed at `bpm` (instead of the detected one) and/or bar 1 moved by `downbeatShift` beats (applied where the engine picks which beat of the bar
+   is "1"), and everything downstream (beats, bars, drums,
+   sections, chords, notes) is derived from those values exactly as it is from detected ones: the result IS a fresh analysis at those values,
+   not a patch of an old one. Without `forced` nothing below differs from the detected path. */
+async function analyze(file, onProg, opts_compare, signal, forced) {
   const stopIfAborted = () => { if (signal && signal.aborted) { ANALYSIS_STATS.aborted++; throw new DOMException("Analysis cancelled", "AbortError"); } };
   const gate = async () => { await tick(); ANALYSIS_STATS.checkpoints++; stopIfAborted(); };
   stopIfAborted();
@@ -168,6 +173,13 @@ async function analyze(file, onProg, opts_compare, signal) {
   const ctx = new OfflineAudioContext(2, 44100, 44100);
   const ab = await ctx.decodeAudioData(raw); stopIfAborted();
   checkDuration(ab.duration); // authoritative: the header can be missing or wrong
+  return analyzeDecoded(ab, onProg, opts_compare, signal, forced);
+}
+/* The analysis of audio that is already decoded (an AudioBuffer). analyze() decodes a file and calls this; the app calls it again, with
+   `forced`, when the user corrects the tempo or the first downbeat. */
+async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
+  const stopIfAborted = () => { if (signal && signal.aborted) { ANALYSIS_STATS.aborted++; throw new DOMException("Analysis cancelled", "AbortError"); } };
+  const gate = async () => { await tick(); ANALYSIS_STATS.checkpoints++; stopIfAborted(); };
   const L = ab.getChannelData(0), R = ab.numberOfChannels > 1 ? ab.getChannelData(1) : L;
   const dur = ab.duration;
   // mono 22050 + stereo width
@@ -222,6 +234,7 @@ async function analyze(file, onProg, opts_compare, signal) {
   }
   const mean = scores.reduce((p, q) => p + q, 0) / scores.length;
   const bpmConf = best / (mean || 1);
+  if (forced && forced.bpm > 0) bpm = forced.bpm; // a tempo the user chose: the beat period, tracker, bars and drums below follow it
   let beat = fps * 60 / bpm;
   // beat phase from low band (kick), then which beat is "1"
   let ph = 0, phS = -1;
@@ -233,6 +246,7 @@ async function analyze(file, onProg, opts_compare, signal) {
     for (let t = ph + c * beat; t + 3 * beat < el.length; t += 4 * beat) s += at(el, t) + at(el, t + 2 * beat) * 0.5 + at(em, t + beat) + at(em, t + 3 * beat) - at(em, t) * 0.5;
     if (s > dbS) { dbS = s; db = c; }
   }
+  if (forced && forced.downbeatShift) db = ((db + forced.downbeatShift) % 4 + 4) % 4; // bar 1 moved by the user, in beats
   let bar0 = ph + db * beat; const stepLen = beat / 4;
   // --- beat tracking (dynamic programming): follows small tempo drift so steps don't smear ---
   const beatsF = (() => {
@@ -311,6 +325,7 @@ async function analyze(file, onProg, opts_compare, signal) {
       // which beat is "1"? test the 4 rotations: kick on 1, snare on 2 and 4 (backbeat) or on 3 (half-time)
       let rot = 0, rS = -1e9;
       for (const r of [0, 4, 8, 12]) { const k = i => Kr.freq[(i + r) % 16], sn = i => Sr.freq[(i + r) % 16]; const v = k(0) * 1.5 + 0.5 * k(8) + Math.max(sn(4) + sn(12), 2 * sn(8)) - 0.5 * sn(0); if (v > rS + 1e-6) { rS = v; rot = r; } }
+      if (forced && forced.downbeatShift) rot = ((rot + 4 * forced.downbeatShift) % 16 + 16) % 16; // bar 1 moved by the user, in beats (the drum pattern, bar 1 and everything after follow it)
       const rotA = A2 => A2.slice(rot).concat(A2.slice(0, rot));
       const fixR = R => ({ on: rotA(R.on), ghost: rotA(R.ghost), vel: rotA(R.vel), freq: rotA(R.freq) });
       const K = fixR(Kr), S = fixR(Sr), H = fixR(Hr);
@@ -544,5 +559,5 @@ async function analyze(file, onProg, opts_compare, signal) {
   return result;
 }
 
-return Object.freeze({ analyze, transcribe, tick, mag, detrend, acfAt, NAMES, CAM_MAJ, CAM_MIN, LIMITS, InputLimitError, fmtLen, ANALYSIS_STATS });
+return Object.freeze({ analyze, analyzeDecoded, transcribe, tick, mag, detrend, acfAt, NAMES, CAM_MAJ, CAM_MIN, LIMITS, InputLimitError, fmtLen, ANALYSIS_STATS });
 });

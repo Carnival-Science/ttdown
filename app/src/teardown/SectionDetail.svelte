@@ -12,17 +12,19 @@
   import PianoRoll from "../lib/ui/music/PianoRoll.svelte";
 
   let { index }: { index: number } = $props();
-  const { fmtT, keyChords, chordNotes, keyInfo, chordFromDegree, recomputeLoop } = domain as any;
+  const { fmtT, keyChords, chordNotes, keyInfo, chordFromDegree, recomputeLoop, recordCorrection, staleReasons } = domain as any;
   const a = $derived(teardown.result as any);
   const s = $derived(a.sections[index] as any);
   const playable = $derived(!!teardown.audioURL);
+  const stale = $derived(staleReasons(a) as string[]);
+  const why = $derived(stale.includes("tempo") ? "you corrected the tempo and the audio isn't here to analyse again" : "you said this track isn't in 4/4, which the analyzer can't read");
   const TABS = [{ value: "rhythm", label: "Rhythm" }, { value: "harmony", label: "Harmony" }, { value: "notes", label: "Notes" }] as const;
   let tab = $state<string | null>("rhythm");
 
   // ---- rhythm
   const gh = $derived(a.pattern.ghost || {});
   const edited = (lane: string) => (i: number, val: boolean) => teardown.replace(x => {
-    const y: any = x; y.patternEdited = true; y.pattern[lane][i] = val; if (y.pattern.ghost && y.pattern.ghost[lane]) y.pattern.ghost[lane][i] = false;
+    const y: any = x; y.patternEdited = true; recordCorrection(y, { type: "drum", lane, step: i, from: !val, to: val }); y.pattern[lane][i] = val; if (y.pattern.ghost && y.pattern.ghost[lane]) y.pattern.ghost[lane][i] = false;
     (y.drumParts || []).forEach((pt: any) => { if (pt.kick.some(Boolean) || pt.snare.some(Boolean)) pt[lane][i] = val; });
   });
   const part = $derived(((a.drumParts || []) as any[]).find(pt => s.startBar >= pt.startBar && s.startBar < pt.startBar + pt.bars));
@@ -40,7 +42,7 @@
   const checks = $derived((a.chordChecks || {}) as Record<string, string>);
   const opts = $derived.by(() => { const k = keyInfo(a); return Array.from({ length: 7 }, (_, d) => chordFromDegree(k, d, false).name as string); });
   function hear(b: number) { cur = b; if (!playable) return; const st = (a.firstDown || 0) + b * a.barSec; player.loopRange?.(st, st + a.barSec, 0.75); player.overlayOnly?.("chords"); }
-  function setChord(name: string, mark: string) { const b = cur; if (b == null) return; teardown.replace(x => { const y: any = x; y.chords.bars[b] = name; y.chordChecks = { ...(y.chordChecks || {}), [b]: mark }; recomputeLoop(y); }); player.overlayRestart?.(); }
+  function setChord(name: string, mark: string) { const b = cur; if (b == null) return; teardown.replace(x => { const y: any = x; recordCorrection(y, { type: "chord", bar: b, from: y.chords.bars[b], to: name }); y.chords.bars[b] = name; y.chordChecks = { ...(y.chordChecks || {}), [b]: mark }; recomputeLoop(y); }); player.overlayRestart?.(); }
   function sounds() { const b = cur; if (b == null) return; teardown.replace(x => { const y: any = x; y.chordChecks = { ...(y.chordChecks || {}), [b]: "ok" }; }); }
 
   // ---- notes (transcribed from one section only)
@@ -58,7 +60,12 @@
 
   <Tabs items={TABS} label="Parts of this section" listClass="dtabs" bind:value={tab}>
     {#snippet panel(item)}
-      {#if item.value === "rhythm"}
+      {#if stale.length}
+        <div class="dpanel" data-part={item.value} data-stale="1">
+          <div class="row"><b>{item.label}</b><Basis kind="stale" /></div>
+          <p class="notice">Out of date: {why}. What was worked out here belonged to the bars the analyzer detected, so it is hidden instead of shown as if it still matched. {#if stale.includes("tempo")}Upload the track again to analyse it at your tempo.{:else}Untick “This track isn't in 4/4” to see it again.{/if}</p>
+        </div>
+      {:else if item.value === "rhythm"}
         <div class="dpanel" data-part="rhythm">
           <div class="row"><b>Drums</b><Basis kind="estimated" note="A one-bar, 16-step pattern: a step is on if a hit appears in most bars." /></div>
           {#if none}

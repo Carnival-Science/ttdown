@@ -542,22 +542,53 @@ const chordNotes = c => { if (!c || c === "–") return ""; const m = c.endsWith
 function keyChords(key) { const r = NAMES.indexOf(key.split(" ")[0]), mi = /minor/.test(key), n = (d, m) => NAMES[(r + d) % 12] + (m ? "m" : "");
   return new Set(mi ? [n(0, 1), n(3), n(5, 1), n(7, 1), n(7), n(8), n(10)] : [n(0), n(2, 1), n(4, 1), n(5), n(7), n(9, 1), n(10)]); } // incl. the common borrowed chord (bVII / major V)
 function compress(list) { const out = []; list.forEach(c => { const last = out[out.length - 1]; if (last && last.c === c) last.n++; else out.push({ c, n: 1 }); }); return out.map(o => o.n > 1 ? `${o.c} ×${o.n}` : o.c).join("  ·  ") || "–"; }
-function applyKey(a, keyName) {
-  const root = NAMES.indexOf(keyName.split(" ")[0]), mi = /minor/.test(keyName);
-  a.key = NAMES[root] + (mi ? " minor" : " major"); a.camelot = (mi ? CAM_MIN : CAM_MAJ)[root];
-  a.relKey = NAMES[mi ? (root + 3) % 12 : (root + 9) % 12] + (mi ? " major" : " minor"); a.keyConf = 99; a.keyFixed = true;
+/* ---- Corrections (Phase 2d, docs/ROADMAP.md step 7) -------------------------------------------------------------------------------
+   A correction never overwrites what was measured without a trace. Every one is recorded on the result as
+     { type, from, to, source: "user", at, ... }    in `timingCorrections` (types: bpm, key, downbeat, meter, chord, drum),
+   so the original value is always recoverable ("from"), and nothing is given a made-up confidence (the old hard-coded 99 is gone: the
+   measured bpmConf and keyConf stay as measured). What depends on a corrected value is then either
+     recomputed: a tempo or first-downbeat correction re-runs the analysis from the same audio with that value fixed
+                 (engine.analyzeDecoded(buffer, ..., forcedOf(a))), so the result IS a fresh analysis at those values; or
+     invalidated: without the audio that is not possible, so everything built on the bar grid is marked stale (staleReasons) and must not
+                 be shown as valid or exported until the track is analysed again. */
+function recordCorrection(a, c) {
+  const list = (a.timingCorrections || []).slice(), at = new Date().toISOString();
+  const same = x => x.type === c.type && (c.type === "chord" ? x.bar === c.bar : c.type === "drum" ? x.lane === c.lane && x.step === c.step : false);
+  const i = list.findIndex(same), entry = Object.assign({}, c, { source: "user", at });
+  if (i >= 0) { entry.from = list[i].from; if (entry.from === entry.to) list.splice(i, 1); else list[i] = entry; } else list.push(entry); // repeated edits of one chord or step keep the ORIGINAL value
+  a.timingCorrections = list.slice(-500);
+  return a;
 }
+/* What a re-analysis must hold fixed, derived from the recorded corrections: the last tempo the user chose, and the total they moved bar 1. */
+function forcedOf(a) {
+  const list = a.timingCorrections || [], bpms = list.filter(x => x.type === "bpm"), shift = list.filter(x => x.type === "downbeat").reduce((p, x) => p + (x.shift || 0), 0);
+  const f = {}; if (bpms.length) f.bpm = bpms[bpms.length - 1].to; if (((shift % 4) + 4) % 4) f.downbeatShift = ((shift % 4) + 4) % 4;
+  return f;
+}
+/* Why what is built on the bar grid (drum pattern, chords, notes, exports) cannot be trusted right now: "tempo" (corrected without the audio
+   to recompute from), "meter" (the user says it is not 4/4, which the analyzer cannot read). Empty means consistent. */
+function staleReasons(a) { const r = []; if (a.bpmFixed) r.push("tempo"); if (a.notFourFour) r.push("meter"); return r; }
+function applyKey(a, keyName) {
+  const was = a.key, root = NAMES.indexOf(keyName.split(" ")[0]), mi = /minor/.test(keyName);
+  a.key = NAMES[root] + (mi ? " minor" : " major"); a.camelot = (mi ? CAM_MIN : CAM_MAJ)[root];
+  a.relKey = NAMES[mi ? (root + 3) % 12 : (root + 9) % 12] + (mi ? " major" : " minor"); a.keyFixed = true;
+  recordCorrection(a, { type: "key", from: was, to: a.key });
+}
+/* Tempo correction WITHOUT the audio (a saved teardown): the bar grid changes but nothing built on it can be recomputed, so it is marked stale.
+   With the audio the app re-runs the analysis instead (forcedOf + engine.analyzeDecoded) and never calls this. */
 function applyTempo(a, nb) {
   nb = Math.round(nb * 10) / 10; if (!(nb >= 50 && nb <= 220)) return false;
   TimingStore.ensure(a); // keep what the tracker measured (its beats and original tempo) before the correction changes the tempo
   const before = a.bpm;
-  a.bpm = nb; a.barSec = +(240 / nb).toFixed(3); a.nBars = Math.max(1, Math.floor(a.duration / a.barSec)); a.bpmConf = 99; a.bpmFixed = true;
-  a.timingCorrections = (a.timingCorrections || []).concat([{ type: "bpm", from: before, to: nb, source: "user", at: new Date().toISOString() }]);
+  a.bpm = nb; a.barSec = +(240 / nb).toFixed(3); a.nBars = Math.max(1, Math.floor(a.duration / a.barSec)); a.bpmFixed = true;
+  recordCorrection(a, { type: "bpm", from: before, to: nb });
   // The corrected tempo invalidates every time derived from the tracked bars: sections drop their "tracked" times and are recomputed from
   // the corrected bars (as before the tracked-section change), so the section table, timeline, loops and ruler stay consistent.
   a.sections.forEach(s => { s.startBar = Math.round(s.start / a.barSec); s.bars = Math.max(1, Math.round((s.end - s.start) / a.barSec)); delete s.timing; });
   return true;
 }
+/* "This isn't in 4/4": the analyzer reads every track as 4/4 and cannot detect anything else, so everything built on its bars is unreliable. */
+function applyMeter(a, notFour) { if (!!a.notFourFour === !!notFour) return false; a.notFourFour = !!notFour || undefined; if (!notFour) delete a.notFourFour; recordCorrection(a, { type: "meter", from: notFour ? "4/4" : "not 4/4", to: notFour ? "not 4/4" : "4/4" }); return true; }
 const pcOf = k => NAMES.indexOf(String(k).split(" ")[0]);
 function camRel(a, b) {
   const na = parseInt(a, 10), nb = parseInt(b, 10), la = a.slice(-1), lb = b.slice(-1), d = Math.min((na - nb + 12) % 12, (nb - na + 12) % 12);
@@ -865,5 +896,5 @@ const EXAMPLE = {
   sections: [{ label: "Intro", startBar: 0, bars: 16 }, { label: "Build", startBar: 16, bars: 8 }, { label: "Drop", startBar: 24, bars: 32 }, { label: "Breakdown", startBar: 56, bars: 16 }, { label: "Build", startBar: 72, bars: 8 }, { label: "Drop", startBar: 80, bars: 24 }, { label: "Outro", startBar: 104, bars: 15 }].map(s => Object.assign(s, { start: +(s.startBar * 1.92).toFixed(1), end: +((s.startBar + s.bars) * 1.92).toFixed(1) })),
   barSec: 1.92, nBars: 119, balance: [17, 33, 19, 15, 10, 6], width: 0.31, loudRms: -8.9, crest: 8.2, peakDb: -0.3
 };
-return Object.freeze({ chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
+return Object.freeze({ recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
 });

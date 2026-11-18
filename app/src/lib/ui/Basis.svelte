@@ -3,15 +3,17 @@
      estimated  inferred by the analyzer: listen, check and correct it
      assumed    not detected: the analyzer assumes it
      unknown    the analyzer cannot tell
-     corrected  you changed it; results that depend on it were not recomputed -->
+     corrected  you changed it; what depends on it was recomputed, or is marked out of date
+     stale      worked out before a correction and not recomputed: hidden, never shown as valid -->
 <script lang="ts">
-  type Kind = "measured" | "estimated" | "assumed" | "unknown" | "corrected";
+  type Kind = "measured" | "estimated" | "assumed" | "unknown" | "corrected" | "stale";
   const TEXT: Record<Kind, [string, string]> = {
     measured: ["Measured", "Computed directly from the audio."],
     estimated: ["Estimated", "Inferred by the analyzer. Listen, check it and correct it if it is wrong."],
     assumed: ["Assumed", "Not detected: the analyzer assumes this."],
     unknown: ["Unknown", "The analyzer can't tell."],
-    corrected: ["Corrected by you", "You changed this. Results that depend on it were not recomputed."],
+    corrected: ["Corrected by you", "You changed this."],
+    stale: ["Out of date", "Worked out before a correction and not recomputed, so it is not shown as valid."],
   };
   let { kind, note = "" }: { kind: Kind; note?: string } = $props();
 </script>
@@ -25,4 +27,5 @@
   .basis-assumed { color: var(--tt-cool); border-color: color-mix(in srgb, var(--tt-cool) 55%, transparent); }
   .basis-unknown { color: var(--tt-ink-3); border-color: var(--tt-line); border-style: dashed; }
   .basis-corrected { color: var(--tt-accent); border-color: color-mix(in srgb, var(--tt-accent) 60%, transparent); }
+  .basis-stale { color: var(--tt-warn); border-color: color-mix(in srgb, var(--tt-warn) 60%, transparent); border-style: dashed; }
 </style>

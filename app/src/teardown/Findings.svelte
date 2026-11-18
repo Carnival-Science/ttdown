@@ -9,27 +9,37 @@
   import { drone } from "../lib/audio/drone.svelte";
   import Basis from "../lib/ui/Basis.svelte";
 
-  const { fmtT, BANDS, applyKey, applyTempo } = domain as any;
+  const { fmtT, BANDS, applyKey, staleReasons } = domain as any;
   const NAMES = engine.NAMES as string[];
   const a = $derived(teardown.result as any);
   const G = $derived(gridOf(a) as any);
   const tempo = $derived.by(() => { try { return G.map.tempo(); } catch { return null; } });
-  const corrected = $derived(!!a.bpmFixed);
-  const detectedBpm = $derived(a.timingCorrections?.[0]?.from ?? a.timing?.basis?.bpm ?? null);
+  const fixes = $derived((a.timingCorrections || []) as any[]);
+  const bpmFixes = $derived(fixes.filter(c => c.type === "bpm")), moved = $derived(fixes.filter(c => c.type === "downbeat").reduce((p, c) => p + (c.shift || 0), 0));
+  const corrected = $derived(bpmFixes.length > 0);
+  const detectedBpm = $derived(bpmFixes[0]?.from ?? null);
+  const stale = $derived(staleReasons(a) as string[]);
+  const edits = $derived(fixes.some(c => c.type === "chord" || c.type === "drum"));
+  const busy = $derived(teardown.running);
   const others = $derived(((tempo?.hypotheses || []) as any[]).filter(h => h.role !== "selected" && h.bpm >= 50 && h.bpm <= 220).map(h => +h.bpm.toFixed(1)));
   const pct = (v: number) => (v * 100 < 0.1 ? "under 0.1" : (v * 100).toFixed(1));
   const keyOpts = $derived([a.key].concat((a.altKeys || []).map((k: any) => k.key)).filter((k: string, i: number, arr: string[]) => arr.indexOf(k) === i).slice(0, 4));
   const allKeys = NAMES.flatMap(n => [n + " major", n + " minor"]);
   const setKey = (k: string) => teardown.replace(n => { applyKey(n, k); });
-  const retempo = (bpm: number) => teardown.replace(n => applyTempo(n, bpm));
+  const retempo = (bpm: number) => { void teardown.correctTempo(bpm); };
   let typed = $state("");
   $effect(() => { typed = String(a.bpm); });
 </script>
 
 <section class="panel findings" aria-labelledby="found-h">
   <h2 id="found-h">What was found</h2>
-  {#if corrected}
-    <p class="notice" role="status"><b>You corrected the tempo{detectedBpm ? ` (detected: ${detectedBpm} BPM)` : ""}.</b> Bars, chords, drum positions and exports were worked out at the detected tempo and are not recomputed, so they no longer line up with the song. Upload the track again to start from a fresh analysis.</p>
+  {#if stale.includes("tempo")}
+    <p class="notice" role="status"><b>You corrected the tempo{detectedBpm ? ` (detected: ${detectedBpm} BPM)` : ""}, but the audio isn't here to analyse again.</b> The drum pattern, chords, notes and exports were worked out at the detected tempo and no longer line up, so they are marked out of date. Upload the track again to analyse it at your tempo.</p>
+  {:else if corrected && bpmFixes[bpmFixes.length - 1].recomputed}
+    <p class="notice info" role="status"><b>Analysed again at your tempo{detectedBpm ? ` (detected: ${detectedBpm} BPM)` : ""}.</b> Bars, drums, chords and notes below were worked out at that tempo from the same audio. Chord and drum edits made before the correction were discarded, because they belonged to the old bars.</p>
+  {/if}
+  {#if stale.includes("meter")}
+    <p class="notice" role="status"><b>You said this track isn't in 4/4.</b> The analyzer can only read four beats per bar, so the bars, drum pattern, chords and notes are unreliable and marked out of date. The sections, key and measured sound are not affected.</p>
   {/if}
 
   <div class="finding" data-finding="tempo">
@@ -47,10 +57,11 @@
     {#if others.length && !corrected}<p class="small">It could also be {others.join(" or ")} BPM; the tracker can't rule that out. If the song feels twice as fast or half as fast, use ×2 or ÷2.</p>{/if}
     <div class="row">
       <span class="small">Wrong?</span>
-      <button class="btn" aria-label="Double the BPM" disabled={a.bpm * 2 > 220} onclick={() => retempo(a.bpm * 2)}>× 2</button>
-      <button class="btn" aria-label="Halve the BPM" disabled={a.bpm / 2 < 50} onclick={() => retempo(a.bpm / 2)}>÷ 2</button>
-      <span class="row" style="gap:4px"><input type="number" min="50" max="220" step="0.1" bind:value={typed} aria-label="Type the BPM" style="width:84px"><button class="btn" type="button" onclick={() => retempo(parseFloat(typed))}>Set BPM</button></span>
+      <button class="btn" aria-label="Double the BPM" disabled={busy || a.bpm * 2 > 220} onclick={() => retempo(a.bpm * 2)}>× 2</button>
+      <button class="btn" aria-label="Halve the BPM" disabled={busy || a.bpm / 2 < 50} onclick={() => retempo(a.bpm / 2)}>÷ 2</button>
+      <span class="row" style="gap:4px"><input type="number" min="50" max="220" step="0.1" bind:value={typed} aria-label="Type the BPM" style="width:84px"><button class="btn" type="button" disabled={busy} onclick={() => retempo(parseFloat(typed))}>Set BPM</button></span>
     </div>
+    <p class="small">{teardown.canRecompute ? "Correcting the tempo analyses the track again at it." : "The audio isn't here, so a corrected tempo can't be analysed again: what depends on it is marked out of date."}{#if edits} Chord and drum edits will be discarded.{/if}</p>
   </div>
 
   <div class="finding" data-finding="key">
@@ -75,10 +86,17 @@
   </div>
 
   <div class="finding" data-finding="meter">
-    <div class="fhead"><h3>Meter and bar 1</h3><Basis kind="assumed" note="The analyzer assumes four beats per bar. It does not detect the meter." /></div>
-    <p class="big">4/4</p>
-    <p class="small">Four beats per bar is assumed: the analyzer does not detect meter, so a track in 3/4, 5/4 or 6/8 will be read as 4/4 and its bars will be wrong.</p>
-    <p class="small">Bar 1 starts at {a.firstDown < 0 ? "−" : ""}{Math.abs(a.firstDown).toFixed(2)} s <Basis kind="estimated" note="The first downbeat the analyzer chose. Check it with the beat clicks." />. Length {fmtT(a.duration)} <Basis kind="measured" />, {a.nBars} bars at the detected tempo.</p>
+    <div class="fhead"><h3>Meter and bar 1</h3>{#if a.notFourFour}<Basis kind="corrected" />{:else}<Basis kind="assumed" note="The analyzer assumes four beats per bar. It does not detect the meter." />{/if}</div>
+    <p class="big">{a.notFourFour ? "Not 4/4" : "4/4"}</p>
+    {#if !a.notFourFour}<p class="small">Four beats per bar is assumed: the analyzer does not detect meter, so a track in 3/4, 5/4 or 6/8 will be read as 4/4 and its bars will be wrong.</p>{/if}
+    <label class="small check"><input type="checkbox" checked={!!a.notFourFour} onchange={e => teardown.setNotFourFour(e.currentTarget.checked)}> This track isn't in 4/4</label>
+    <p class="small">Bar 1 starts at {a.firstDown < 0 ? "−" : ""}{Math.abs(a.firstDown).toFixed(2)} s {#if moved % 4}<Basis kind="corrected" note="You moved bar 1; the track was analysed again with it there." />{:else}<Basis kind="estimated" note="The first downbeat the analyzer chose. Check it with the beat clicks." />{/if}. Length {fmtT(a.duration)} <Basis kind="measured" />, {a.nBars} bars at the detected tempo.</p>
+    <div class="row">
+      <span class="small">Bar 1 on the wrong beat?</span>
+      <button class="btn" type="button" disabled={busy || !teardown.canRecompute} onclick={() => teardown.moveBar1(-1)}>◀ One beat earlier</button>
+      <button class="btn" type="button" disabled={busy || !teardown.canRecompute} onclick={() => teardown.moveBar1(1)}>One beat later ▶</button>
+    </div>
+    {#if !teardown.canRecompute}<p class="small">Moving bar 1 analyses the track again, so it needs the audio: upload it again.</p>{/if}
   </div>
 
   <div class="finding" data-finding="level">

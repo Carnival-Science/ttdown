@@ -19,7 +19,7 @@ const ROOT = path.resolve(__dirname, '..'), SONGS = path.join(ROOT, 'test-songs'
     await p.goto(`${process.env.TT_APP_URL || `file://${ROOT}/`}index.html#teardown`); await p.waitForTimeout(300); return p;
   };
   const load = async (p, file, title) => { await p.setInputFiles('#file', file); await p.waitForFunction(t => document.querySelector('#status').textContent.includes('Teardown ready for “' + t + '”'), title, { timeout: 120000 }); };
-  const analysis = p => p.evaluate(() => { const a = window.__td; return { duration: a.duration, bpm: a.bpm, barSec: a.barSec, firstDown: a.firstDown, bpmConf: a.bpmConf, nBars: a.nBars, grid: a.grid || null }; });
+  const analysis = p => p.evaluate(() => { const a = window.__td; return { duration: a.duration, bpm: a.bpm, barSec: a.barSec, firstDown: a.firstDown, bpmConf: a.bpmConf, bpmFixed: a.bpmFixed, nBars: a.nBars, grid: a.grid || null }; });
   const ticks = p => p.evaluate(() => [...document.querySelectorAll('#out .barruler span')].map(s => ({ left: parseFloat(s.style.left), bar: +s.dataset.bar, cls: s.className })));
   const rulerMeta = p => p.evaluate(() => { const r = document.querySelector('#out .barruler'); return { grid: r.dataset.grid, title: r.title }; });
   const expectTicks = (a, G) => { const dur = a.duration, every = a.nBars > 96 ? 16 : a.nBars > 40 ? 8 : 4, out = []; for (let bar = 0, g = 0; g < 4000; bar += every, g++) { let t = G.barStart(bar); if (t > dur) break; if (t < -0.05) continue; t = Math.max(0, t); out.push({ left: +(100 * t / dur).toFixed(3), bar }); } return out; };

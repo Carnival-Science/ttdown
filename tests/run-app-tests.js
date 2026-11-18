@@ -16,6 +16,7 @@ const TESTS = [
   "app-sections.test.js",       // section times on the tracked bar lines
   "app-persistence.test.js",    // saved teardowns keep the tracker's beats
   "app-exports.test.js",        // bar-aligned exports: gated, refused, blocked when stale
+  "app-corrections.test.js",    // Phase 2d: a correction recomputes (equals a fresh analysis) or invalidates (stale, not exported)
   "app-product.test.js",        // what v1 is and is not: labels, timeline, volume, no removed features, nothing leaves the browser
 ];
 (async () => {

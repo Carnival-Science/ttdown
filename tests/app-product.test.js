@@ -64,8 +64,8 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   await p.click("#mute"); check((await p.evaluate(() => JSON.parse(localStorage.getItem("app_volume_v1")))).muted === true && await p.locator("#mute").getAttribute("aria-pressed") === "true", "mute works and says so");
 
   // corrections are labelled
-  await p.click('button[aria-label="Halve the BPM"]'); await p.waitForTimeout(400);
-  check(await p.locator('[data-finding="tempo"] .basis-corrected').count() === 1 && /corrected the tempo/.test(await p.locator("#out .notice").first().innerText()), "a tempo correction is labelled, and the page says the dependent results were not recomputed");
+  await p.click('button[aria-label="Halve the BPM"]'); await p.waitForFunction(() => /Analysed again/.test(document.querySelector('#status').textContent), null, { timeout: 120000 }); await p.waitForTimeout(300);
+  check(await p.locator('[data-finding="tempo"] .basis-corrected').count() === 1 && /Analysed again at your tempo/.test(await p.locator("#out .notice").first().innerText()), "a tempo correction is labelled, and the page says the track was analysed again at it");
   await p.locator('select[aria-label="Set the key yourself"]').selectOption("C minor"); await p.waitForTimeout(300);
   check(await p.locator('[data-finding="key"] .basis-corrected').count() === 1 && /C minor/.test(await p.locator('[data-finding="key"] .big').innerText()), "a key correction is labelled and shown");
   await p.close();

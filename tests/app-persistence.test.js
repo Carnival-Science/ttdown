@@ -73,6 +73,7 @@ const ROOT = path.resolve(__dirname, '..'), ARR = path.join(ROOT, 'test-songs', 
 
   // 5. tempo correction: sections and ruler stay consistent, the correction is recorded, the measurement survives, the choice survives a reload
   { const r = await open(); await analyse(r, path.join(ARR, 'arrangement_drift.wav'), 'arrangement_drift');
+    await r.reload(); await r.waitForTimeout(400); await openHist(r, 'arrangement_drift'); // no audio here: a corrected tempo cannot be analysed again, so it invalidates (with the audio it re-runs the analysis, see app-corrections)
     const was = (await view(r)).sections.map(s => s[3]);
     await r.locator('input[aria-label="Type the BPM"]').fill('63.5'); await r.locator('button:has-text("Set BPM")').click(); await r.waitForTimeout(600);
     const v = await view(r);

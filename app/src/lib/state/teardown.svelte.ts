@@ -10,7 +10,7 @@ import { domain } from "../domain";
 import { loadHist, saveHist } from "../storage/data";
 
 declare const __TEST_HOOKS__: boolean;
-const { fixSectionTimes } = domain;
+const { fixSectionTimes, applyTempo, applyMeter, forcedOf, recordCorrection } = domain;
 const copy = (a: AnalysisResult) => withHidden(a, JSON.parse(JSON.stringify(a)) as AnalysisResult);
 
 class Teardown {
@@ -82,6 +82,45 @@ class Teardown {
     this.audioURL = null; this.buffer = null; this.selected = 0;
     this.show(saved); this.mountId++;
   }
+  /* ---- corrections (Phase 2d). A tempo or first-downbeat correction re-runs the analysis from the SAME audio with that value fixed, so
+     everything built on the bar grid is fresh; the result is a new analysis, not a patch. Chord and drum edits made before it are
+     discarded (they were made on the old bars); a key the user set is kept (it does not depend on the grid). Without the audio (a saved
+     teardown) a tempo correction instead marks the dependent results stale and an exported file is refused; a downbeat move is not offered. */
+  get canRecompute() { return !!this.buffer && !!this.result; }
+  async reanalyze(correction: { type: "bpm" | "downbeat"; to?: number; shift?: number }): Promise<boolean> {
+    const cur = this.result, buf = this.buffer; if (!cur || !buf) return false;
+    const forced = forcedOf({ timingCorrections: [...(cur.timingCorrections || []), { ...correction, source: "user", at: "" }] });
+    if (this.ctl) this.ctl.abort();
+    const job = ++this.job, ctl = this.ctl = new AbortController(); this.running = true;
+    const current = () => job === this.job;
+    this.status = { text: forced.bpm ? `Analysing again at ${forced.bpm} BPM…` : "Analysing again with bar 1 moved…", err: false }; this.progress = 0;
+    try {
+      const a = await engine.analyzeDecoded(buf, (p, msg) => { if (!current()) return; this.progress = p; this.status = { text: msg, err: false }; }, false, ctl.signal, forced);
+      if (!current()) return false;
+      a.title = cur.title;
+      // what survives: the recorded corrections that do not depend on the bar grid, and the key if the user set it
+      a.timingCorrections = (cur.timingCorrections || []).filter(c => c.type === "bpm" || c.type === "key" || c.type === "downbeat" || c.type === "meter");
+      if (cur.keyFixed) { a.key = cur.key; a.camelot = cur.camelot; a.relKey = cur.relKey; a.keyFixed = true; }
+      if (cur.notFourFour) a.notFourFour = true;
+      recordCorrection(a, correction.type === "bpm" ? { type: "bpm", from: cur.bpm, to: correction.to, recomputed: true } : { type: "downbeat", shift: correction.shift, recomputed: true });
+      this.status = { text: `Analysed again at ${a.bpm} BPM. Chords and drum edits made before this were discarded.`, err: false };
+      this.buffer = bufferOf(a) || buf; this.show(a); this.save(a); this.ctl = null; this.running = false;
+      return true;
+    } catch (e) {
+      const err = e as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (!current() || (err && err.name === "AbortError")) return false;
+      this.ctl = null; this.running = false; this.status = { text: "Couldn't analyse again (" + (err && err.message ? err.message.slice(0, 80) : "error") + "). Nothing was changed.", err: true }; this.progress = 0; return false;
+    }
+  }
+  /** The user corrected the tempo: analyse again at it when the audio is here, otherwise mark what depends on it stale. */
+  async correctTempo(bpm: number) {
+    const to = Math.round(bpm * 10) / 10; if (!(to >= 50 && to <= 220) || !this.result) return false;
+    return this.canRecompute ? this.reanalyze({ type: "bpm", to }) : this.replace(n => applyTempo(n, to));
+  }
+  /** Bar 1 is on the wrong beat: move it by `delta` beats and analyse again (needs the audio). */
+  async moveBar1(delta: number) { return this.canRecompute ? this.reanalyze({ type: "downbeat", shift: delta }) : false; }
+  /** "This isn't in 4/4": everything built on the analyzer's bars is then marked unreliable (it cannot read other meters). */
+  setNotFourFour(on: boolean) { return this.replace(n => applyMeter(n, on)); }
   /** Apply a user correction by replacement (never in place), then save. `edit` returns false to refuse the change. */
   replace(edit: (next: AnalysisResult) => boolean | void) {
     if (!this.result) return false;

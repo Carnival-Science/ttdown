@@ -639,7 +639,7 @@ Uncalibrated numbers are not shown as probabilities. The tempo alternatives (hal
 
 ### Corrections and exports
 
-- Corrections replace the result (§0); a tempo correction **marks bars, chords, drum positions and exports stale** (existing defect C1-10, Phase 2d: they are not recomputed) and blocks the bar-aligned exports until the track is uploaded again. Downbeat and meter correction are not built (they belong to Phase 2d).
+- Corrections replace the result (§0). **Phase 2d (docs/ROADMAP.md §9) then made them consistent:** with the audio, a tempo or bar-1 correction analyses the track again at that value (the result is a fresh analysis); without the audio it marks everything built on the bar grid out of date, hides it and blocks the bar-aligned exports. "This track isn't in 4/4" invalidates the same way. Every correction is recorded with its original value, and no confidence is invented.
 - Exports use TimeMap's three-state eligibility (founder decision, 2026-11-18): **refused** (tempo changes or drift, non-4/4 meter) blocks the bar-aligned files with the reason; **needs confirmation** (always, until the user confirms: the analyzer's first downbeat and 4/4 are assumptions) shows two checks to make against the beat clicks, then unlocks them for the session; **allowed** after confirmation. Analysis data (.json, with the tracked beats) is always available. The confirmation is session-only; persisting it as a `timingCorrections` entry is part of the analysis workstream's export-confirmation work.
 
 ### Analytical components and benchmark infrastructure
@@ -681,4 +681,4 @@ Local, Apple M1, Node 24.19, Chromium 159, each command once:
 
 ### Deliberately not done (the space stays empty)
 
-No replacement for the cut features. Not built: a light theme, downbeat and meter correction, persisted export confirmation, compare, any new detection. Next priorities are analysis, not interface: correction-dependent results (Phase 2d: recompute or invalidate), a real-music benchmark, then making corrections genuinely useful. Open question for the founder: retire `/legacy.html` at cutover, or keep it for one release as the way to reach old journal and log data.
+No replacement for the cut features. Not built: a light theme, persisted export confirmation, compare, any new detection. (Bar-1 and meter correction were built afterwards, in Phase 2d.) Next priorities are analysis, not interface: correction-dependent results (Phase 2d: recompute or invalidate), a real-music benchmark, then making corrections genuinely useful. Open question for the founder: retire `/legacy.html` at cutover, or keep it for one release as the way to reach old journal and log data.

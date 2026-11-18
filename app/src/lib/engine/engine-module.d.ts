@@ -4,8 +4,12 @@ import type { AnalysisResult, Transcription, Section } from "./types";
 
 export interface InputLimits { maxFileBytes: number; rhythmSeconds: number; maxSeconds: number; minSeconds: number; silentPeak: number }
 export interface AnalysisStats { checkpoints: number; aborted: number }
+/** What a person corrected, held fixed in a re-analysis: the tempo, and how many beats bar 1 was moved. */
+export interface Forced { bpm?: number; downbeatShift?: number }
 export interface Engine {
-  analyze(file: File, onProgress: (pct: number, msg: string) => void, compare?: boolean, signal?: AbortSignal): Promise<AnalysisResult>;
+  analyze(file: File, onProgress: (pct: number, msg: string) => void, compare?: boolean, signal?: AbortSignal, forced?: Forced): Promise<AnalysisResult>;
+  /** The analysis of audio that is already decoded: used to analyse again, with `forced`, after a correction. */
+  analyzeDecoded(buffer: AudioBuffer, onProgress: (pct: number, msg: string) => void, compare?: boolean, signal?: AbortSignal, forced?: Forced): Promise<AnalysisResult>;
   tick(): Promise<void>;
   transcribe(x: Float32Array, SR: number, firstDown: number, barSec: number, sections: Section[], tune: number): { hook: Transcription | null; bass: Transcription | null };
   mag(x: Float32Array, off: number, n: number, out: Float32Array): void;

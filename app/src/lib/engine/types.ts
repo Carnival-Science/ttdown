@@ -10,7 +10,14 @@ export interface AltKey { key: string; camelot: string; gap: number }
 export interface Chords { bars: (string | null)[] | unknown[]; loop: string[] | null; loopCount: number }
 export interface Transcription { notes: Note[]; from: string; bar: number }
 export interface TrackedGrid { source: string; beats: number[]; downbeats: number[] }
-export interface TimingCorrection { type: "bpm" | string; from: number; to: number; source: "user"; at: string }
+export interface TimingCorrection {
+  type: "bpm" | "key" | "downbeat" | "meter" | "chord" | "drum";
+  from?: number | string | boolean; to?: number | string | boolean; source: "user"; at: string;
+  /** downbeat: how many beats bar 1 was moved; chord: the bar; drum: the lane and step */
+  shift?: number; bar?: number; lane?: string; step?: number;
+  /** the analysis was run again from the audio with this value fixed (so dependent results are fresh, not stale) */
+  recomputed?: boolean;
+}
 
 export interface AnalysisResult {
   title: string;
@@ -24,7 +31,7 @@ export interface AnalysisResult {
   hook?: Transcription | null; bassline?: Transcription | null;
   balance: number[]; width: number; loudRms: number; crest: number; peakDb: number;
   // user edits and persistence (legacy fields, kept as they are)
-  keyFixed?: boolean; patternEdited?: boolean; bpmFixed?: boolean;
+  keyFixed?: boolean; patternEdited?: boolean; bpmFixed?: boolean; notFourFour?: boolean;
   timing?: unknown; timingCorrections?: TimingCorrection[];
   [extra: string]: unknown;
 }

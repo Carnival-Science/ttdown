@@ -55,3 +55,5 @@
 .chcell.cur { outline: 2px solid var(--tt-focus); }
 .chcell.ok { border-color: var(--tt-good); } .chcell.fixed { border-color: var(--tt-cool); }
 .dtabs { position: static; }
+.notice.info { border-color: color-mix(in srgb, var(--tt-cool) 50%, transparent); background: color-mix(in srgb, var(--tt-cool) 8%, transparent); }
+.check { display: flex; gap: 8px; align-items: center; }

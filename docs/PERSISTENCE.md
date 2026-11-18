@@ -36,7 +36,11 @@ timingCorrections: [{ type: "bpm", from, to, source: "user", at }]    on the rec
 
 ## Corrections win over measurements
 
-A user tempo correction sets `bpmFixed`, records a `timingCorrections` entry, keeps the original `basis` and beats, and drops the `tracked` marker from every section so their times are recomputed from the corrected bars. The restored grid is not used while the correction stands (`TimeMap.forAnalysis` reports `bpm-corrected-by-user`), so section table, timeline, loops and ruler stay consistent.
+Every correction is a record in `timingCorrections`: `{ type, from, to, source: "user", at, ... }` with types `bpm`, `key`, `downbeat` (`shift`, in beats), `meter`, `chord` (`bar`) and `drum` (`lane`, `step`). `from` is the original value, kept for good (repeated edits of one chord or step keep the first); the measured `bpmConf` and `keyConf` are never overwritten. What depends on a corrected value is then either **recomputed** or **invalidated** (docs/ROADMAP.md section 9):
+
+- **With the audio, a tempo or bar-1 correction analyses the track again** with that value fixed (`forcedOf` reads it from the records; `recomputed: true` marks the entry). The saved record is then the new analysis: `timing` holds the beats tracked at that tempo, and the original tempo lives in the first `bpm` entry's `from`. Nothing is stale. Chord and drum edits made before it are dropped; a key the user set is kept.
+- **Without the audio, a tempo correction invalidates**: it sets `bpmFixed`, keeps the original `basis` and beats, and drops the `tracked` marker from every section so their times are recomputed from the corrected bars. The restored grid is not used while the correction stands (`TimeMap.forAnalysis` reports `bpm-corrected-by-user`), the drum pattern, chords and notes are marked out of date and the bar-aligned exports are blocked.
+- `meter` (`notFourFour: true`) invalidates the same way and is reversible.
 
 ## Storage failures are never silent
 

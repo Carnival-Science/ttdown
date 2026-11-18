@@ -13,7 +13,7 @@ export interface Domain {
   // drum steps
   posOf: Fn; stepsText: Fn;
   // corrections
-  applyKey: Fn; applyTempo: Fn;
+  applyKey: Fn; applyTempo: Fn; applyMeter: Fn; recordCorrection: Fn; forcedOf: (a: any) => { bpm?: number; downbeatShift?: number }; staleReasons: (a: any) => string[];
   // detected notes and exports
   songNotes: Fn; songMidiFiles: Fn; zipStore: (files: { name: string; data: Uint8Array }[]) => Uint8Array; alignedWav: Fn;
 }

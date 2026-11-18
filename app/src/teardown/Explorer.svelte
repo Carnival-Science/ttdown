@@ -13,8 +13,9 @@
   import Basis from "../lib/ui/Basis.svelte";
   import SectionDetail from "./SectionDetail.svelte";
 
-  const { COLORS, fmtT } = domain as any;
+  const { COLORS, fmtT, staleReasons } = domain as any;
   const a = $derived(teardown.result as any);
+  const stale = $derived((staleReasons(a) as string[]).length > 0);
   const dur = $derived(a.duration || 1);
   const sel = $derived(Math.min(Math.max(teardown.selected, 0), a.sections.length - 1));
   const blocks = $derived.by(() => {
@@ -83,7 +84,7 @@
           <button class="btn" onclick={() => clicks.toggle(a, audioEl, teardown.buffer)} disabled={!teardown.buffer}>{clicks.on ? "■ Stop" : "▶ Play with beat clicks"}</button>
         </div>
         <div class="row" style="gap:8px">
-          <button class="btn cool" type="button" onclick={() => audioEl && overlay.start(a, audioEl)}>{overlay.on ? "■ Stop checking" : "▶ Check by ear"}</button>
+          <button class="btn cool" type="button" disabled={stale} title={stale ? "The detected parts are out of date after your correction" : ""} onclick={() => audioEl && overlay.start(a, audioEl)}>{overlay.on ? "■ Stop checking" : "▶ Check by ear"}</button>
           <span class="small">Play the detected</span>
           <span class="seg2">{#each PARTS as [k, label] (k)}<button type="button" aria-pressed={!!(overlay.parts as any)[k]} onclick={() => { const p = overlay.parts as any; p[k] = !p[k]; }}>{label}</button>{/each}</span>
         </div>

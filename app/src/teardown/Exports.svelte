@@ -11,10 +11,11 @@
   import { TimingStore } from "../lib/persistence/timing";
   import { saveFile, safeName } from "../lib/files/download";
 
-  const { zipStore, songMidiFiles, alignedWav, tdId } = domain as any;
+  const { zipStore, songMidiFiles, alignedWav, tdId, staleReasons } = domain as any;
   const a = $derived(teardown.result as any);
   const map = $derived((gridOf(a) as any).map);
-  const stale = $derived(!!a.bpmFixed);
+  const staleWhy = $derived(staleReasons(a) as string[]);
+  const stale = $derived(staleWhy.length > 0);
   let confirmedFor = $state(""), downbeatOk = $state(false), meterOk = $state(false), note = $state("");
   const id = $derived(tdId(a) + "|" + (map ? map.fingerprint() : ""));
   const confirmed = $derived(confirmedFor === id);
@@ -48,7 +49,7 @@
 
   <h3>Bar-aligned files</h3>
   {#if stale}
-    <p class="notice">Blocked: you corrected the tempo, so bars, chords and drum positions no longer match it. Upload the track again to export.</p>
+    <p class="notice">Blocked: {staleWhy.includes("tempo") ? "you corrected the tempo and the audio isn't here to analyse again, so bars, chords and drum positions no longer match it. Upload the track again to export." : "you said this track isn't in 4/4, and the exports only support four beats per bar."}</p>
   {:else if elig.state === "refused"}
     <p class="notice">Blocked: {(elig.reasons as string[]).map(r => REASONS[r] || r).join(" ")} Files written on one fixed grid would drift away from the song.</p>
   {:else if !canExport}

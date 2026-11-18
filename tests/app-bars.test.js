@@ -21,7 +21,7 @@ const ROOT = path.resolve(__dirname, '..'), SONGS = path.join(ROOT, 'test-songs'
     await p.goto(`${process.env.TT_APP_URL || `file://${ROOT}/`}index.html#teardown`); await p.waitForTimeout(300); return p;
   };
   const load = async (p, file, title) => { await p.setInputFiles('#file', file); await p.waitForFunction(t => document.querySelector('#status').textContent.includes('Teardown ready for “' + t + '”'), title, { timeout: 120000 }); };
-  const analysis = p => p.evaluate(() => { const a = window.__td; return { duration: a.duration, bpm: a.bpm, barSec: a.barSec, firstDown: a.firstDown, bpmConf: a.bpmConf, nBars: a.nBars, grid: a.grid || null }; });
+  const analysis = p => p.evaluate(() => { const a = window.__td; return { duration: a.duration, bpm: a.bpm, barSec: a.barSec, firstDown: a.firstDown, bpmConf: a.bpmConf, bpmFixed: a.bpmFixed, nBars: a.nBars, grid: a.grid || null }; });
   const ticks = p => p.evaluate(() => [...document.querySelectorAll('#out .barruler span')].map(s => ({ left: parseFloat(s.style.left), bar: +s.dataset.bar, cls: s.className })));
   const rulerMeta = p => p.evaluate(() => { const r = document.querySelector('#out .barruler'); return { grid: r.dataset.grid, title: r.title }; });
   const expectTicks = (a, G) => { const dur = a.duration, every = a.nBars > 96 ? 16 : a.nBars > 40 ? 8 : 4, out = []; for (let bar = 0, g = 0; g < 4000; bar += every, g++) { let t = G.barStart(bar); if (t > dur) break; if (t < -0.05) continue; t = Math.max(0, t); out.push({ left: +(100 * t / dur).toFixed(3), bar }); } return out; };
@@ -67,12 +67,17 @@ const ROOT = path.resolve(__dirname, '..'), SONGS = path.join(ROOT, 'test-songs'
     check(st0.length >= legacyTicks.length && legacyTicks.every(l => st0.some(g => g.bar === l.bar && Math.abs(g.left - l.left) <= 0.0011)), `4: and it draws the same ticks as before (${st0.length} ticks)`);
     await p.close(); }
 
-  // 5. a BPM correction replaces the tracked grid (a stale grid must not override it)
+  // 5. a BPM correction: with the audio the track is analysed AGAIN at that tempo (a fresh tracked grid); without it (a saved teardown) the
+  //    corrected tempo replaces the tracked grid, because a stale grid must not override a correction
   { const p = await open(); await load(p, path.join(SONGS, 'pop127_Amaj.wav'), 'pop127_Amaj');
     check((await rulerMeta(p)).grid === 'tracked', '5: before the correction the ruler is tracked');
-    await p.locator('input[aria-label="Type the BPM"]').fill('63.5'); await p.locator('button:has-text("Set BPM")').click(); await p.waitForTimeout(500);
-    const a = await analysis(p), meta = await rulerMeta(p), G = TM.forAnalysis(a), got = await ticks(p);
-    check(meta.grid === 'fallback-grid' && G.reason === 'bpm-corrected-by-user' && sameTicks(got, expectTicks(a, G)), `5: after "Set BPM 63.5" the ruler uses the corrected tempo as a labelled fallback (${meta.grid}, ${got.length} ticks at the new bar length ${a.barSec}s)`);
+    await p.locator('input[aria-label="Type the BPM"]').fill('63.5'); await p.locator('button:has-text("Set BPM")').click(); await p.waitForFunction(() => /Analysed again/.test(document.querySelector('#status').textContent), null, { timeout: 120000 }); await p.waitForTimeout(300);
+    { const a = await analysis(p), meta = await rulerMeta(p), G = TM.forAnalysis(a), got = await ticks(p);
+      check(meta.grid === 'tracked' && G.kind === 'tracked' && Math.abs(a.bpm - 63.5) <= 3 && sameTicks(got, expectTicks(a, G)), `5: with the audio, "Set BPM 63.5" analyses again at it: a fresh tracked grid (${meta.grid}, ${a.bpm} BPM, ${got.length} ticks on the new bars)`); }
+    await p.reload(); await p.waitForTimeout(400); await p.locator('#hist button').first().click(); await p.waitForTimeout(400);
+    await p.locator('input[aria-label="Type the BPM"]').fill('100'); await p.locator('button:has-text("Set BPM")').click(); await p.waitForTimeout(500);
+    { const a = await analysis(p), meta = await rulerMeta(p), G = TM.forAnalysis(a), got = await ticks(p);
+      check(meta.grid === 'fallback-grid' && G.reason === 'bpm-corrected-by-user' && sameTicks(got, expectTicks(a, G)), `5: without the audio, "Set BPM 100" uses the corrected tempo as a labelled fallback (${meta.grid}, ${got.length} ticks at the new bar length ${a.barSec}s)`); }
     await p.close(); }
 
   // 6. tracked bar lines before the first tracked beat are drawn dashed (extrapolated); fully tracked ones are not
