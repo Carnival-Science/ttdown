@@ -12,14 +12,16 @@ const rec = Object.fromEntries(P.tracks.map(t => [t.id, t])), f2 = v => v == nul
 
 const rows = S.tracks.map(s => {
   const m = s.metrics || {}, c = s.classes || {}, r = rec[s.id];
-  let view = { constant: "–", changes: "–", elig: "–", grid: "–" };
+  let view = { steady: "–", changes: "–", grid: "–", state: "–" };
   try {
-    const tm = TM.fromGrid(r.grid, { duration: r.full.duration, meter: { beatsPerBar: 4, status: "assumed" } }), tp = tm.tempo(), e = tm.exportEligibility();
-    view = { constant: tp.isConstant ? "yes" : `no (±${(tp.maxDeviation * 100).toFixed(1)} %)`, changes: String(tp.changes.length), grid: tp.constantGrid.maxDeviationMs.toFixed(0) + " ms", elig: e.eligible ? "allowed" + (e.caveats.filter(c => !/assumed/.test(c)).length ? " (" + e.caveats.filter(c => !/assumed/.test(c)).join("; ") + ")" : "") : "refused: " + e.reasons.join(", ") };
-  } catch (e) { view.elig = "no map: " + (e.code || e.message); }
+    const tm = TM.fromGrid(r.grid, { duration: r.full.duration, meter: { beatsPerBar: 4, status: "assumed" } }), tp = tm.tempo(), e = tm.exportEligibility(), g = e.exportGrid;
+    view = { steady: tp.isConstant ? "yes" : `no (±${(tp.maxDeviation * 100).toFixed(1)} %)`, changes: String(tp.changes.length),
+      grid: g ? `${g.maxDeviationMs.toFixed(0)} / ${g.rmsDeviationMs.toFixed(0)} ms` : "–",
+      state: e.state + (e.reasons.length ? ": " + e.reasons.join(", ") : e.needs.length ? " (" + e.needs.join(", ") + ")" : "") + (e.caveats.length ? "; " + e.caveats.join("; ") : "") };
+  } catch (e) { view.state = "no map: " + (e.code || e.message); }
   const d = m.drift, drift = d ? (d.maxAbsMs >= 1000 ? (d.maxAbsMs / 1000).toFixed(1) + " s" : Math.round(d.maxAbsMs) + " ms") : "–";
-  return `| ${s.id} | ${m.tempo ? +m.tempo.ref.toFixed(1) + " → " + +m.tempo.est.toFixed(1) + " (" + c.tempo + ")" : "–"} | ${f2(m.beats && m.beats.f)} | ${f2(m.downbeats && m.downbeats.f)} | ${f2(m.exportBeats && m.exportBeats.f)} | ${drift} (${c.exportGrid}) | ${f2(m.drums && m.drums.kick.w50.f)} / ${f2(m.drums && m.drums.snare.w50.f)} | ${f2(m.chords && m.chords.majmin)} | ${view.constant} | ${view.changes} | ${view.grid} | ${view.elig} |`;
+  return `| ${s.id} | ${m.tempo ? +m.tempo.ref.toFixed(1) + " → " + +m.tempo.est.toFixed(1) + " (" + c.tempo + ")" : "–"} | ${f2(m.beats && m.beats.f)} | ${f2(m.downbeats && m.downbeats.f)} | ${f2(m.exportBeats && m.exportBeats.f)} | ${drift} (${c.exportGrid}) | ${f2(m.drums && m.drums.kick.w50.f)} / ${f2(m.drums && m.drums.snare.w50.f)} | ${f2(m.chords && m.chords.majmin)} | ${view.steady} | ${view.changes} | ${view.grid} | ${view.state} |`;
 });
-console.log("| Fixture | Tempo truth → est (class) | Tracked beat F | Tracked downbeat F | Exported-grid beat F | Exported-grid max drift (class) | Kick / snare F (exported MIDI, ±50 ms) | Chords maj/min | TimeMap: local tempo steady? | TimeMap: tempo changes | TimeMap: best constant grid vs tracked beats (max) | TimeMap: export |");
+console.log("| Fixture | Tempo truth → est (class) | Tracked beat F | Tracked downbeat F | Exported-grid beat F | Exported-grid max drift (class) | Kick / snare F (exported MIDI, ±50 ms) | Chords maj/min | TimeMap: local tempo steady? | TimeMap: tempo changes | TimeMap: pinned export grid error, max / RMS | TimeMap: export state (what the analyzer's assumed 4/4 needs, or why refused) |");
 console.log("|---|---|---|---|---|---|---|---|---|---|---|---|");
 rows.forEach(r => console.log(r));

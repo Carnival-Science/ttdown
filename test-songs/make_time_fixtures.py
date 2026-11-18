@@ -109,7 +109,7 @@ F.append(build("halftime_breakdown", 4, 32, lambda k: 128 if (k < 64 or k >= 80)
                bar_feel=lambda b: "halftime" if 16 <= b < 20 else "4/4", tags=tags(tempo_behaviour="half-time breakdown (128 -> 64 -> 128 BPM), bars 17 to 20")))
 F.append(build("meter_3_4", 3, 36, const(120), "3/4", declare_tempo=120, tags=tags(meter="3/4")))
 F.append(build("meter_5_4", 5, 24, const(140), "5/4", declare_tempo=140, tags=tags(meter="5/4", tempo_band="135-160")))
-F.append(build("long_10min", 4, 320, const(128), "4/4", declare_tempo=128, tags=tags(duration="10:00 (1280 beats)")))
+F.append(build("long_7min", 4, 224, const(128), "4/4", declare_tempo=128, tags=tags(duration="7:00 (896 beats), the longest the page accepts (8:00)")))
 
 # ---- answers as annotation files + manifest (same formats as make_test_songs.py) ----
 f6 = lambda v: f"{v:.6f}"
@@ -134,7 +134,7 @@ for T in F:
     if T["tempo"] is not None: tr["tempo"] = T["tempo"]   # variable-tempo fixtures have no single tempo: the harness derives one from the beats
     tracks.append(tr)
 with open("manifest.json", "w", newline="\n") as f:
-    json.dump({"name": "time-fixtures", "version": 1, "annotationProtocol": "synthetic-exact",
+    json.dump({"name": "time-fixtures", "version": 2, "annotationProtocol": "synthetic-exact",
                "note": "Generated answers, exact by construction. Time-model stress fixtures: reported, not gated. Not real-world accuracy.",
                "requirements": {"checksums": True, "continuousBeats": True, "identity": True,
                                 "annotations": {k: "all" for k in ["beats", "downbeats", "key", "chords", "drums"]}},

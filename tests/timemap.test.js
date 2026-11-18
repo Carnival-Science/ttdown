@@ -65,7 +65,7 @@ test("downbeat unknown or meter ambiguous: no bar layer, no 4/4 forced", () => {
   const none = TM.fromGrid({ beats: b, downbeats: [] }, { duration: 16.5, meter: meter44 });
   assert.equal(none.hasBars, false); assert.equal(none.position(3).bar, null); assert.equal(none.position(3).beatInBar, null); assert.deepEqual(none.bars(), []); assert.equal(none.barStart(2), null);
   assert.equal(none.downbeat.status, "unknown"); near(none.timeToBeat(1), 2, 1e-12); // beats still convert, from the first beat
-  assert.deepEqual(none.exportEligibility().reasons, ["downbeat-unknown"]); assert.equal(none.exportEligibility().eligible, false);
+  const en = none.exportEligibility(); assert.equal(en.state, "needs-confirmation"); assert.ok(en.needs.includes("downbeat")); assert.equal(en.eligible, false); assert.equal(en.exportRange, null);
   // irregular downbeat spacing (4, 3, 4) => ambiguous
   const irregular = TM.fromGrid({ beats: b, downbeats: [b[0], b[4], b[7], b[11]] }, { duration: 16.5 });
   assert.equal(irregular.meter.status, "ambiguous"); assert.equal(irregular.hasBars, false);
@@ -77,13 +77,13 @@ test("downbeat unknown or meter ambiguous: no bar layer, no 4/4 forced", () => {
 test("3/4 measured from regular downbeats: bars are defined, 4/4 export is refused", () => {
   const b = constBeats(120, 33), m = TM.fromGrid({ beats: b, downbeats: downs(b, 3, 0) }, { duration: 16.5 });
   assert.equal(m.meter.status, "measured"); assert.equal(m.beatsPerBar, 3); near(m.barStart(2), 3, 1e-12);
-  const e = m.exportEligibility(); assert.equal(e.eligible, false); assert.ok(e.reasons.includes("meter-not-4/4"));
+  const e = m.exportEligibility(); assert.equal(e.state, "refused"); assert.ok(e.reasons.includes("meter-not-4/4"));
 });
 
 test("unsupported meter declared by the user removes the bar layer but keeps beats", () => {
   const m = build(constBeats(120, 33), 0, 16.5).withMeterUnsupported("5/4 with a 7/8 bridge", { at: "T" });
   assert.equal(m.hasBars, false); assert.equal(m.position(3).bar, null); assert.equal(m.meter.status, "unsupported");
-  near(m.timeToBeat(3), 6, 1e-12); assert.ok(m.exportEligibility().reasons.includes("meter-unsupported"));
+  near(m.timeToBeat(3), 6, 1e-12); assert.equal(m.exportEligibility().state, "refused"); assert.ok(m.exportEligibility().reasons.includes("meter-unsupported"));
 });
 
 test("half-time / double-time: alternatives are listed and explicitly uncalibrated", () => {
@@ -101,17 +101,7 @@ test("tempo drift: the map follows it, a fixed grid does not", () => {
   const fixed = k => k * 60 / m.tempo().bpm, errLast = Math.abs(fixed(299) - b[299]); // constant-BPM grid built from the median tempo
   assert.ok(errLast > 0.07, "a fixed grid drifts outside the ±70 ms beat tolerance by the end (" + (errLast * 1000).toFixed(0) + " ms)");
   assert.equal(m.tempo().isConstant, false); assert.ok(m.tempo().maxDeviation > 0.03);
-  const e = m.exportEligibility(); assert.equal(e.eligible, false); assert.ok(/tempo/.test(e.reasons[0]));
-});
-
-test("steady-looking drift: tempo is 'constant' by local variation, but export is refused when one tempo misses beats by > 20 ms", () => {
-  const drift = bpmEnd => { const b = []; let t = 0; for (let k = 0; k < 200; k++) { b.push(t); t += 60 / (128 + (bpmEnd - 128) * k / 199); } return build(b, 0, b[199] + 1); };
-  const big = drift(127.5), e = big.exportEligibility(); // 0.4 % over ~94 s
-  assert.equal(big.tempo().isConstant, true, "local tempo varies by well under 3 %");
-  assert.ok(big.tempo().constantGrid.maxDeviationMs > 20 && big.tempo().constantGrid.maxDeviationMs < 40, "best constant grid is " + big.tempo().constantGrid.maxDeviationMs.toFixed(1) + " ms off");
-  assert.equal(e.eligible, false); assert.deepEqual(e.reasons, ["tempo-drift"]); assert.ok(e.constantGridDeviationMs > 20);
-  const small = drift(127.85), es = small.exportEligibility(); // 0.12 %
-  assert.ok(small.tempo().constantGrid.maxDeviationMs < 15); assert.equal(es.eligible, true);
+  const e = m.exportEligibility(); assert.equal(e.state, "refused"); assert.ok(/tempo/.test(e.reasons[0]));
 });
 
 test("jitter in a constant tempo (±5 ms tracker noise) is still constant", () => {
@@ -132,7 +122,7 @@ test("tempo change (120 -> 150 BPM at beat 64): one change, found near the right
   const m = build(b, 0, b[127] + 1), tp = m.tempo();
   assert.equal(tp.changes.length, 1); near(tp.changes[0].t, b[64], 2.5, "change position (within ~5 beats)");
   near(tp.segments[0].bpm, 120, 1); near(tp.segments[1].bpm, 150, 1);
-  assert.deepEqual(m.exportEligibility().reasons, ["tempo-changes"]);
+  assert.equal(m.exportEligibility().state, "refused"); assert.deepEqual(m.exportEligibility().reasons, ["tempo-changes"]);
   // the map still places every tracked beat exactly, across the change
   b.forEach((bt, k) => near(m.timeToBeat(bt), k, 1e-9));
 });
@@ -158,14 +148,9 @@ test("fixed-grid fallback is labelled and reproduces the app's current grid form
     const bar = Math.floor(rng() * 110), step = Math.floor(rng() * 16);
     near(m.beatToTime(bar * 4 + step / 4), firstDown + bar * barSec + step * barSec / 16, 1e-9);
   }
-  const e = m.exportEligibility(); assert.equal(e.eligible, true); assert.equal(e.grade, "legacy-fixed-grid"); assert.equal(e.verified, false);
+  const e = m.exportEligibility(); assert.equal(e.state, "needs-confirmation"); assert.deepEqual(e.needs, ["downbeat", "meter"]);
   assert.ok(e.caveats.some(c => /fallback/.test(c)));
-});
-
-test("export eligibility discloses audio beyond the tracked beats (e.g. a tracker that stops at 8:00 on a 10:00 track)", () => {
-  const b = constBeats(128, 1024), m = build(b, 0, 600); // beats cover 0..479 s of 600 s
-  const e = m.exportEligibility(); assert.equal(e.eligible, true); assert.ok(e.caveats.some(c => /end 120 s before the audio ends/.test(c)), e.caveats.join("|"));
-  assert.ok(!build(constBeats(128, 100), 0, 48.5).exportEligibility().caveats.some(c => /extrapolated/.test(c)), "no caveat when the beats cover the audio");
+  const ok = m.confirmDownbeat().confirmMeter().exportEligibility(); assert.equal(ok.state, "allowed", "legacy fixed grids keep working once the user has confirmed"); assert.ok(ok.caveats.some(c => /fallback/.test(c)), "and are still labelled");
 });
 
 test("quantize() is explicit and keeps the deviation (the groove)", () => {
@@ -222,10 +207,107 @@ test("a downbeat that is not on a tracked beat is ignored with a warning", () =>
   assert.equal(m3.warnings.length, 1); assert.match(m3.warnings[0], /not on a tracked beat/);
 });
 
-test("export eligibility: engine-style 4/4 constant tempo is allowed with an explicit 'assumed meter' caveat, not called verified", () => {
-  const e = build(constBeats(124, 100), 0, 50).exportEligibility();
-  assert.equal(e.eligible, true); assert.equal(e.verified, false); assert.equal(e.grade, "tracked-constant-tempo"); assert.ok(e.caveats.some(c => /assumed/.test(c)));
-  const confirmed = build(constBeats(124, 100), 0, 50).withMeter(4).exportEligibility(); assert.equal(confirmed.verified, true); assert.deepEqual(confirmed.caveats, []);
+test("export eligibility: the engine's assumed 4/4 needs confirmation; only a confirmed meter AND downbeat is allowed", () => {
+  const m = build(constBeats(124, 100), 0, 50), e = m.exportEligibility();
+  assert.equal(e.state, "needs-confirmation"); assert.equal(e.eligible, false); assert.deepEqual(e.needs, ["downbeat", "meter"]); assert.deepEqual(e.reasons, []);
+  assert.equal(m.confirmMeter().exportEligibility().state, "needs-confirmation", "meter alone is not enough"); assert.deepEqual(m.confirmMeter().exportEligibility().needs, ["downbeat"]);
+  assert.equal(m.confirmDownbeat().exportEligibility().state, "needs-confirmation"); assert.deepEqual(m.confirmDownbeat().exportEligibility().needs, ["meter"]);
+  const ok = m.confirmMeter().confirmDownbeat().exportEligibility(); assert.equal(ok.state, "allowed"); assert.equal(ok.eligible, true); assert.deepEqual(ok.needs, []); assert.deepEqual(ok.caveats, []);
+  assert.deepEqual(m.confirmMeter().confirmDownbeat().corrections.map(c => c.type), ["meter-confirm", "downbeat-confirm"]);
+  assert.equal(m.withMeter(4).withDownbeat(0).exportEligibility().state, "allowed", "setting meter and downbeat also confirms them");
+  assert.throws(() => build(constBeats(124, 100), 0, 50).withMeterUnsupported("x").confirmMeter(), e2 => e2.code === "no-meter");
+  assert.throws(() => TM.fromGrid({ beats: constBeats(124, 20), downbeats: [] }, { duration: 10 }).confirmDownbeat(), e2 => e2.code === "no-downbeat");
+  // a confirmation never overrides a refusal: confirmed meter on a drifting track is still refused
+  const drift = []; let t = 0; for (let k = 0; k < 300; k++) { drift.push(t); t += 60 / (120 - 12 * k / 299); }
+  assert.equal(build(drift, 0, drift[299] + 1).confirmMeter().confirmDownbeat().exportEligibility().state, "refused");
+});
+
+test("export grid: pinned at the bar-one anchor, with max and RMS error against the tracked beats, and the cost of pinning", () => {
+  const b = constBeats(128, 200).map((x, i) => x + (i === 0 ? 0.012 : 0)); // the anchor beat itself is 12 ms late
+  const m = build(b, 0, b[199] + 1), g = m.exportGrid();
+  near(g.anchorTime, b[0], 0, "bar one sits exactly on the tracked downbeat"); assert.equal(g.anchorBeatIndex, 0); assert.equal(m.exportGridTime(0), b[0]);
+  near(g.bpm, 128, 0.2); assert.ok(g.maxDeviationMs > 0 && g.rmsDeviationMs > 0 && g.rmsDeviationMs <= g.maxDeviationMs);
+  assert.ok(g.interceptShiftMs > 8 && g.interceptShiftMs < 14, "pinning to a late anchor shifts the grid " + g.interceptShiftMs.toFixed(1) + " ms from the free fit");
+  assert.equal(g.within, g.maxDeviationMs <= 20); assert.equal(g.toleranceMs, 20);
+  assert.equal(TM.fromGrid({ beats: constBeats(128, 20), downbeats: [] }, { duration: 10 }).exportGrid(), null, "no grid while the downbeat is unknown");
+  // configurable: a tighter tolerance refuses what the default accepts
+  const tight = TM.fromGrid({ beats: b, downbeats: [b[0]] }, { duration: b[199] + 1, meter: meter44, settings: { gridTolerance: 0.001 } });
+  assert.equal(tight.exportEligibility().state, "refused"); assert.deepEqual(tight.exportEligibility().reasons, ["tempo-drift"]);
+});
+
+test("steady-looking drift: local tempo is 'constant', but export is refused when one pinned tempo misses beats by > 20 ms", () => {
+  const drift = bpmEnd => { const b = []; let t = 0; for (let k = 0; k < 200; k++) { b.push(t); t += 60 / (128 + (bpmEnd - 128) * k / 199); } return build(b, 0, b[199] + 1); };
+  const big = drift(127.5), e = big.exportEligibility(); // 0.4 % over ~94 s
+  assert.equal(big.tempo().isConstant, true, "local tempo varies by well under 3 %");
+  assert.ok(e.exportGrid.maxDeviationMs > 20 && e.exportGrid.maxDeviationMs < 60, "pinned grid is " + e.exportGrid.maxDeviationMs.toFixed(1) + " ms off");
+  assert.equal(e.state, "refused"); assert.deepEqual(e.reasons, ["tempo-drift"]);
+  const small = drift(127.9).exportEligibility(); // 0.08 %
+  assert.ok(small.exportGrid.maxDeviationMs < 15); assert.equal(small.state, "needs-confirmation");
+});
+
+test("coverage: measured span versus extrapolated seconds; exports never include extrapolated audio", () => {
+  const b = constBeats(128, 1024), m = build(b, 0, 600).confirmMeter().confirmDownbeat(); // beats cover 0..479.5 s of 600 s
+  const c = m.coverage(); near(c.measuredStart, 0, 1e-12); near(c.measuredEnd, b[1023], 1e-9); near(c.extrapolatedAfter, 600 - b[1023], 1e-9); assert.equal(c.extrapolatedBefore, 0);
+  near(c.fractionMeasured, b[1023] / 600, 1e-9);
+  const e = m.exportEligibility(); assert.equal(e.state, "allowed"); assert.ok(e.caveats.some(x => /120 s of the audio lie outside the tracked beats/.test(x)), e.caveats.join("|"));
+  assert.ok(e.exportRange.end <= b[1023] + 1e-9 && e.exportRange.end > b[1023] - 2, "the export range ends at the last whole tracked bar (" + e.exportRange.end + " s), not at 600 s");
+  assert.equal(e.exportRange.startBar, 0); assert.equal(e.exportRange.endBar, 254);
+  // leading silence: the audio before the first beat is extrapolated and reported as such
+  const lead = build(constBeats(120, 40, 2), 0, 22).coverage(); near(lead.extrapolatedBefore, 2, 1e-12); near(lead.extrapolatedAfter, 0.5, 1e-9);
+  // short untracked edges are not called out
+  assert.deepEqual(build(constBeats(128, 100), 0, 48.5).confirmMeter().confirmDownbeat().exportEligibility().caveats, []);
+  // a fallback grid has no measured span at all
+  const fb = TM.fromConstantGrid({ bpm: 120, firstDownbeat: 0.1, duration: 30 }).coverage(); assert.equal(fb.measuredStart, null); assert.equal(fb.measuredSeconds, 0); near(fb.extrapolatedSeconds, 30, 1e-12);
+});
+
+test("position(): only times strictly outside the tracked span are extrapolated; the exact first and last beats are not", () => {
+  const b = constBeats(120, 33), m = build(b, 0, 17);
+  assert.equal(m.position(b[0]).extrapolated, false); assert.equal(m.position(b[32]).extrapolated, false); assert.equal(m.position(b[32]).source, "measured");
+  assert.equal(m.position(b[32] + 0.001).extrapolated, true); assert.equal(m.position(-0.001).extrapolated, true);
+});
+
+test("meter representation: pulses per bar is not a time signature; stated signatures are kept and non-4 ones are refused for bar export", () => {
+  const m = build(constBeats(120, 100), 0, 48);
+  assert.deepEqual([m.meter.beatsPerBar, m.meter.numerator, m.meter.denominator, m.meter.beatUnit], [4, null, null, null], "the analyzer states only 4 pulses per bar");
+  const c = m.withMeter({ beatsPerBar: 4, numerator: 12, denominator: 8, beatUnit: "dotted-quarter" }, { at: "T" });
+  assert.deepEqual([c.meter.numerator, c.meter.denominator, c.meter.beatUnit, c.meter.status], [12, 8, "dotted-quarter", "user"]);
+  assert.deepEqual(c.confirmDownbeat().exportEligibility().reasons, ["meter-not-4/4"], "12/8 tracked as 4 pulses is not a 4/4 grid");
+  assert.equal(m.withMeter({ beatsPerBar: 4, numerator: 4, denominator: 4 }).confirmDownbeat().exportEligibility().state, "allowed");
+  assert.equal(TM.fromJSON(JSON.parse(JSON.stringify(c))).meter.denominator, 8, "survives a JSON round trip");
+});
+
+test("deep immutability: nothing reachable from a TimeMap can be changed, including nested objects and memoised results", () => {
+  const m = build(constBeats(120, 100), 0, 48).withMeter(4, { at: "T" });
+  const frozen = o => Object.isFrozen(o) && Object.values(o).every(v => v === null || typeof v !== "object" || frozen(v));
+  for (const k of ["t", "src", "downbeat", "meter", "tempoHypotheses", "corrections", "settings", "warnings"]) assert.ok(frozen(m[k]), k + " is deeply frozen");
+  assert.throws(() => { m.meter.status = "measured"; }, TypeError); assert.throws(() => { m.settings.gridTolerance = 1; }, TypeError);
+  assert.throws(() => { m.corrections[0].source = "machine"; }, TypeError); assert.throws(() => { m.tempoHypotheses[0].bpm = 1; }, TypeError);
+  assert.throws(() => { m.downbeat.status = "user"; }, TypeError);
+  const tp = m.tempo(), e = m.exportEligibility(), g = m.exportGrid(), cv = m.coverage();
+  for (const x of [tp, tp.segments, e, e.needs, e.caveats, g, cv, m.tempoCurve()]) assert.ok(Object.isFrozen(x), "memoised result is frozen");
+  assert.throws(() => { tp.isConstant = false; }, TypeError); assert.throws(() => { e.state = "allowed"; }, TypeError);
+  assert.equal(m.tempo(), tp, "memoised"); assert.deepEqual(Object.keys(m).filter(k => k.startsWith("_")), [], "no private mutable cache on the instance");
+  // inputs are copied, not shared: freezing the map does not freeze (or alias) what the caller passed in
+  const beats = constBeats(120, 33), grid = { beats, downbeats: [0] }, settings = { gridTolerance: 0.01 }, hyp = [{ bpm: 120, role: "selected", score: null, calibrated: false }];
+  const m2 = TM.fromGrid(grid, { duration: 17, meter: meter44, settings, tempoHypotheses: hyp });
+  assert.equal(Object.isFrozen(beats), false); assert.equal(Object.isFrozen(settings), false); assert.equal(Object.isFrozen(hyp), false);
+  beats[3] = 99; settings.gridTolerance = 5; hyp[0].bpm = 1; assert.notEqual(m2.t[3], 99); assert.equal(m2.settings.gridTolerance, 0.01); assert.equal(m2.tempoHypotheses[0].bpm, 120);
+  // toJSON hands out copies
+  const j = m.toJSON(); j.meter.status = "x"; j.beats[0].t = 5; assert.equal(m.meter.status, "user"); assert.equal(m.t[0], 0);
+});
+
+test("fingerprint covers everything a derived result depends on, including settings, statuses and sources", () => {
+  const b = constBeats(120, 33), mk = (extra = {}) => TM.fromGrid({ beats: b, downbeats: downs(b, 4, 0) }, Object.assign({ duration: 17, meter: meter44 }, extra));
+  const base = mk().fingerprint(); assert.match(base, /^tm1-[0-9a-f]{16}$/); assert.equal(mk().fingerprint(), base, "deterministic");
+  assert.notEqual(mk({ settings: { gridTolerance: 0.05 } }).fingerprint(), base, "a setting that changes eligibility changes the fingerprint");
+  assert.notEqual(mk({ settings: { constantTolerance: 0.1 } }).fingerprint(), base);
+  assert.notEqual(mk({ source: "restored" }).fingerprint(), base, "source");
+  assert.notEqual(mk({ duration: 18 }).fingerprint(), base, "duration");
+  const m = mk(); assert.notEqual(m.confirmMeter().fingerprint(), base, "confirming the meter (a status change) changes it");
+  assert.notEqual(m.confirmDownbeat().fingerprint(), base, "confirming the downbeat changes it");
+  assert.notEqual(m.withMeter({ beatsPerBar: 4, numerator: 4, denominator: 4 }).fingerprint(), m.withMeter(4).fingerprint(), "a stated denominator changes it");
+  assert.equal(m.withMeter(4, { at: "A" }).fingerprint(), m.withMeter(4, { at: "B" }).fingerprint(), "correction timestamps do not");
+  assert.notEqual(TM.fromConstantGrid({ bpm: 120, firstDownbeat: 0, duration: 17 }).fingerprint(), base, "fallback grids differ from tracked ones");
 });
 
 console.log(`timemap tests passed (${n})`);

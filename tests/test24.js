@@ -31,7 +31,9 @@ const readRows = file => fs.readFileSync(file, 'utf8').trim().split('\n').map(l 
     check(bf >= 0.98, `${f}: tracked beats vs truth F ${bf} (>= 0.98, ±70 ms)`);
     const a0 = m.barStart(0), nearestTrueDown = td.reduce((x, y) => Math.abs(y - a0) < Math.abs(x - a0) ? y : x);
     check(Math.abs(nearestTrueDown - a0) <= 0.07, `${f}: bar 1 anchor ${a0.toFixed(3)} s is within 70 ms of a true downbeat (${nearestTrueDown.toFixed(3)} s)`);
-    check(m.exportEligibility().eligible && !m.exportEligibility().verified, `${f}: constant-tempo 4/4 export allowed, with the assumed-meter caveat, not called verified`);
+    const el = m.exportEligibility(); check(el.state === 'needs-confirmation' && el.needs.join() === 'downbeat,meter', `${f}: the analyzer's assumed 4/4 and tracked downbeat need confirmation before bar exports (${el.state}: ${el.needs.join(', ')})`);
+    const ok = m.confirmMeter().confirmDownbeat().exportEligibility(), g = ok.exportGrid;
+    check(ok.state === 'allowed' && g.maxDeviationMs <= 20, `${f}: once confirmed, export is allowed; the exported grid is within ${g.maxDeviationMs.toFixed(1)} ms (RMS ${g.rmsDeviationMs.toFixed(1)}) of every tracked beat, anchor shift ${g.interceptShiftMs.toFixed(1)} ms`);
     check(A.inPage.fp === m.fingerprint(), `${f}: same fingerprint when built in the page and in Node (${m.fingerprint()})`);
     // fallback built from the persisted fields only: what a saved result (no tracked grid) can offer
     const fb = TM.fromConstantGrid({ bpm: A.bpm, firstDownbeat: A.firstDown, duration: A.duration });
