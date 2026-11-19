@@ -29,7 +29,13 @@
     "bench:arrangement": "node bench/run.js test-songs/arrangement-fixtures/manifest.json --out bench/out/arrangement-fixtures && node bench/score.js bench/out/arrangement-fixtures/predictions.json",
     "bench:melody": "node tests/bench-melody-score.test.js",
     "bench:melody-track": "node bench/run.js test-songs/melody-fixtures/manifest.json --out bench/out/melody-fixtures && node bench/melody-track.js bench/out/melody-fixtures/predictions.json test-songs/melody-fixtures/manifest.json --check && node bench/melody-track.js bench/out/synthetic/predictions.json test-songs/manifest.json",
-    "bench:transcription": "python bench/crosscheck_transcription.py"
+    "bench:transcription": "python bench/crosscheck_transcription.py",
+    "test:unit": "node tests/metrics.test.js && node tests/chord-regions.test.js && node tests/timemap.test.js && node tests/timemap-sync.test.js && node tests/timing-store.test.js && node tests/midi-export.test.js && node tests/midi-timing.test.js && node tests/constant-tempo.test.js && node tests/pickup-downbeat.test.js && node tests/key-prior.test.js && node tests/bench-metrics.test.js && node tests/bench-integrity.test.js && node tests/bench-holdout.test.js && node tests/bench-regions.test.js && node tests/transcription.test.js && node tests/bench-target.test.js",
+    "app:unit": "npm --prefix app run test:unit",
+    "smoke:fast": "node tests/smoke-fast.test.js",
+    "smoke:live": "node tests/smoke-live.test.js",
+    "e2e:journey": "node tests/e2e-journey.test.js",
+    "ci:local": "node scripts/ci-local.js"
   },
   "devDependencies": {
     "playwright": "^1.48.0"

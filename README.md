@@ -73,10 +73,15 @@ npm test             # metric tests, dev-server security tests, then the feature
 npm run benchmark    # scorecard on the synthetic songs; fails below tests/benchmark-gates.json
 ```
 
-GitHub Actions runs all of this on every pull request (`.github/workflows/ci.yml`).
+GitHub Actions runs all of this on every pull request (`.github/workflows/ci.yml`). A fast stage (type check, unit tests, a production build and a fast smoke test, a few minutes) runs first, and the longer jobs only start when it passes. `npm run ci:local` runs the same stages in the same order on your machine (`npm run ci:local -- --fast` for the fast stage only).
 
 | File | What it checks |
 |---|---|
+| `npm run app:unit` | Unit tests (Vitest) for the app's own modules: saving (full, without beats when storage is nearly full, never damaging earlier saves), storage helpers, the timeline grid and position maths, the shared viewport |
+| `npm run test:unit` | The Node unit tests that need no generated audio: metrics, TimeMap, timing store, MIDI export and timing, transcription, the benchmark scorers |
+| `npm run smoke:fast` | The production build starts, loads every asset, shows the empty page and analyses a short generated click track, with no errors |
+| `npm run e2e:journey` | The critical journey through the page only, on the production build: upload, analyse, confirm the bar lines, export MIDI and analysis data, save, reload, reopen. CI runs it in Chromium, Firefox and WebKit (`TT_BROWSER`) |
+| `npm run smoke:live` | Read-only check of the deployed site: it loads, every asset loads, a generated click track analyses, and nothing is requested from other sites. Run by hand (or the manual "Live smoke" workflow) |
 | `tests/benchmark.js` | Scorecard against synthetic songs with known answers, with regression floors (`tests/benchmark-gates.json`) |
 | `tests/metrics.test.js` | The scoring code itself, on hand-made cases |
 | `tests/dev-server.test.js` | `npm run dev` never serves git history, packages, dotfiles or other local files |
