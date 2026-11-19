@@ -46,3 +46,23 @@ The SMF spec does not say what overlapping notes of one pitch mean, and players 
 * The round trip is in the unit and product tests, not yet in the product benchmark (`bench/`) as a scored dimension.
 * Comparing exported notes against the reference audio (onset detection on the WAV) rather than against the internal events and the tracked beats.
 * Real-music fixtures: everything here ran on the synthetic fixtures.
+
+## Per-part MIDI (beside the piano rolls and chords)
+
+`domain.partMidi(a, part, { tempo, section })` writes ONE displayed part with the same `midiBytes` as the package (same grid, tempo, 4/4, same-pitch rules, labels), so there is no second writer.
+
+| Where | Button | Writes |
+|---|---|---|
+| Notes tab, Top line | MIDI | the 4-bar phrase the piano roll shows (not the song-length repeat the package writes) |
+| Notes tab, Bass | MIDI | the displayed 4-bar bass phrase |
+| Harmony tab | Chords MIDI · bars x-y | one suggested triad per detected bar of the selected section, from that section's first bar |
+| Harmony tab | Copy chord names | text only: `Am \| F \| C \| G`, `N.C.` where no chord was found |
+| Export | Download the song as MIDI | the full package |
+
+The buttons read the same gate as Export (`exportState`, wrapping `domain.exportGate`): locked until the bar lines are confirmed, locked with a reason when the grid is refused or the result is stale, and nothing on a part button can lift either. Files carry the same honesty labels (rough, quantized, suggested voicings). Checked in `tests/midi-export.test.js` (decoded notes equal the displayed notes) and `tests/app-part-midi.test.js` (the real downloads, the lock, the copied text).
+
+## Tracks with no drums
+
+`domain.noDrumsFound(a)`: no kick and no snare in the main pattern or any section's pattern. It says nothing about vocals or other instruments, so the page never says "instrumental". When true, the Rhythm tab and the Drums overlay button are hidden and one notice says so, with a "Show the drum tools anyway" button (the detector can be wrong, so hiding is never final). Tempo, beat clicks, arrangement, chords and notes are unchanged. Nothing is deleted and the analyzer's output is untouched.
+
+The analyzer's section label "Groove" is its catch-all for a stretch with no clear change. It is kept in the data (Version A predictions are unchanged) but shown as "Whole track", "Steady part" or "Main part".

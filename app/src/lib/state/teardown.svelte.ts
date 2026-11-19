@@ -37,6 +37,7 @@ class Teardown {
     try { fixSectionTimes(a); } catch { /* never blocks showing a teardown */ }
     this.result = a; this.rev++;
     if (__TEST_HOOKS__) (window as unknown as { __td: AnalysisResult }).__td = a; // bench build only: tests observe each teardown shown
+    if (__TEST_HOOKS__) (window as unknown as { __tdReplace: unknown }).__tdReplace = (fn: (r: AnalysisResult) => void) => this.replace(fn); // bench build only: tests build a variant (say, a track without drums) of what is shown
   }
   refreshHistory() { this.history = loadHist(); }
   private save(a: AnalysisResult) { const r = saveHist(a); this.histNote = { text: r.note, bad: r.bad }; this.refreshHistory(); }

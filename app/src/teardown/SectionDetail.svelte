@@ -11,16 +11,40 @@
   import Basis from "../lib/ui/Basis.svelte";
   import Rack from "../lib/ui/music/Rack.svelte";
   import PianoRoll from "../lib/ui/music/PianoRoll.svelte";
+  import { exportState } from "../lib/state/exportState.svelte";
+  import { drums } from "../lib/state/drums.svelte";
+  import { sectionName } from "../lib/timeline/sections";
+  import { saveFile, safeName } from "../lib/files/download";
 
   let { index, tools }: { index: number; tools?: Snippet } = $props();
-  const { fmtT, keyChords, chordNotes, keyInfo, chordFromDegree, recomputeLoop, recordCorrection, staleReasons } = domain as any;
+  const { fmtT, keyChords, chordNotes, keyInfo, chordFromDegree, recomputeLoop, recordCorrection, staleReasons, partMidi, chordNamesText } = domain as any;
   const a = $derived(teardown.result as any);
   const s = $derived(a.sections[index] as any);
   const playable = $derived(!!teardown.audioURL);
   const stale = $derived(staleReasons(a) as string[]);
   const why = $derived(stale.includes("tempo") ? "you corrected the tempo and the audio isn't here to analyse again" : "you said this track isn't in 4/4, which the analyzer can't read");
-  const TABS = [{ value: "rhythm", label: "Rhythm" }, { value: "harmony", label: "Harmony" }, { value: "notes", label: "Notes" }] as const;
+  const ALL_TABS = [{ value: "rhythm", label: "Rhythm" }, { value: "harmony", label: "Harmony" }, { value: "notes", label: "Notes" }];
+  // no kick or snare anywhere in the track: the Rhythm tab (and its empty drum grid) steps aside; Explorer says so and offers it back
+  const TABS = $derived(drums.hidden ? ALL_TABS.filter(t => t.value !== "rhythm") : ALL_TABS);
   let tab = $state<string | null>("rhythm");
+  $effect(() => { if (drums.hidden && tab === "rhythm") tab = "harmony"; });
+
+  // ---- per-part MIDI: the same writer, grid tempo and export gate as the Export panel (nothing here can lift a stale or refused grid)
+  let midiNote = $state("");
+  $effect(() => { void index; midiNote = ""; });
+  const base = $derived(safeName(a.title, "song"));
+  async function downloadPart(part: "hook" | "bass" | "chords") {
+    const g = exportState.gate; if (!g.canExport) return;
+    try {
+      const m = partMidi(a, part, { tempo: g.tempo, section: s }); if (!m) { midiNote = "There is nothing to write for this part."; return; }
+      await saveFile(`${base} - ${m.name}`, m.data, "audio/midi");
+      midiNote = part === "chords" ? "Saved. One suggested triad per bar from this section's first bar, not transcribed from the audio." : "Saved. A rough, 4-bar phrase snapped to the 16th-note grid, starting at its first bar. Not the original timing.";
+    } catch (e) { midiNote = "Couldn't save the file" + ((e as Error)?.message ? ": " + (e as Error).message.slice(0, 80) : "."); }
+  }
+  async function copyChords() {
+    const text = chordNamesText(a, s);
+    try { await navigator.clipboard.writeText(text); midiNote = "Copied: " + text; } catch { midiNote = "Couldn't copy. The chords are: " + text; }
+  }
 
   // ---- rhythm
   const gh = $derived(a.pattern.ghost || {});
@@ -53,9 +77,13 @@
   const sourceIdx = $derived(a.sections.findIndex((x: any) => (hook && hook.bar === x.startBar + 1) || (!hook && bass && bass.bar === x.startBar + 1)));
 </script>
 
+{#snippet midiBtn(part: "hook" | "bass")}
+  <button class="btn" type="button" disabled={!exportState.gate.canExport} title={exportState.lockedWhy || "Download this phrase as a .mid file"} onclick={() => downloadPart(part)}>⬇ MIDI</button>
+{/snippet}
+
 <div class="detail" data-section={index}>
   <div class="dhead">
-    <h3>{s.label} <span class="small mono">bars {s.startBar + 1}–{s.startBar + s.bars} · {fmtT(s.start)}–{fmtT(s.end)}</span></h3>
+    <h3>{sectionName(s.label, a)} <span class="small mono">bars {s.startBar + 1}–{s.startBar + s.bars} · {fmtT(s.start)}–{fmtT(s.end)}</span></h3>
     {#if playable}<div class="row" style="gap:6px"><button class="btn cool" type="button" onclick={() => player.seek(s.start)}>▶ Play from here</button><button class="btn" type="button" onclick={() => player.loopSection?.(index, 1)}>Loop this section</button></div>{/if}
   </div>
 
@@ -89,6 +117,12 @@
             <p>No chords were found. <Basis kind="unknown" /></p>
           {:else}
             {#if ch.loop}<p class="small">Most repeated 4-bar loop: <b class="mono">{ch.loop.join(" · ")}</b> (heard {ch.loopCount}×).</p>{/if}
+            <div class="row" style="gap:8px">
+              <button class="btn" type="button" disabled={!exportState.gate.canExport} title={exportState.lockedWhy || "Download these chords as a .mid file (suggested voicings)"} onclick={() => downloadPart("chords")}>⬇ Chords MIDI · bars {s.startBar + 1}–{s.startBar + s.bars}</button>
+              <button class="btn" type="button" onclick={copyChords}>Copy chord names</button>
+            </div>
+            {#if exportState.lockedWhy}<p class="small">MIDI is locked: {exportState.lockedWhy} <a href="#exports">Go to Export</a></p>{/if}
+            {#if midiNote}<p class="small" role="status">{midiNote}</p>{/if}
             <p class="small">One square per bar. Click a bar to hear it with the detected chord played over the song. <span class="sw shaky"></span>? marks a shaky guess (rare, or outside {a.key}); <span class="sw none"></span>· means no clear chord (unknown).</p>
             <div class="chrow wide">
               {#each barList as b (b)}
@@ -113,11 +147,13 @@
           {#if !hook && !bass}
             <p>No top line or bass notes could be read reliably. <Basis kind="unknown" /></p>
           {:else if !mine(hook) && !(!hook && mine(bass))}
-            <p class="small">Notes are transcribed from one section only, to keep the guesswork small{sourceIdx >= 0 ? `: ${a.sections[sourceIdx].label}, bars ${a.sections[sourceIdx].startBar + 1}–${a.sections[sourceIdx].startBar + a.sections[sourceIdx].bars}` : ""}. {#if sourceIdx >= 0}<button class="btn" type="button" onclick={() => { teardown.selected = sourceIdx; }}>Go to that section</button>{/if}</p>
+            <p class="small">Notes are transcribed from one section only, to keep the guesswork small{sourceIdx >= 0 ? `: ${sectionName(a.sections[sourceIdx].label, a)}, bars ${a.sections[sourceIdx].startBar + 1}–${a.sections[sourceIdx].startBar + a.sections[sourceIdx].bars}` : ""}. {#if sourceIdx >= 0}<button class="btn" type="button" onclick={() => { teardown.selected = sourceIdx; }}>Go to that section</button>{/if}</p>
           {:else}
             <p class="small">Read from this section and folded into a 4-bar loop. Rough: dense mixes make the top line and bass hard to hear, and this has not been checked against real recordings. Use "Check by ear" above to hear it over the song.</p>
-            {#if hook}<div class="layer"><h3>Top line</h3><PianoRoll notes={hook.notes} total={64} aria="Piano roll of the top line" /></div>{/if}
-            {#if bass}<div class="layer"><h3>Bass (one note per 8th)</h3><PianoRoll notes={bass.notes} total={64} aria="Piano roll of the bass" /></div>{/if}
+            {#if hook}<div class="layer"><div class="row lh"><h3>Top line</h3>{@render midiBtn("hook")}</div><PianoRoll notes={hook.notes} total={64} aria="Piano roll of the top line" /></div>{/if}
+            {#if bass}<div class="layer"><div class="row lh"><h3>Bass (one note per 8th)</h3>{@render midiBtn("bass")}</div><PianoRoll notes={bass.notes} total={64} aria="Piano roll of the bass" /></div>{/if}
+            {#if exportState.lockedWhy}<p class="small">MIDI is locked: {exportState.lockedWhy} <a href="#exports">Go to Export</a></p>{/if}
+            {#if midiNote}<p class="small" role="status">{midiNote}</p>{/if}
           {/if}
         </div>
       {/if}

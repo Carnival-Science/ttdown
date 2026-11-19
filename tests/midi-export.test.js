@@ -134,4 +134,44 @@ for (const id of ["pop127_pad300", "pop127_pad1200", "leading_silence_2s", "pick
   const a = byId("pop127_Amaj"); D.applyTempo(a, 120); check(D.staleReasons(a).includes("tempo"), "applyTempo marks the result stale");
 }
 
+/* 7. per-part MIDI (the buttons beside the piano rolls and chords): the displayed phrase, through the same writer */
+{
+  let nPhrase = 0;
+  for (const rec of recs) {
+    const a = analysisOf(rec), el = TM.forAnalysis(a).map.exportEligibility(); if (el.state === "refused") continue;
+    const bpm = el.exportGrid.bpm;
+    for (const [part, src, min] of [["hook", a.hook, 3], ["bass", a.bassline, 2]]) {
+      const m = D.partMidi(a, part, { tempo: bpm });
+      if (!src || !src.notes || src.notes.length < min) { check(m === null, rec.id + " " + part + ": nothing displayed, nothing written"); continue; }
+      nPhrase++; const d = decodeMidi(m.data), L = rec.id + "/" + m.name;
+      compare(L, src.notes.map(n => ({ t: n.t, dur: n.dur, midi: n.midi, vel: n.vel })), d, bpm, { clip: true });
+      check(d.tempos.length === 1 && Math.abs(d.tempos[0].bpm - bpm) < 0.001 && d.timeSignatures.length === 1 && d.timeSignatures[0].num === 4, L + ": grid tempo and 4/4 like the full-song files");
+      check(d.notes.every(n => n.onTick < 64 * 24), L + ": the phrase is the displayed 4 bars, not the song-length repeat (last onset tick " + Math.max(...d.notes.map(n => n.onTick)) + ")");
+      check(/rough transcription/.test(d.tracks[0].text[0].text) && /not the original timing/.test(d.tracks[0].text[0].text) && /4-bar phrase/.test(m.name), L + ": says rough, quantized, 4-bar phrase");
+      const full = decodeMidi(D.songMidiFiles(a, { tempo: bpm }).find(x => /^4 /.test(x.name) && part === "bass" || /^6 /.test(x.name) && part === "hook").data);
+      check(d.notes.length <= full.notes.length, L + ": no more notes than the full-song file, which repeats the phrase");
+    }
+    const sec = a.sections[0], ch = D.partMidi(a, "chords", { tempo: bpm, section: sec }), names = D.chordNamesText(a, sec);
+    if (ch) { const d = decodeMidi(ch.data), L = rec.id + "/" + ch.name;
+      const barsWith = a.chords.bars.slice(sec.startBar, sec.startBar + sec.bars).filter(c => c && c !== "–").length;
+      check(d.notes.length === barsWith * 3 && d.notes.every(n => n.onTick % 384 === 0 && n.onTick < sec.bars * 384) && d.unmatched.length === 0, L + ": one triad per detected bar, starting at the section's first bar (" + d.notes.length + " notes, " + barsWith + " bars)");
+      check(/SUGGESTED voicings/.test(d.tracks[0].text[0].text) && /suggested voicings/.test(ch.name), L + ": labelled as suggested voicings");
+      check(names.split(" | ").length === Math.min(sec.bars, a.chords.bars.length - sec.startBar) && !/–/.test(names), L + ": chord names text \"" + names.slice(0, 40) + "\"");
+    }
+  }
+  check(nPhrase > 6, "per-part phrases exercised: " + nPhrase);
+  assert.throws(() => D.partMidi(byId("pop127_Amaj"), "drums", {}), /unknown part/); check(true, "an unknown part is refused");
+  check(D.partMidi(byId("pop127_Amaj"), "chords", {}) === null, "chords without a section write nothing");
+  const a0 = byId("pop127_Amaj"); a0.chords = { bars: ["–", "–"] }; check(D.partMidi(a0, "chords", { section: { startBar: 0, bars: 2 } }) === null && D.chordNamesText(a0, { startBar: 0, bars: 2 }) === "N.C. | N.C.", "bars with no chord write no notes and read N.C.");
+}
+
+/* 8. drumless detection: no kick and no snare anywhere (never a claim about vocals or other instruments) */
+{
+  const a = byId("pop127_Amaj"); check(D.noDrumsFound(a) === false, "a track with a kick and snare is not drumless");
+  const b = JSON.parse(JSON.stringify(a)); b.pattern.kick = b.pattern.kick.map(() => false); b.pattern.snare = b.pattern.snare.map(() => false); (b.drumParts || []).forEach(p => { p.kick = p.kick.map(() => false); p.snare = p.snare.map(() => false); });
+  check(D.noDrumsFound(b) === true, "no kick or snare anywhere: drumless (hi-hats alone do not make drums)");
+  const c = JSON.parse(JSON.stringify(b)); if (c.drumParts && c.drumParts.length) c.drumParts[c.drumParts.length - 1].snare[4] = true; check(D.noDrumsFound(c) === (!(c.drumParts && c.drumParts.length)), "one snare in any section's pattern keeps the drum tools");
+  const e = JSON.parse(JSON.stringify(b)); delete e.drumParts; check(D.noDrumsFound(e) === true, "a result with no per-section patterns is judged on the main pattern");
+}
+
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

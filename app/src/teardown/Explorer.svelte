@@ -13,7 +13,8 @@
   import { domain } from "../lib/domain";
   import { gridOf } from "../lib/timeline/grid";
   import { barLoudness } from "../lib/timeline/loudness";
-  import { sectionColor } from "../lib/timeline/sections";
+  import { sectionColor, sectionName } from "../lib/timeline/sections";
+  import { drums } from "../lib/state/drums.svelte";
   import { PlayerTools, Overlay, BeatClicks } from "../lib/audio/song-tools.svelte";
   import Basis from "../lib/ui/Basis.svelte";
   import Segmented from "../lib/ui/Segmented.svelte";
@@ -37,7 +38,7 @@
     a.sections.forEach((s: any, i: number) => { const st = Math.max(0, s.start), en = Math.min(dur, s.end); if (en <= st) return; gap(tCur, st); out.push({ kind: "seg", i, s, from: st, to: en }); tCur = en; });
     gap(tCur, dur); return out;
   });
-  const items = $derived(a.sections.map((s: any, i: number) => ({ value: String(i), label: s.label, s })));
+  const items = $derived(a.sections.map((s: any, i: number) => ({ value: String(i), label: sectionName(s.label, a), s })));
   const G = $derived(gridOf(a));
   const ticks = $derived.by(() => {
     const every = a.nBars > 96 ? 16 : a.nBars > 40 ? 8 : 4, out: { b: number; left: string; ext: boolean; end: boolean }[] = [];
@@ -79,7 +80,9 @@
 
   const RATES = [{ value: "0.5", label: "50%" }, { value: "0.75", label: "75%" }, { value: "1", label: "100%" }];
   const LOOPS = [{ value: "off", label: "Off" }, { value: "section", label: "Section" }, { value: "here", label: "4 bars" }];
-  const PARTS = [{ value: "drums", label: "Drums" }, { value: "bass", label: "Bass" }, { value: "chords", label: "Chords" }, { value: "hook", label: "Top line" }];
+  const ALL_PARTS = [{ value: "drums", label: "Drums" }, { value: "bass", label: "Bass" }, { value: "chords", label: "Chords" }, { value: "hook", label: "Top line" }];
+  // no kick or snare found anywhere: no Drums button to play an empty pattern (the notice says so, and can bring it back)
+  const PARTS = $derived(drums.hidden ? ALL_PARTS.filter(p => p.value !== "drums") : ALL_PARTS);
   const loopMode = $derived(!tools || tools.loopSel === "" ? "off" : tools.loopSel === "here" ? "here" : "section");
   function setLoop(mode: string) { if (!tools) return; tools.setLoop(mode === "off" ? "" : mode === "here" ? "here" : String(sel)); }
   const parts = $derived(Object.entries(overlay.parts as Record<string, boolean>).filter(([, on]) => on).map(([k]) => k));
@@ -98,7 +101,7 @@
   function onHover(e: PointerEvent) {
     const r = mapEl.getBoundingClientRect(), t = dur * Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), s = sectionAt(t), bar = G.barOf(t);
     const L = loud?.find(l => t >= l.start && t < l.end);
-    hover = { x: pct(t), text: [`Bar ${bar + 1}`, s ? s.label : "", fmtT(t), L ? `${L.db.toFixed(0).replace("-", "−")} dB` : ""].filter(Boolean).join("  ") };
+    hover = { x: pct(t), text: [`Bar ${bar + 1}`, s ? sectionName(s.label, a) : "", fmtT(t), L ? `${L.db.toFixed(0).replace("-", "−")} dB` : ""].filter(Boolean).join("  ") };
   }
 </script>
 
@@ -153,6 +156,10 @@
       </div>
     {/if}
 
+    {#if drums.hidden}
+      <p class="small notice info" role="status" data-drumless>No kick or snare was found in this track, so the drum tools are hidden. It may be drumless, or its drums may be too quiet or too washed out to detect. Tempo, beat clicks, the arrangement, chords and notes still apply. <button class="btn" type="button" onclick={() => drums.showAnyway()}>Show the drum tools anyway</button></p>
+    {/if}
+
     <div class="songmap" class:quiet={!loud}>
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div class="map" bind:this={mapEl} onpointermove={onHover} onpointerleave={() => (hover = null)}>
@@ -161,7 +168,7 @@
             {#if b.kind === "gap"}<span class="seggap" style:left={pct(b.from)} style:width={`calc(${pct(b.to)} - ${pct(b.from)})`} title="Before bar 1 / after the last bar"></span>{/if}
           {/each}
           <Segmented class="bands" label="Sections" {items} value={String(sel)} onchange={v => pick(+v)} indicator={false}
-            itemProps={(it: any) => ({ class: "seg", title: `${it.s.label}: bars ${it.s.startBar + 1}–${it.s.startBar + it.s.bars} (starts ${fmtT(it.s.start)})`,
+            itemProps={(it: any) => ({ class: "seg", title: `${sectionName(it.s.label, a)}: bars ${it.s.startBar + 1}–${it.s.startBar + it.s.bars} (starts ${fmtT(it.s.start)})`,
               style: `left:${pct(Math.max(0, it.s.start))};width:calc(${pct(it.s.end)} - ${pct(Math.max(0, it.s.start))});--c:${sectionColor(it.s.label)}`, "data-label": it.s.label })}>
             {#snippet item(it: any)}<span class="seglabel">{it.label}</span>{/snippet}
           </Segmented>
@@ -190,7 +197,7 @@
           valueText={v => `${fmtT(v)} of ${fmtT(dur)}`} onchange={scrub} oncommit={() => (scrubbing = false)} />
       {/if}
       <div class="key">
-        {#each labels as k (k)}<span><i style:background={sectionColor(k)}></i>{k === "Intro" && a.sections.some((s: any) => s.label === "Outro") ? "Intro / Outro" : k}</span>{/each}
+        {#each labels as k (k)}<span><i style:background={sectionColor(k)}></i>{k === "Intro" && a.sections.some((s: any) => s.label === "Outro") ? "Intro / Outro" : sectionName(k, a)}</span>{/each}
         {#if loud}<span class="keyloud"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="1" y="6" width="2" height="5" /><rect x="5" y="3" width="2" height="8" /><rect x="9" y="1" width="2" height="10" /></svg>Loudness per bar <Basis kind="measured" note="RMS level of each bar, computed from the audio you uploaded." /></span>{/if}
       </div>
     </div>

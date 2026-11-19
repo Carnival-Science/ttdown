@@ -5,22 +5,19 @@
 <script lang="ts">
   /* eslint-disable @typescript-eslint/no-explicit-any */
   import { teardown } from "../lib/state/teardown.svelte";
-  import { workspace } from "../lib/state/workspace.svelte";
-  import { domain } from "../lib/domain";
+    import { domain } from "../lib/domain";
   import { gridOf } from "../lib/timeline/grid";
+  import { exportState } from "../lib/state/exportState.svelte";
   import { bufferOf } from "../lib/engine";
   import { TimingStore } from "../lib/persistence/timing";
   import { saveFile, safeName } from "../lib/files/download";
 
-  const { zipStore, songMidiFiles, alignedWav, tdId, exportGate } = domain as any;
+  const { zipStore, songMidiFiles, alignedWav, exportGate } = domain as any;
   const a = $derived(teardown.result as any);
-  const map = $derived((gridOf(a) as any).map);
   let downbeatOk = $state(false), meterOk = $state(false), note = $state("");
-  const id = $derived(tdId(a) + "|" + (map ? map.fingerprint() : ""));
-  const confirmed = $derived(workspace.confirmedFor === id);
-  $effect(() => { void id; downbeatOk = false; meterOk = false; note = ""; });
-  // one decision for the page and for the download: stale results, refused grids and unconfirmed assumptions are all settled in domain.exportGate
-  const elig = $derived(exportGate(a, map, confirmed) as { canExport: boolean; state: string; stale: string[]; reasons: string[]; needs: string[]; caveats: string[]; tempo: number | null });
+  $effect(() => { void exportState.id; downbeatOk = false; meterOk = false; note = ""; });
+  // one decision for the page, the download and the per-part MIDI buttons: domain.exportGate, held in exportState
+  const elig = $derived(exportState.gate);
   const staleWhy = $derived(elig.stale);
   const stale = $derived(staleWhy.length > 0);
   const REASONS: Record<string, string> = {
@@ -36,7 +33,7 @@
   async function run(fn: () => Promise<string>) { try { note = await fn(); } catch (e) { note = "Couldn't save the file" + ((e as Error)?.message ? ": " + (e as Error).message.slice(0, 80) : "."); } }
   const data = () => run(async () => { await saveFile(`${base} - analysis.json`, JSON.stringify(TimingStore.forStorage(a), null, 1), "application/json"); return "Saved the analysis data, including the tracked beat times."; });
   const midi = () => run(async () => {
-    const g = exportGate(a, map, confirmed); if (!g.canExport) throw new Error("these exports are blocked"); // decided again at the click, from the same rule as the button
+    const g = exportGate(a, (gridOf(a) as any).map, exportState.confirmed); if (!g.canExport) throw new Error("these exports are blocked"); // decided again at the click, from the same rule as the button
     await saveFile(`${base} - full song MIDI ${Math.round(g.tempo)} BPM.zip`, zipStore(songMidiFiles(a, { tempo: g.tempo })), "application/zip");
     return "Saved. Unzip it: each file is one part and starts at bar 1, so put the song lined up to bar 1 (.wav) at bar 1 too. Notes are snapped to the 16th-note grid, not the original timing, and the chords are suggested voicings, not transcribed.";
   });
@@ -60,7 +57,7 @@
       <p><b>Check the bar lines before exporting.</b> A wrong grid puts every exported note in the wrong place. Press Beat clicks: the higher click should land on each downbeat.</p>
       <label><input type="checkbox" bind:checked={downbeatOk}> The higher click lands on every downbeat</label>
       <label><input type="checkbox" bind:checked={meterOk}> The track is in 4/4</label>
-      <button class="btn primary" type="button" disabled={!(downbeatOk && meterOk)} onclick={() => { workspace.confirmedFor = id; }}>Confirm and unlock these exports</button>
+      <button class="btn primary" type="button" disabled={!(downbeatOk && meterOk)} onclick={() => exportState.confirm()}>Confirm and unlock these exports</button>
     </div>
   {:else}
     <p class="small ok">Bar lines confirmed by you for this session.</p>

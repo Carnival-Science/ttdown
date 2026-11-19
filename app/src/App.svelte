@@ -19,7 +19,6 @@
 
 <main class="wrap" data-timemap-schema={tm.schema} data-timemap-fingerprint={tm.fingerprint}>
   <header class="top">
-    <span class="logo" aria-hidden="true">T</span>
     <div><h1>Teardown</h1><p class="lead">Upload a track. See how it is built: tempo, key, arrangement, drums and chords, and what can be measured in the sound. Listen to each part, correct what's wrong, and take the timing and notes into any DAW.</p></div>
   </header>
 
@@ -70,7 +69,6 @@
 <style>
   .top { display: flex; gap: 14px; align-items: center; }
   .top h1 { font-size: clamp(1.6rem, 4.5vw, 2.4rem); }
-  .logo { flex: none; width: 44px; height: 44px; border-radius: var(--tt-radius-sm); background: var(--tt-accent); color: var(--tt-accent-ink); display: grid; place-items: center; font: 800 1rem var(--tt-font-display); }
   .lead { color: var(--tt-ink-2); max-width: 70ch; margin-top: 6px; }
   .about-build { display: flex; justify-content: flex-end; }
   .about-build summary { cursor: pointer; color: var(--tt-ink-3); font-size: var(--tt-fs-sm); }
