@@ -9,6 +9,8 @@
  * triads (maj, min, dim, aug, sus2, sus4) and sevenths (maj7, m7, 7, m7b5, dim7), plus "N" (no chord). Score = weight on chord
  * tones - 0.5 * weight on other tones + a bonus when the lowest sounding note is the root, a small cost for rare qualities; one Viterbi
  * pass with a cost per change (higher off the beat) picks the sequence; equal neighbours merge into regions {t0, t1, bar, beat, c}.
+ * Experimental term bassPat (default 0 = off): bonus bassPat * (share of the bass-register attacks, in the surrounding bassWin beats, whose
+ * pitch class is a chord tone), so a repeating bass figure (C-G-Eb-G) counts for its chord (Cm) and not for its most frequent note.
  * Chord names are written like the engine (C, Cm, ...) for triads and Cmaj7, Cm7, C7, Cm7b5, Cdim7 for the rest. */
 "use strict";
 const fs = require("node:fs");
@@ -16,17 +18,21 @@ const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const Q = [["", [0, 4, 7], 0], ["m", [0, 3, 7], 0], ["dim", [0, 3, 6], 0.08], ["aug", [0, 4, 8], 0.12], ["sus2", [0, 2, 7], 0.1], ["sus4", [0, 5, 7], 0.1],
   ["maj7", [0, 4, 7, 11], 0.05], ["m7", [0, 3, 7, 10], 0.03], ["7", [0, 4, 7, 10], 0.04], ["m7b5", [0, 3, 6, 10], 0.1], ["dim7", [0, 3, 6, 9], 0.12]];
 const CH = []; for (let r = 0; r < 12; r++) for (const [q, iv, pen] of Q) CH.push({ name: NAMES[r] + q, root: r, tones: iv.map(d => (r + d) % 12), pen, seventh: iv.length === 4 });
-const P = { win: 0.5, other: 0.5, rootBass: 0.35, change: 0.9, offbeat: 0.5, nc: 0.25, minW: 0.05, bassW: 1.6 };
+const P = { win: 0.5, other: 0.5, rootBass: 0.35, change: 0.9, offbeat: 0.5, nc: 0.25, minW: 0.05, bassW: 1.6, bassPat: 0, bassWin: 4 };
 function analyse(notes, { bar1, bpm, steps }) {
   const bar = 240 / bpm, st = bar / 8, n = steps.length, feats = [];
   for (const k of steps) {
     const t = bar1 + k * st, lo = t - P.win * 60 / bpm, hi = t + st + P.win * 60 / bpm, w = new Array(12).fill(0); let low = null, tot = 0;
     for (const x of notes) { const o = Math.min(x.off, hi) - Math.max(x.on, lo); if (o <= 0) continue; const wt = o * (x.midi < 48 ? P.bassW : 1); w[x.midi % 12] += wt; tot += wt;
       if (x.on < t + st && x.off > t && (low === null || x.midi < low)) low = x.midi; }
-    feats.push({ w, tot, low });
+    // the bass PATTERN: the pitch classes of the bass-register attacks (below C3) in the surrounding bassWin beats, each attack counted once
+    // whatever its length, so a repeating C-G-Eb-G figure says C, G, Eb and not "G, the most frequent note"
+    const bh = new Array(12).fill(0); let bn = 0, bw = P.bassWin * 60 / bpm / 2;
+    for (const x of notes) if (x.midi < 48 && x.on >= t + st / 2 - bw && x.on < t + st / 2 + bw) { bh[x.midi % 12]++; bn++; }
+    feats.push({ w, tot, low, bh, bn });
   }
   const K = CH.length + 1, NC = CH.length, emit = feats.map(f => { const e = new Float64Array(K); if (f.tot < P.minW) { e.fill(-2); e[NC] = 0; return e; }
-    const s = f.tot; CH.forEach((c, i) => { let on = 0, off = 0; f.w.forEach((v, pc) => { if (c.tones.includes(pc)) on += v; else off += v; }); e[i] = (on - P.other * off) / s + (f.low != null && f.low % 12 === c.root ? P.rootBass : 0) - c.pen; }); e[NC] = P.nc; return e; });
+    const s = f.tot; CH.forEach((c, i) => { let on = 0, off = 0; f.w.forEach((v, pc) => { if (c.tones.includes(pc)) on += v; else off += v; }); e[i] = (on - P.other * off) / s + (f.low != null && f.low % 12 === c.root ? P.rootBass : 0) - c.pen + (P.bassPat && f.bn ? P.bassPat * c.tones.reduce((q, pc) => q + f.bh[pc], 0) / f.bn : 0); }); e[NC] = P.nc; return e; });
   const back = Array.from({ length: n }, () => new Int16Array(K)); let prev = Float64Array.from(emit[0]);
   for (let s = 1; s < n; s++) { const off = steps[s] % 2 ? P.offbeat : 0, cost = P.change + off, cur = new Float64Array(K); let bk = 0; for (let k = 1; k < K; k++) if (prev[k] > prev[bk]) bk = k;
     for (let k = 0; k < K; k++) { const stay = prev[k], sw = prev[bk] - cost; if (stay >= sw || bk === k) { cur[k] = stay + emit[s][k]; back[s][k] = k; } else { cur[k] = sw + emit[s][k]; back[s][k] = bk; } } prev = cur; }
