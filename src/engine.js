@@ -132,8 +132,11 @@ function transcribe(x, SR, firstDown, barSec, sections, tune) {
    picking, and keeps what it hears where it hears it: no folding, no repetition, gaps where nothing clears the gate. Notes carry absolute
    seconds and their bar/beat position. The bar before bar 1 is read too, so a pickup keeps its notes (bar -1, negative beat).
    Rough: same limits as the 4-bar version. */
-function transcribeTrack(x, SR, G, firstDown, barSec, nBars, dur, sections, tune) {
+function transcribeTrack(x, SR, G, firstDown, barSec, nBars, dur, sections, tune, prior) {
   try {
+    // The detected key as a PRIOR, not a filter: a pitch outside the key keeps `prior.out` (0.8) of its acoustic salience, so a note with clearly stronger evidence than
+    // any in-key rival still wins, and a weak or ambiguous one (overlapping harmonics, vibrato, reverb, noise) goes to the in-key neighbour. Nothing is snapped afterwards.
+    const kf = pc => prior && prior.scale && !prior.scale.has(pc) ? prior.out : 1;
     const barAt = b => G ? G.barStart(b) : firstDown + b * barSec, steps = [];
     // every 16th step that lies inside the audio: a bar 1 that starts a hair before 0:00 (grid jitter) keeps its steps, a bar running past the end loses only the steps after it
     for (let b = -1; b <= nBars; b++) { const s0 = barAt(b), s1 = barAt(b + 1); if (!(s1 > 0) || !(s0 < dur)) continue; for (let i = 0; i < 16; i++) { const t0 = s0 + i * (s1 - s0) / 16, t1 = s0 + (i + 1) * (s1 - s0) / 16; if (t0 >= -0.02 && t1 <= dur) steps.push({ b, i, t0: Math.max(0, t0), t1 }); } }
@@ -148,7 +151,7 @@ function transcribeTrack(x, SR, G, firstDown, barSec, nBars, dur, sections, tune
     const N = 4096, m = new Float32Array(N / 2), w = [1, 0.6, 0.4], best = [], val = [];
     for (const st of steps) {
       mag(x, Math.round((st.t0 + st.t1) / 2 * SR - N / 2), N, m); const near = peaks(N, m, 240, 4500);
-      let bm = -1, bs = 0; for (let n = 60; n <= 91; n++) { const f0 = hz(n); let sal = 0; w.forEach((wt, h) => { sal += wt * near(f0 * (h + 1)); }); if (near(f0 / 2) > near(f0)) sal *= 0.5; sal *= 1 + 0.12 * (n - 60) / 12; if (sal > bs) { bs = sal; bm = n; } }
+      let bm = -1, bs = 0; for (let n = 60; n <= 91; n++) { const f0 = hz(n); let sal = 0; w.forEach((wt, h) => { sal += wt * near(f0 * (h + 1)); }); if (near(f0 / 2) > near(f0)) sal *= 0.5; sal *= 1 + 0.12 * (n - 60) / 12; sal *= kf(n % 12); if (sal > bs) { bs = sal; bm = n; } }
       best.push(bm); val.push(bs);
     }
     const gate = 0.4 * q(val, 0.75), ref = q(val, 0.95), lead = [];
@@ -166,7 +169,7 @@ function transcribeTrack(x, SR, G, firstDown, barSec, nBars, dur, sections, tune
     const S = [], top = [], F = [];
     for (const st of steps) {
       mag(x, Math.round((st.t0 + st.t1) / 2 * SR - NB / 2), NB, mb); const near = peaks(NB, mb, 28, 520), row = new Float32Array(24);
-      for (let n = 24; n <= 47; n++) { const f0 = hz(n); let sal = 0; wb.forEach((wt, h) => { sal += wt * near(f0 * (h + 1)); }); if (near(f0) < 0.25 * sal) sal *= 0.6; row[n - 24] = sal; }
+      for (let n = 24; n <= 47; n++) { const f0 = hz(n); let sal = 0; wb.forEach((wt, h) => { sal += wt * near(f0 * (h + 1)); }); if (near(f0) < 0.25 * sal) sal *= 0.6; row[n - 24] = sal * kf(n % 12); }
       S.push(row); top.push(Math.max(...row));
       mag(x, Math.round(st.t0 * SR - 64), N2, m2); let e = 0; for (let i = b0; i <= b1; i++) e += m2[i];
       mag(x, Math.round(st.t0 * SR - N2 + 64), N2, m2); let eb = 0; for (let i = b0; i <= b1; i++) eb += m2[i];
@@ -182,7 +185,7 @@ function transcribeTrack(x, SR, G, firstDown, barSec, nBars, dur, sections, tune
       let bi = 0; acc.forEach((v, i) => { if (v > acc[bi]) bi = i; });
       bass.push(note(steps[k], steps[en - 1], 24 + bi, vel(pk, bref)));
     });
-    return { version: 1, method: "salience-16th-track-v1", grid: G && G.tracked ? "tracked" : "fallback", lead, bass };
+    return Object.assign({ version: 1, method: "salience-16th-track-v1", grid: G && G.tracked ? "tracked" : "fallback", lead, bass }, prior && prior.scale ? { keyPrior: { key: prior.key, out: prior.out } } : {});
   } catch (e) { return null; }
 }
 /* The same notes on another bar numbering (bar 1 moved; the 16th lattice is the same): bar, beat and section follow, times and lengths stay. */
@@ -598,6 +601,8 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
   cands.sort((a, b) => b[0] - a[0]);
   let [kr, kt, kmi] = cands[0];
   // ---- chords per bar ----
+  const KEY_PRIOR_OUT = 0.8, priorFor = (t, m) => ({ out: KEY_PRIOR_OUT, key: NAMES[t] + (m ? " minor" : " major"), scale: new Set((m ? [0, 2, 3, 5, 7, 8, 10] : [0, 2, 4, 5, 7, 9, 11]).map(d => (d + t) % 12)) });
+  const priorEarly = priorFor(kt, kmi);
   const ONSET_LAG = 0.032; // onset frames are stamped at the window start; the hit lands ~32 ms later (measured on test songs)
   const fr2s = f => +((start + f * hop) / SR + ONSET_LAG).toFixed(4);
   const firstDownOf = b0 => { let f = (((start + b0 * hop) / SR + ONSET_LAG) % barSec + barSec) % barSec; if (f > barSec / 2) f -= barSec; return f; }; // bar 1 starts at (or just before) the top of the song
@@ -612,7 +617,7 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
   let early = null, rephased = 0;
   if (pat && downK0 != null && !(forced && forced.downbeatShift) && !snare.some(Boolean) && beatsF.length >= 16) {
     const fd0 = firstDownOf(bar0), G0 = (() => { try { return TimeMap.forAnalysis({ duration: dur, bpm, barSec, firstDown: fd0, grid: gridOf() }); } catch (e) { return null; } })();
-    early = G0 && G0.tracked ? transcribeTrack(x, SR, G0, fd0, barSec, nBars, dur, sections, tune) : null;
+    early = G0 && G0.tracked ? transcribeTrack(x, SR, G0, fd0, barSec, nBars, dur, sections, tune, priorEarly) : null;
     if (early) {
       const T = beatsF.map(fr2s), e8 = []; for (let k = 0; k + 1 < T.length; k++) e8.push(T[k], (T[k] + T[k + 1]) / 2);
       const near = t => { let lo = 0, hi = e8.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (e8[m] <= t) lo = m; else hi = m; } return Math.abs(e8[hi] - t) < Math.abs(e8[lo] - t) ? hi : lo; };
@@ -682,7 +687,7 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
   });
   const tr = transcribe(x, SR, firstDown, barSec, sections, tune);
   // the early transcription (no-backbeat path) is the same reading of the same 16th lattice; only bar, beat and section follow bar 1
-  const full = early && barGrid ? relabelTrack(early, barGrid, sections) : transcribeTrack(x, SR, barGrid, firstDown, barSec, nBars, dur, sections, tune);
+  const priorFinal = priorFor(kt, kmi), full = early && barGrid && early.keyPrior && early.keyPrior.key === priorFinal.key ? relabelTrack(early, barGrid, sections) : transcribeTrack(x, SR, barGrid, firstDown, barSec, nBars, dur, sections, tune, priorFinal); // the early reading is reused only if the key did not change since
   onProg(100, "Done");
   const result = {
     swing: pat ? pat.swing || null : null, drumParts, hook: tr.hook || null, bassline: tr.bass || null,

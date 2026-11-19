@@ -56,7 +56,10 @@ const ROOT = path.resolve(__dirname, '..'), ARR = path.join(ROOT, 'test-songs', 
     await q.evaluate(() => { window.__limit = Infinity; const set = Storage.prototype.setItem; Storage.prototype.setItem = function (k, v) { if (String(v).length > window.__limit) { const e = new Error('quota'); e.name = 'QuotaExceededError'; throw e; } return set.call(this, k, v); }; });
     await analyse(q, path.join(ARR, 'arrangement_constant.wav'), 'arrangement_constant'); const first = await store(q);
     const sz = JSON.stringify(first).length, lean = JSON.stringify(Object.assign({}, first[0], { timing: undefined })).length, beatsBytes = JSON.stringify(first[0].timing).length;
-    await q.evaluate(l => { window.__limit = l; }, sz + lean + Math.round(beatsBytes / 3)); // room for the new record without its beats, not with them
+    // size the limit from the SECOND record itself (measured in a throwaway page with unlimited storage), so it does not depend on the two tracks' notes being equally many
+    const q2 = await (await b.newContext()).newPage(); await q2.goto(`${process.env.TT_APP_URL || `file://${ROOT}/`}index.html#teardown`); await q2.waitForTimeout(300);
+    await analyse(q2, path.join(ARR, 'arrangement_drift.wav'), 'arrangement_drift'); const second = (await store(q2))[0], lean2 = JSON.stringify(Object.assign({}, second, { timing: undefined })).length, beats2 = JSON.stringify(second.timing).length; await q2.close();
+    await q.evaluate(l => { window.__limit = l; }, sz + lean2 + Math.round(beats2 / 3)); // room for the new record without its beats, not with them
     await analyse(q, path.join(ARR, 'arrangement_drift.wav'), 'arrangement_drift'); await q.waitForTimeout(300);
     const after = await store(q), note = await q.locator('#hist-note').innerText(), latest = after[0];
     check(latest.title === 'arrangement_drift' && latest.timing === undefined && after.length === 2, `4: when the browser is nearly full the new teardown is saved WITHOUT its beats (${after.length} records)`);

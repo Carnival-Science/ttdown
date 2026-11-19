@@ -163,4 +163,11 @@ the MIDI has at that time, **there are no semitone errors at all** (0 of 426). T
 
 So a key prior has nothing to fix on this piece. Not tested: local-harmony and continuity priors (no semitone errors to correct, but they could still help vocals or noisy mixes), key
 changes, vocals and pitch bends (no such renders yet), and the key's own accuracy (the detected key here, A# major, is the weakest part of that chain). Next candidates by measured loss:
-cover MIDI 48-59, an octave decision for the bass, onsets not locked to the 16th grid. Engine reverted; nothing from this experiment is in the code.
+cover MIDI 48-59, an octave decision for the bass, onsets not locked to the 16th grid. 
+**Added anyway (user's call: the test piece is one piano with simple voicings and goes out of key often, and real mixes with vocals, reverb and noise are where a prior should earn its keep).**
+It ships as a conservative prior, not a filter: `transcribeTrack(..., prior)` multiplies the salience of any pitch outside the detected key by 0.8 (lead and bass pickers), so a note with clearly
+stronger evidence than every in-key rival still wins and nothing is snapped afterwards. The transcription records it (`transcription.keyPrior = { key, out }`). Measured on `more please`: F 0.556
+(was 0.557), i.e. neutral there, as expected. `tests/key-prior.test.js` (in `npm test`) pins the behaviour: near-equal F# and G in C major go to G, a clearly stronger F# stays, a lone B-flat is
+kept, a wrong key does not override strong evidence. G0 15 gates, time fixtures and the melody-track check are unchanged; parity 0 differ. Limits: the key is the detected one (right or wrong); a key the person
+corrects later does not re-run the transcription; local-harmony and continuity priors are not built. **To judge it, test on messy mixes and vocals** (compare `keyPrior.out` 0.8 against 1.0 in
+`bench/paired-renders.js` by editing `KEY_PRIOR_OUT` in `src/engine.js`) and tell us where it removes real notes.
