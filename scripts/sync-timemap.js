@@ -7,7 +7,8 @@
 "use strict";
 const fs = require("node:fs"), path = require("node:path");
 const ROOT = path.resolve(__dirname, ".."), PAGE = path.join(ROOT, "index.html"), MODULES = ["timemap", "timing-store", "engine", "domain"];
-let page = fs.readFileSync(PAGE, "utf8"), bad = 0, changed = 0;
+// Compare with LF line endings on both sides: a Windows checkout (core.autocrlf) has CRLF in index.html too, not only in src/.
+let page = fs.readFileSync(PAGE, "utf8").replace(/\r\n/g, "\n"), bad = 0, changed = 0;
 for (const name of MODULES) {
   const SRC = path.join(ROOT, "src", name + ".js"), file = `src/${name}.js`;
   const BEGIN = `/* BEGIN ${file}: inlined copy. Edit ${file}, then run \`npm run sync:timemap\`; \`npm test\` fails if they differ. */`, END = `/* END ${file} */`;
