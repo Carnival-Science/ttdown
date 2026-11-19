@@ -1051,12 +1051,13 @@ function transcribe(x, SR, firstDown, barSec, sections, tune) {
    The 4-bar hook/bassline above stays as it is (a representative pattern from one section, folded). This one reads each 16th step of
    every bar on the bar grid G (the tracked grid when there is one, so it follows tempo drift), with the same harmonic-salience pitch
    picking, and keeps what it hears where it hears it: no folding, no repetition, gaps where nothing clears the gate. Notes carry absolute
-   seconds and their bar/beat position. Steps before bar 1 (a pickup) are not read. Rough: same limits as the 4-bar version. */
+   seconds and their bar/beat position. The bar before bar 1 is read too, so a pickup keeps its notes (bar -1, negative beat).
+   Rough: same limits as the 4-bar version. */
 function transcribeTrack(x, SR, G, firstDown, barSec, nBars, dur, sections, tune) {
   try {
     const barAt = b => G ? G.barStart(b) : firstDown + b * barSec, steps = [];
     // every 16th step that lies inside the audio: a bar 1 that starts a hair before 0:00 (grid jitter) keeps its steps, a bar running past the end loses only the steps after it
-    for (let b = 0; b <= nBars; b++) { const s0 = barAt(b), s1 = barAt(b + 1); if (!(s1 > 0) || !(s0 < dur)) continue; for (let i = 0; i < 16; i++) { const t0 = s0 + i * (s1 - s0) / 16, t1 = s0 + (i + 1) * (s1 - s0) / 16; if (t0 >= -0.02 && t1 <= dur) steps.push({ b, i, t0: Math.max(0, t0), t1 }); } }
+    for (let b = -1; b <= nBars; b++) { const s0 = barAt(b), s1 = barAt(b + 1); if (!(s1 > 0) || !(s0 < dur)) continue; for (let i = 0; i < 16; i++) { const t0 = s0 + i * (s1 - s0) / 16, t1 = s0 + (i + 1) * (s1 - s0) / 16; if (t0 >= -0.02 && t1 <= dur) steps.push({ b, i, t0: Math.max(0, t0), t1 }); } }
     if (steps.length < 32) return null;
     const secOf = b => sections.findIndex(sc => b >= sc.startBar && b < sc.startBar + sc.bars);
     const peaks = (N, m, fLo, fHi) => { const P = [], i0 = Math.max(2, Math.floor(fLo * N / SR)), i1 = Math.min(N / 2 - 2, Math.ceil(fHi * N / SR)); for (let i = i0; i <= i1; i++) if (m[i] > m[i - 1] && m[i] >= m[i + 1]) { const A = Math.log(m[i - 1] + 1e-9), B = Math.log(m[i] + 1e-9), C = Math.log(m[i + 1] + 1e-9), d = A - 2 * B + C; P.push([(i + (d ? 0.5 * (A - C) / d : 0)) * SR / N, m[i]]); } return f0 => { let v = 0; for (const [pf, pv] of P) { const c = 1200 * Math.log2(pf / f0); if (c > -90 && c < 90) { const q = pv * Math.exp(-(c / 40) * (c / 40)); if (q > v) v = q; } } return v; }; };
@@ -1104,6 +1105,13 @@ function transcribeTrack(x, SR, G, firstDown, barSec, nBars, dur, sections, tune
     });
     return { version: 1, method: "salience-16th-track-v1", grid: G && G.tracked ? "tracked" : "fallback", lead, bass };
   } catch (e) { return null; }
+}
+/* The same notes on another bar numbering (bar 1 moved; the 16th lattice is the same): bar, beat and section follow, times and lengths stay. */
+function relabelTrack(tr, G, sections) {
+  const secOf = b => sections.findIndex(sc => b >= sc.startBar && b < sc.startBar + sc.bars);
+  const lab = n => { let b = G.barOf(n.on + 1e-6), s0 = G.barStart(b), i = Math.round(16 * (n.on - s0) / (G.barStart(b + 1) - s0)); if (i >= 16) { b++; i -= 16; }
+    return Object.assign({}, n, { bar: b, beat: +(b * 4 + i / 4).toFixed(3), section: secOf(b) }); };
+  return Object.assign({}, tr, { grid: G.tracked ? "tracked" : "fallback", lead: tr.lead.map(lab), bass: tr.bass.map(lab) });
 }
 /* Processing limits. Everything is analysed in the browser tab, so a file that is too large or too long can exhaust memory:
    a decoded stereo float track is about 21 MB per minute (8 min = 169 MB, plus analysis arrays). The numbers are policy
@@ -1153,14 +1161,25 @@ function fitConstantTempo(tot, fps, bpm0, locked) {
   const sorted = scan.map(x => x[1]).sort((p, q) => p - q), med = sorted[Math.floor(sorted.length / 2)] || 1e-9; let top = scan[0]; scan.forEach(x => { if (x[1] > top[1]) top = x; });
   let gb = top[0], gs = top[1]; for (let b = top[0] - 0.1; b <= top[0] + 0.1 + 1e-9; b += 0.005) { const s = phaseOf(b, 0, N, false).s; if (s > gs) { gs = s; gb = b; } }
   const ratio = gs / med; if (ratio < 1.5) return null;
-  const quarters = []; let valid = 0, ok = true;
+  // the comb's own tempo is only as fine as its phase steps; refine it from how the best local phase moves across 8 stretches (a straight
+  // line through those phases IS the tempo error). Stretches locked on the off-beat count half a beat back.
+  for (let it = 0; it < 2; it++) { const beatR = fps * 60 / gb, G0 = phaseOf(gb, 0, N, true).ph, xs = [], ys = [];
+    for (let q = 0; q < 8; q++) { const from = Math.floor(N * q / 8), to = Math.floor(N * (q + 1) / 8); let d = ((phaseOf(gb, from, to, true).ph - G0) % beatR + beatR) % beatR; if (d > beatR / 2) d -= beatR;
+      if (Math.abs(Math.abs(d) - beatR / 2) < beatR / 8) d -= Math.sign(d) * beatR / 2; if (Math.abs(d) < beatR / 8) { xs.push((from + to) / 2); ys.push(d); } }
+    if (xs.length < 6) break; const mx = xs.reduce((p, v) => p + v, 0) / xs.length, my = ys.reduce((p, v) => p + v, 0) / ys.length; let sxy = 0, sxx = 0; xs.forEach((v, i) => { sxy += (v - mx) * (ys[i] - my); sxx += (v - mx) ** 2; });
+    const slope = sxx ? sxy / sxx : 0; if (Math.abs(slope) > 0.002) break; gb = 60 * fps / (beatR * (1 + slope)); }
+  const quarters = [], G = phaseOf(gb, 0, N, true), beat = fps * 60 / gb; let valid = 0, ok = true;
   for (let q = 0; q < 4; q++) { const from = Math.floor(N * q / 4), to = Math.floor(N * (q + 1) / 4), qs = []; let qt = null;
     for (let b = gb - 0.5; b <= gb + 0.5 + 1e-9; b += 0.02) qs.push([b, phaseOf(b, from, to, false).s]);
     const far = []; for (let b = lo; b <= hi + 1e-9; b += 0.25) far.push(phaseOf(b, from, to, false).s); far.sort((p, q2) => p - q2); const qmed = far[Math.floor(far.length / 2)] || 1e-9;
     qs.forEach(x => { if (!qt || x[1] > qt[1]) qt = x; });
-    if (qt[1] / qmed >= 1.3) { valid++; quarters.push(+qt[0].toFixed(3)); if (Math.abs(qt[0] - gb) > 0.001 * gb) ok = false; } else quarters.push(null); }
+    if (qt[1] / qmed >= 1.3) { valid++; quarters.push(+qt[0].toFixed(3));
+      // a quarter's own tempo is only good to ~0.15% (its comb is coarse); what decides is whether the ONE grid stays on that quarter's
+      // beats: its best phase at the global tempo within 30 ms of the global phase (or of the off-beat, where 8ths outweigh quarters)
+      const lp = phaseOf(gb, from, to, true).ph; let d = ((lp - G.ph) % beat + beat) % beat; if (d > beat / 2) d -= beat; d = Math.abs(d) * 1000 / fps;
+      if (Math.abs(qt[0] - gb) > 0.0015 * gb || Math.min(d, Math.abs(d - 500 * beat / fps)) > 30) ok = false; } else quarters.push(null); }
   if (valid < 3 || !ok) return null;
-  const r = phaseOf(gb, 0, N, true); return { bpm: gb, phase: r.ph, ratio: +ratio.toFixed(2), quarters, locked: false };
+  return { bpm: gb, phase: G.ph, ratio: +ratio.toFixed(2), quarters, locked: false };
 }
 /* `forced` (optional) is what a person corrected: { bpm, downbeatShift }. With it, the analysis runs again from the same audio with the tempo
    fixed at `bpm` (instead of the detected one) and/or bar 1 moved by `downbeatShift` beats (applied where the engine picks which beat of the bar
@@ -1349,9 +1368,10 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
       downK0 = c0 + rot / 4;
       // drift check: how far did the tracked beats wander from a fixed grid? (shows how much tracking helped)
       pat = { kick: K.on, snare: S.on, hats: H.on, ghost: { kick: K.ghost, snare: S.ghost, hats: H.ghost }, vel: { kick: K.vel, snare: S.vel, hats: H.vel }, freq: { kick: K.freq, snare: S.freq, hats: H.freq }, bars: steps.length, tracked: true };
-      { const flatT = steps.flat(), re = M => { const f = M.flat().slice(rot), o = []; for (let i = 0; i + 16 <= f.length; i += 16) o.push(f.slice(i, i + 16)); return o; };
-        pat.rows = { K: re(VK), S: re(VS2), H: re(VH2), kq: p90(sel(VK)), sq: p90s(sel(VS2)), hq: p90(sel(VH2)), t: [] };
-        for (let i = 0; rot + 16 * i + 15 < flatT.length; i++) pat.rows.t.push((start + flatT[rot + 16 * i] * hop) / SR); }
+      { const flatT = steps.flat(), kq1 = p90(sel(VK)), sq1 = p90s(sel(VS2)), hq1 = p90(sel(VH2));
+        pat.rowsAt = r0 => { const re = M => { const f = M.flat().slice(r0), o = []; for (let i = 0; i + 16 <= f.length; i += 16) o.push(f.slice(i, i + 16)); return o; }, R = { K: re(VK), S: re(VS2), H: re(VH2), kq: kq1, sq: sq1, hq: hq1, t: [] };
+          for (let i = 0; r0 + 16 * i + 15 < flatT.length; i++) R.t.push((start + flatT[r0 + 16 * i] * hop) / SR); return R; };
+        pat.rot = rot; pat.rows = pat.rowsAt(rot); }
       // swing: how late do the in-between 16th notes land, compared with the 8th notes?
       { const pkAt = (e, lo, hi) => { lo = Math.ceil(lo); hi = Math.floor(hi); let bi = -1, bv = 0; for (let i = lo; i <= hi; i++) if (e[i] > bv) { bv = e[i]; bi = i; } if (bi < 1 || (bi === hi && e[bi + 1] > bv) || (bi === lo && e[bi - 1] > bv)) return null; const y0 = e[bi - 1], y2 = e[bi + 1] || 0, d = y0 - 2 * bv + y2; return { pos: bi + (d ? 0.5 * (y0 - y2) / d : 0), v: bv }; };
         const hq2 = p90(VH), offs = [], refs = [], med = A => A.length ? A.slice().sort((p, q) => p - q)[Math.floor(A.length / 2)] : 0;
@@ -1500,8 +1520,39 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
   let [kr, kt, kmi] = cands[0];
   // ---- chords per bar ----
   const ONSET_LAG = 0.032; // onset frames are stamped at the window start; the hit lands ~32 ms later (measured on test songs)
-  let firstDown = (((start + bar0 * hop) / SR + ONSET_LAG) % barSec + barSec) % barSec;
-  if (firstDown > barSec / 2) firstDown -= barSec; // bar 1 starts at (or just before) the top of the song
+  const fr2s = f => +((start + f * hop) / SR + ONSET_LAG).toFixed(4);
+  const firstDownOf = b0 => { let f = (((start + b0 * hop) / SR + ONSET_LAG) % barSec + barSec) % barSec; if (f > barSec / 2) f -= barSec; return f; }; // bar 1 starts at (or just before) the top of the song
+  const gridOf = () => ({ source: tempoFit ? (tempoFit.locked ? "constant-locked" : "constant-fit") : beatsF.length >= 16 ? "dp-tracker" : "dp-tracker (too few beats; downbeats not chosen)",
+    beats: beatsF.map(fr2s), downbeats: downK0 == null ? [] : beatsF.filter((_, k) => ((k - downK0) % 4 + 4) % 4 === 0).map(fr2s) });
+  /* Version B, B2: which beat is "1" when there is no backbeat. Kick and snare chose bar 1 above; with no snare or clap on any step (piano,
+     synth and chiptune pieces, ballads) that choice has no evidence behind it (the "kick" is the bass). There the notes decide: long notes
+     and bass notes start on beat 1 more than anywhere else. The full-track transcription is read once on the current grid and its
+     duration-weighted onsets are counted on the 8 eighth-note positions of a bar; a clear winner moves bar 1 there, by half a beat when
+     it is an off-beat (which also fixes beats locked onto the 8ths). Notes keep their times; only their bar and beat are relabelled.
+     Measured on a MIDI render with a two-note pickup (bench/paired-renders): bar 1 lands on the first chord. Not used when drums decide. */
+  let early = null, rephased = 0;
+  if (pat && downK0 != null && !(forced && forced.downbeatShift) && !snare.some(Boolean) && beatsF.length >= 16) {
+    const fd0 = firstDownOf(bar0), G0 = (() => { try { return TimeMap.forAnalysis({ duration: dur, bpm, barSec, firstDown: fd0, grid: gridOf() }); } catch (e) { return null; } })();
+    early = G0 && G0.tracked ? transcribeTrack(x, SR, G0, fd0, barSec, nBars, dur, sections, tune) : null;
+    if (early) {
+      const T = beatsF.map(fr2s), e8 = []; for (let k = 0; k + 1 < T.length; k++) e8.push(T[k], (T[k] + T[k + 1]) / 2);
+      const near = t => { let lo = 0, hi = e8.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (e8[m] <= t) lo = m; else hi = m; } return Math.abs(e8[hi] - t) < Math.abs(e8[lo] - t) ? hi : lo; };
+      const v = new Array(8).fill(0); let cnt = 0;
+      for (const [part, w] of [["lead", 1], ["bass", 1.5]]) for (const n of early[part]) { const i = near(n.on); if (Math.abs(e8[i] - n.on) > 0.04) continue; v[((i - 2 * downK0) % 8 + 8) % 8] += w * Math.min(4, n.dur); cnt++; }
+      const best = v.indexOf(Math.max(...v)), second = Math.max(...v.filter((_, i) => i !== best));
+      if (cnt >= 32 && best !== 0 && v[best] >= 1.2 * second) rephased = best;
+    }
+    if (rephased) {
+      const half = rephased % 2, s16 = 2 * rephased;
+      if (half) { const nb = []; for (let k = 0; k + 1 < beatsF.length; k++) nb.push((beatsF[k] + beatsF[k + 1]) / 2); beatsF.length = 0; beatsF.push(...nb); if (tempoFit) tempoFit.phase += fps * 30 / tempoFit.bpm; }
+      downK0 = ((downK0 + (rephased - half) / 2) % 4 + 4) % 4; bar0 = beatsF[downK0];
+      const r16 = A => A.slice(s16 % 16).concat(A.slice(0, s16 % 16));
+      for (const k of ["kick", "snare", "hats"]) { pat[k] = r16(pat[k]); for (const g of ["ghost", "vel", "freq"]) if (pat[g]) pat[g][k] = r16(pat[g][k]); }
+      kick = pat.kick; snare = pat.snare; hats = pat.hats; rhythm.fourFloor = [0, 4, 8, 12].every(i => kick[i]);
+      if (pat.rowsAt) pat.rows = pat.rowsAt(pat.rot + s16);
+    }
+  }
+  let firstDown = firstDownOf(bar0);
   // where the drums change: one pattern per 8 bars, merging neighbours that are (nearly) the same
   let drumParts = null;
   if (pat && pat.rows) { const R = pat.rows, parts = [], f = (M, q, th, i0, i1) => { const fr = new Array(16).fill(0); for (let i = i0; i < i1; i++) M[i].forEach((v, j) => { if (v > th * q) fr[j]++; }); return fr.map(c => c / (i1 - i0) >= 0.6); };
@@ -1544,16 +1595,15 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
   // Section times (Phase 2c step 2): a section's bar numbers are mapped to time through TimeMap, i.e. onto the TRACKED bar lines when
   // there are any (they follow tempo drift), otherwise firstDown + n * barSec as before. The arrangement pass itself is unchanged.
   // `timing` records which grid gave the times, so a saved teardown keeps them (saved results do not keep the tracked grid).
-  const fr2s = f => +((start + f * hop) / SR + ONSET_LAG).toFixed(4);
-  const grid = { source: tempoFit ? (tempoFit.locked ? "constant-locked" : "constant-fit") : beatsF.length >= 16 ? "dp-tracker" : "dp-tracker (too few beats; downbeats not chosen)",
-    beats: beatsF.map(fr2s), downbeats: downK0 == null ? [] : beatsF.filter((_, k) => ((k - downK0) % 4 + 4) % 4 === 0).map(fr2s) };
+  const grid = gridOf();
   const barGrid = (() => { try { return TimeMap.forAnalysis({ duration: dur, bpm, barSec, firstDown, grid }); } catch (e) { return null; } })();
   sections.forEach(s => {
     const a0 = barGrid ? barGrid.barStart(s.startBar) : firstDown + s.startBar * barSec, a1 = barGrid ? barGrid.barStart(s.startBar + s.bars) : firstDown + (s.startBar + s.bars) * barSec;
     s.start = +Math.max(0, a0).toFixed(2); s.end = +Math.min(dur, a1).toFixed(2); if (barGrid && barGrid.tracked) s.timing = "tracked";
   });
   const tr = transcribe(x, SR, firstDown, barSec, sections, tune);
-  const full = transcribeTrack(x, SR, barGrid, firstDown, barSec, nBars, dur, sections, tune);
+  // the early transcription (no-backbeat path) is the same reading of the same 16th lattice; only bar, beat and section follow bar 1
+  const full = early && barGrid ? relabelTrack(early, barGrid, sections) : transcribeTrack(x, SR, barGrid, firstDown, barSec, nBars, dur, sections, tune);
   onProg(100, "Done");
   const result = {
     swing: pat ? pat.swing || null : null, drumParts, hook: tr.hook || null, bassline: tr.bass || null,
@@ -1565,7 +1615,7 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
     balance, width: +width.toFixed(2), loudRms: +loudRms.toFixed(1), crest: +crest.toFixed(1), peakDb: +(20 * Math.log10(peak + 1e-9)).toFixed(1)
   };
   if (tempoFit) result.tempoFit = { method: "constant-comb-v1", bpm: +tempoFit.bpm.toFixed(3), ratio: tempoFit.ratio, quarters: tempoFit.quarters, locked: tempoFit.locked };
-  if (tempoFit) result.tempoFit = { method: "constant-comb-v1", bpm: +tempoFit.bpm.toFixed(3), ratio: tempoFit.ratio, quarters: tempoFit.quarters, locked: tempoFit.locked };
+  if (rephased) result.downbeatFit = { method: "note-onsets-v1", movedBy8ths: rephased }; // bar 1 chosen from the notes (no backbeat); see B2 above
   if (full) result.transcription = full; // after every Version A field, so those are untouched and in their original order
   /* Measurement only (G0): the tracked beat and downbeat times in seconds, as the engine computed them.
      Non-enumerable, so saved history, account sync, sharing and the coach see exactly what they saw before.
@@ -2060,6 +2110,9 @@ function songMidiFiles(a, opts) {
 /* The full-track transcription (engine transcribeTrack: notes at their real positions, a.transcription) of one part, as 16th steps
    counted from bar startBar, for bars [startBar, endBar). A note that runs past endBar is cut there. null when the analysis has none
    (teardowns analysed before it existed): callers then fall back to the representative pattern and say so. */
+/* The bar a whole-track file starts at: -1 when the transcription has a pickup (notes before bar 1), else 0. */
+function pickupBar(a) { const T = a.transcription; return T && [...(T.lead || []), ...(T.bass || [])].some(n => n.bar < 0) ? -1 : 0; }
+const startText = b => b < 0 ? "the file starts one bar before bar 1, so the pickup is kept" : `the file starts at bar ${b + 1}`;
 function transcribedSteps(a, part, startBar, endBar) {
   const T = a.transcription, list = T && (part === "hook" ? T.lead : part === "bass" ? T.bass : null); if (!list) return null;
   const out = []; list.forEach(n => { if (n.bar < startBar || n.bar >= endBar) return; const t = Math.round(n.beat * 4) - startBar * 16, end = Math.min(t + Math.round(n.dur * 4), (endBar - startBar) * 16); if (end > t) out.push({ t, dur: end - t, midi: n.midi, vel: n.vel || 100 }); });
@@ -2080,9 +2133,9 @@ function partMidi(a, part, opts) {
     // a range asks for the notes in those bars (the transcription when there is one); no range and no source keeps the displayed 4-bar phrase
     const src = opts && opts.source || (opts && opts.range && a.transcription ? "transcribed" : "pattern");
     if (src === "transcribed") {
-      const r = opts && opts.range || { startBar: 0, endBar: nBars + 1 }, notes = transcribedSteps(a, part, r.startBar, r.endBar); if (!notes || !notes.length) return null;
-      const span = r.startBar === 0 && r.endBar > nBars ? "entire track" : `bars ${r.startBar + 1}-${r.endBar}`;
-      return { name: `${label} ${span} (rough transcription).mid`, data: midiBytes(notes, bpm, { name: label, text: `${label}: rough transcription at its real positions in the song, ${span === "entire track" ? "the entire track" : span} (the file starts at bar ${r.startBar + 1}); ${q}` }) };
+      const r = opts && opts.range || { startBar: pickupBar(a), endBar: nBars + 1 }, notes = transcribedSteps(a, part, r.startBar, r.endBar); if (!notes || !notes.length) return null;
+      const span = r.startBar <= 0 && r.endBar > nBars ? "entire track" : `bars ${r.startBar + 1}-${r.endBar}`;
+      return { name: `${label} ${span} (rough transcription).mid`, data: midiBytes(notes, bpm, { name: label, text: `${label}: rough transcription at its real positions in the song, ${span === "entire track" ? "the entire track" : span} (${startText(r.startBar)}); ${q}` }) };
     }
     const pat = part === "hook" ? a.hook : a.bassline, min = part === "hook" ? 3 : 2; if (!pat || !pat.notes || pat.notes.length < min) return null;
     const from = pat.bar != null ? `bar ${pat.bar} of the song` : "the song";
@@ -2194,9 +2247,10 @@ function allPartsMidi(a, opts) {
   const timing = opts.timing || "quantized", r = opts.range || null, title = (a.title || "Teardown").trim(), tracks = [];
   let tempos, words, refT = null;
   if (timing === "quantized") {
-    const bpm = opts.tempo != null ? opts.tempo : a.bpm, N = songNotes(a), nB = a.nBars || Math.floor(a.duration / a.barSec), s0 = r ? r.startBar * 16 : 0, s1 = r ? r.endBar * 16 : Infinity;
-    const src = { hook: transcribedSteps(a, "hook", 0, nB + 1) || N.hook, bass: transcribedSteps(a, "bass", 0, nB + 1) || N.bass, chords: N.chords };
-    const T = 480 / 4; tempos = [{ tick: 0, us: Math.round(6e7 / bpm) }]; words = `quantized to the 16th-note grid at ${Math.round(bpm * 1000) / 1000} BPM, 4/4; not the original timing. The file starts at bar ${r ? r.startBar + 1 : 1}`;
+    // a whole-track file starts at the pickup bar when there is one (step 0 = that bar), so the pickup is not dropped
+    const bpm = opts.tempo != null ? opts.tempo : a.bpm, N = songNotes(a), nB = a.nBars || Math.floor(a.duration / a.barSec), b0 = r ? 0 : pickupBar(a), s0 = r ? r.startBar * 16 : 0, s1 = r ? r.endBar * 16 : Infinity;
+    const src = { hook: transcribedSteps(a, "hook", b0, nB + 1) || N.hook, bass: transcribedSteps(a, "bass", b0, nB + 1) || N.bass, chords: N.chords.map(n => ({ ...n, t: n.t - b0 * 16 })) };
+    const T = 480 / 4; tempos = [{ tick: 0, us: Math.round(6e7 / bpm) }]; words = `quantized to the 16th-note grid at ${Math.round(bpm * 1000) / 1000} BPM, 4/4; not the original timing. ${startText(r ? r.startBar : b0).replace(/^t/, "T")}`;
     ["hook", "bass", "chords"].forEach(p => { const notes = src[p].filter(n => n.t >= s0 && n.t < s1).map(n => { const t = n.t - s0, e = Math.min(t + n.dur, s1 - s0); return { on: Math.round(t * T), off: Math.max(Math.round(t * T) + 1, Math.round(e * T) - 1), midi: n.midi, vel: n.vel || 100 }; });
       if (notes.length) tracks.push({ part: p, notes }); });
   } else {

@@ -475,6 +475,9 @@ function songMidiFiles(a, opts) {
 /* The full-track transcription (engine transcribeTrack: notes at their real positions, a.transcription) of one part, as 16th steps
    counted from bar startBar, for bars [startBar, endBar). A note that runs past endBar is cut there. null when the analysis has none
    (teardowns analysed before it existed): callers then fall back to the representative pattern and say so. */
+/* The bar a whole-track file starts at: -1 when the transcription has a pickup (notes before bar 1), else 0. */
+function pickupBar(a) { const T = a.transcription; return T && [...(T.lead || []), ...(T.bass || [])].some(n => n.bar < 0) ? -1 : 0; }
+const startText = b => b < 0 ? "the file starts one bar before bar 1, so the pickup is kept" : `the file starts at bar ${b + 1}`;
 function transcribedSteps(a, part, startBar, endBar) {
   const T = a.transcription, list = T && (part === "hook" ? T.lead : part === "bass" ? T.bass : null); if (!list) return null;
   const out = []; list.forEach(n => { if (n.bar < startBar || n.bar >= endBar) return; const t = Math.round(n.beat * 4) - startBar * 16, end = Math.min(t + Math.round(n.dur * 4), (endBar - startBar) * 16); if (end > t) out.push({ t, dur: end - t, midi: n.midi, vel: n.vel || 100 }); });
@@ -495,9 +498,9 @@ function partMidi(a, part, opts) {
     // a range asks for the notes in those bars (the transcription when there is one); no range and no source keeps the displayed 4-bar phrase
     const src = opts && opts.source || (opts && opts.range && a.transcription ? "transcribed" : "pattern");
     if (src === "transcribed") {
-      const r = opts && opts.range || { startBar: 0, endBar: nBars + 1 }, notes = transcribedSteps(a, part, r.startBar, r.endBar); if (!notes || !notes.length) return null;
-      const span = r.startBar === 0 && r.endBar > nBars ? "entire track" : `bars ${r.startBar + 1}-${r.endBar}`;
-      return { name: `${label} ${span} (rough transcription).mid`, data: midiBytes(notes, bpm, { name: label, text: `${label}: rough transcription at its real positions in the song, ${span === "entire track" ? "the entire track" : span} (the file starts at bar ${r.startBar + 1}); ${q}` }) };
+      const r = opts && opts.range || { startBar: pickupBar(a), endBar: nBars + 1 }, notes = transcribedSteps(a, part, r.startBar, r.endBar); if (!notes || !notes.length) return null;
+      const span = r.startBar <= 0 && r.endBar > nBars ? "entire track" : `bars ${r.startBar + 1}-${r.endBar}`;
+      return { name: `${label} ${span} (rough transcription).mid`, data: midiBytes(notes, bpm, { name: label, text: `${label}: rough transcription at its real positions in the song, ${span === "entire track" ? "the entire track" : span} (${startText(r.startBar)}); ${q}` }) };
     }
     const pat = part === "hook" ? a.hook : a.bassline, min = part === "hook" ? 3 : 2; if (!pat || !pat.notes || pat.notes.length < min) return null;
     const from = pat.bar != null ? `bar ${pat.bar} of the song` : "the song";
@@ -609,9 +612,10 @@ function allPartsMidi(a, opts) {
   const timing = opts.timing || "quantized", r = opts.range || null, title = (a.title || "Teardown").trim(), tracks = [];
   let tempos, words, refT = null;
   if (timing === "quantized") {
-    const bpm = opts.tempo != null ? opts.tempo : a.bpm, N = songNotes(a), nB = a.nBars || Math.floor(a.duration / a.barSec), s0 = r ? r.startBar * 16 : 0, s1 = r ? r.endBar * 16 : Infinity;
-    const src = { hook: transcribedSteps(a, "hook", 0, nB + 1) || N.hook, bass: transcribedSteps(a, "bass", 0, nB + 1) || N.bass, chords: N.chords };
-    const T = 480 / 4; tempos = [{ tick: 0, us: Math.round(6e7 / bpm) }]; words = `quantized to the 16th-note grid at ${Math.round(bpm * 1000) / 1000} BPM, 4/4; not the original timing. The file starts at bar ${r ? r.startBar + 1 : 1}`;
+    // a whole-track file starts at the pickup bar when there is one (step 0 = that bar), so the pickup is not dropped
+    const bpm = opts.tempo != null ? opts.tempo : a.bpm, N = songNotes(a), nB = a.nBars || Math.floor(a.duration / a.barSec), b0 = r ? 0 : pickupBar(a), s0 = r ? r.startBar * 16 : 0, s1 = r ? r.endBar * 16 : Infinity;
+    const src = { hook: transcribedSteps(a, "hook", b0, nB + 1) || N.hook, bass: transcribedSteps(a, "bass", b0, nB + 1) || N.bass, chords: N.chords.map(n => ({ ...n, t: n.t - b0 * 16 })) };
+    const T = 480 / 4; tempos = [{ tick: 0, us: Math.round(6e7 / bpm) }]; words = `quantized to the 16th-note grid at ${Math.round(bpm * 1000) / 1000} BPM, 4/4; not the original timing. ${startText(r ? r.startBar : b0).replace(/^t/, "T")}`;
     ["hook", "bass", "chords"].forEach(p => { const notes = src[p].filter(n => n.t >= s0 && n.t < s1).map(n => { const t = n.t - s0, e = Math.min(t + n.dur, s1 - s0); return { on: Math.round(t * T), off: Math.max(Math.round(t * T) + 1, Math.round(e * T) - 1), midi: n.midi, vel: n.vel || 100 }; });
       if (notes.length) tracks.push({ part: p, notes }); });
   } else {

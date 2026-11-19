@@ -1,4 +1,4 @@
-# Version B: tempo and grid accuracy (step 1 built: whole-track constant-tempo fit)
+# Version B: tempo and grid accuracy (built: whole-track constant-tempo fit; bar 1 and pickups for drumless music)
 
 Opened 2026-11-19 after a real-music failure: *Jane Remover, "a vicious cycle"* (C major, 161 BPM, constant) is read as 161.5 BPM and
 "Variable 149-175". The user's own correction to 161 used to come back as 161.5 (fixed in `353f920`: a typed tempo is no longer overwritten
@@ -55,7 +55,10 @@ off the audio (about 0.4 s of drift over the song), so "set it to what the site 
 
 `engine.fitConstantTempo` (engine.js, before `analyzeDecoded`): onset evidence (low + mid + half of high band) is combed with one BPM and one phase over the
 WHOLE track, scanned at 0.05 BPM near the autocorrelation tempo and refined to 0.005, then each quarter is fitted on its own. Accepted only when the whole-track peak
-stands clear (peak / median >= 1.5) and every quarter with evidence (>= 3 of 4, each peak / median >= 1.3) peaks within 0.1 % of it. When accepted the beats ARE
+stands clear (peak / median >= 1.5) and every quarter with evidence (>= 3 of 4, each peak / median >= 1.3) agrees with it. *Agrees* was "peaks within 0.1 %"; since the
+paired-render work it is "peaks within 0.15 % AND the one grid's best phase in that quarter is within 30 ms of the global phase (or of the off-beat)", because a quarter's own
+tempo is only good to about 0.15 % while phase drift is what actually breaks a grid (a steady 105 BPM render measured 105.11 in one quarter and was refused). The whole-track
+tempo is also refined from the slope of the local phases over 8 stretches (a 142 BPM fixture fitted 141.95 before, 142.00 after). When accepted the beats ARE
 that grid (`a.grid.source` = "constant-fit", `a.tempoFit` = { method, bpm, ratio, quarters, locked }), `a.bpm` follows it (0.01 BPM precision, an integer only
 within 0.03), and the track is constant by construction. When not accepted nothing changes: the tracker's beats stand (this is why drift and tempo-change tracks stay
 refused). A tempo the person types is **locked**: only the phase is fitted, no acceptance test, and the grid is exactly that tempo.
@@ -72,3 +75,47 @@ noisy steady tempo, drumless breakdown, step and drift rejected, 10 s clip rejec
 
 Not done: more real-music cases (each needs a vouched BPM), a tempo benchmark scored on false-variable rate, gradual-drift and tempo-change *classification* (a rejected fit
 just falls back to the tracker), Version A comparison on real music (G1A), and the candidate comparison with Essentia / madmom / Beat This!.
+
+## Built: bar 1 and pickups (B2, 2026-11-19)
+
+The first paired render: *more please*, a drumless chiptune-style piece written as MIDI (105 BPM, 4/4, no tempo changes, 590 notes) and rendered to MP3. The MIDI is
+the answer key; the analyzer only hears the audio. The piece opens with a two-note pickup (A5 on beat 4, B-flat 5 on its "and") into the first chord (E-flat, D, F) on
+beat 1. Scored with `bench/paired-renders.js` (below):
+
+| | Before | After |
+|---|---|---|
+| tempo | 105 (tracker; constant fit refused: one quarter at 105.11) | 105 (constant fit 104.997) |
+| beats on the beat (F, 70 ms) | 0.27: the tracker slid onto the off-beats for 114 beats mid-song | 0.99 |
+| bar 1 | 1.72 s off (bar lines one beat early: the pickup was beat 1) | 12 ms off, on the first chord |
+| downbeat F | 0.20 | 0.99 |
+| pickup notes | read as beat 1 and 1-and of bar 1 | both transcribed in the bar before bar 1 |
+| notes, exact pitch, onset 50 ms (lead + bass vs all 590 MIDI notes) | F 0.551 (P 0.656, R 0.475) | F 0.557 (P 0.664, R 0.480) |
+| typed tempo 105 | bar 1 wrong, pickup lost | bar 1 on the first chord, pickup kept |
+
+Three causes, three fixes (`src/engine.js`):
+
+1. **Constant fit refused a constant render** (above): the per-quarter test now checks phase drift, not a tempo tolerance finer than a quarter can measure.
+2. **Beat 1 came from kick and snare even with no drums.** With no snare or clap on any step, the "kick" is the bass and the choice has no evidence. There the
+   notes decide: the full-track transcription is read once on the current grid, and duration-weighted onsets (bass x1.5, a note counts up to 4 beats) are summed on
+   the 8 eighth-note positions of a bar. A clear winner (>= 1.2 x the runner-up, >= 32 notes) becomes beat 1, moving the grid by half a beat when it is an off-beat
+   (which also fixes beats locked onto the 8ths). `a.downbeatFit = { method: "note-onsets-v1", movedBy8ths }` records it; the notes keep their times and only their
+   bar and beat are relabelled (`relabelTrack`), so no second transcription pass. Tracks with a backbeat are untouched (the G0 benchmark is identical).
+3. **Notes before bar 1 were never read.** The transcription now reads the bar before bar 1 too: a pickup is bar -1 with a negative beat. MIDI keeps it in every
+   timing: original timing (audio seconds), tempo map (the file starts at the pickup bar) and quantized (a whole-track file starts one bar early and says so).
+   The full-song zip package still starts at bar 1 with the lined-up WAV (a note before bar 1 has no place there).
+
+Checks: `tests/pickup-downbeat.test.js` (in `npm test`): the pickup in all three MIDI timings and in the all-parts file; the real render when it is on this machine
+(`TT_PAIRED="audio|midi"`): bar 1 on the first chord, >= 95 % of beats on the beat, every downbeat on a MIDI bar line, the pickup notes before bar 1, detected and with
+a typed 105. G0 15 gates pass with unchanged numbers; time fixtures identical (long_7min drift 0.1 ms different); melody-track check passes; app parity 0 differ.
+
+### The paired-render benchmark
+
+`node bench/paired-renders.js <manifest.json> [--out DIR]` runs the engine (the same `src/engine.js` the page inlines) on each render and scores it against its
+own MIDI: tempo, beat F and off-beat lock, bar 1 (the first MIDI downbeat at or after the first note), downbeat F, pickup notes found, and one-to-one note matching
+(exact pitch, 50 ms). Constant-tempo 4/4 MIDI only; anything else is refused, not guessed. The audio is aligned by putting the MIDI's first note at the first sound in
+the audio (renders trim the empty leading bars), or by `offsetSec` in the manifest. Renders stay outside the repo; `bench/paired-renders.example.json` shows the format.
+Keep some compositions as holdout (`"split": "holdout"`) and do not tune on them.
+
+Not done: only one render scored so far (the vote's thresholds are set on it, so it is a development result, not a measured accuracy); drum tracks still choose beat 1
+from kick and snare only; no harmony-change cue yet; polyphonic transcription (the note F1 above is capped by a one-melody-one-bass design; Basic Pitch is the first
+candidate to compare offline, not to adopt); the browser decodes MP3 slightly differently from ffmpeg (a few ms of encoder delay), which the bench does not model.

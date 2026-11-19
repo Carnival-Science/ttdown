@@ -1,0 +1,8 @@
+{
+ "name": "paired-renders",
+ "note": "Audio rendered from MIDI you wrote, scored against that MIDI. Keep this file and the renders OUTSIDE the repo; paths are relative to this file. offsetSec (audio time minus MIDI time) is optional: without it the first MIDI note is put at the first sound in the audio.",
+ "tracks": [
+  { "id": "more_please", "audio": "more please.mp3", "midi": "more please.mid", "split": "dev" },
+  { "id": "another_piece", "audio": "another piece.wav", "midi": "another piece.mid", "split": "holdout", "offsetSec": 0 }
+ ]
+}
