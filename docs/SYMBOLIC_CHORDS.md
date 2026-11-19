@@ -37,19 +37,19 @@ Reading the chords from *notes* gives a calm progression (about one region per b
 
 I drafted a chord annotation for bars 1–8 and 18–24 from the original MIDI's notes, and a reviewer corrected eight entries (each checked against the MIDI before adopting: no G in the first region, no new attack at 7.4, no C at 7.3&, and so on). It has 25 segments and 23 chord changes, with root, bass, triad, seventh, extensions and alternatives per segment, and stays **outside the repo** (it is someone's music). Status: **a development reference, not an answer key**: it has not been signed off by the owner, extensions are the least certain part, and it was drafted from the same notes the symbolic reader sees, so the "original MIDI" row is not independent evidence.
 
-`bench/amt/score-chords.js` scores at every 8th note in the annotated bars (120 steps; 99 for quality, skipping the region with no third and the two marked uncertain). Columns are cumulative: root; root and triad class; root, triad and seventh. Change F1 counts a reading's chord changes within ±150 ms of the annotation's.
+`bench/amt/score-chords.js` scores at every 8th note in the annotated bars (120 steps; 99 for quality, skipping the region with no third and the two marked uncertain). Columns are cumulative: root; root and triad class; root, triad and seventh. Change F1 counts a reading's chord changes within ±150 ms of the annotation's (maximum-cardinality one-to-one matching, `tests/metrics.js`). The scorer is `bench/amt/chord-scoring.js`, tested on synthetic annotations in `tests/amt-chord-scoring.test.js`: it scores to the end of the annotated ranges (an earlier version stopped at bar 45), and a reading's change at a range start is excluded just as the annotation's first chord is.
 
 | Reading | Root | + triad | + seventh | Change F1 (P / R) | Regions per bar |
 |---|---|---|---|---|---|
-| Symbolic reader on the **original MIDI** | 70% | 62% | 46% | 45% (53 / 39) | 1.1 |
-| Symbolic reader on Basic Pitch (default) | 80% | 75% | 61% | 45% (53 / 39) | 1.1 |
-| Symbolic reader on Basic Pitch (stricter) | 79% | 74% | 60% | 40% (47 / 35) | 1.1 |
-| Teardown audio detector (chord regions) | 64% | 49% | 10% | 49% (36 / 74) | 3.1 |
+| Symbolic reader on the **original MIDI** | 70% | 62% | 46% | 47% (60 / 39) | 1.0 |
+| Symbolic reader on Basic Pitch (default) | 80% | 75% | 61% | 46% (56 / 39) | 1.1 |
+| Symbolic reader on Basic Pitch (stricter) | 79% | 74% | 60% | 41% (50 / 35) | 1.1 |
+| Teardown audio detector (chord regions) | 64% | 49% | 10% | 49% (37 / 74) | 3.1 |
 
 What it says:
 - **The symbolic reader is not yet good, even on perfect notes.** Its root accuracy is 70% on the original MIDI, and only 50% in the arpeggio bars (88% in bars 1–8). That is the harmonic analysis failing, not the transcription, which is exactly the separation the experiment was meant to make. The cause is visible in bar 21, where the bass spells Cm and the reader goes with the upper voices (G minor).
 - It beats the audio detector on root (70–80% vs 64%), triad (62–75% vs 49%) and seventh (46–61% vs 10%), but the vocabulary is part of that gap (the audio detector only says major or minor).
-- On change times, the audio detector has the better F1 (49%) because it finds most changes (74% recall) at the cost of 3 times as many regions (36% precision); the symbolic reader finds fewer (39% recall) and is more often right when it does.
+- On change times, the audio detector has the better F1 (49%) because it finds most changes (74% recall) at the cost of 3 times as many regions (37% precision); the symbolic reader finds fewer (39% recall) and is more often right when it does.
 - Reading Basic Pitch's notes scored *higher* than reading the original MIDI (80% vs 70% at the root). I do not know why, and have not looked; one possibility is that the transcription drops the inner and ornamental notes that mislead the reader.
 
 ## Tuning: a small, mixed, one-track result
