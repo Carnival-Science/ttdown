@@ -4,7 +4,7 @@ Status: **research note, one track, nothing integrated.** Part of #24 (model bas
 
 ## Why
 
-On the paired render *more please* (a drumless chiptune-style piece written as MIDI; 105 BPM, 4/4; 590 notes), the exported MIDI from the chord-regions work (PR #41) was **no better than before** as a reconstruction. Bars 18–24 have a bass arpeggio under moving upper notes, and the chord reader turned every changing note set into a chord change (31 regions in those 7 bars). It reads a change in *which notes sound* as a change in *harmony*. Tuning cannot fix that, and a triad-only reader cannot name what a piano or arpeggio plays. Chords should be an interpretation of transcribed notes, not a substitute for missing ones.
+On the paired render *more please* (a drumless chiptune-style piece written as MIDI; 105 BPM, 4/4; 590 notes), the exported MIDI from the chord-regions work (PR #41) was **no better than before** as a reconstruction. Bars 18–24 have a bass arpeggio under moving upper notes, and the chord reader turned every changing note set into a chord change (33 regions start in those 7 bars, against 1.9 per bar in bars 1–17). It reads a change in *which notes sound* as a change in *harmony*. Tuning cannot fix that, and a triad-only reader cannot name what a piano or arpeggio plays. Chords should be an interpretation of transcribed notes, not a substitute for missing ones.
 
 ## What was measured
 
