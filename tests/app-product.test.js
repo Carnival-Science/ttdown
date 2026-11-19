@@ -88,7 +88,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
 
   // unknown is shown as unknown
   const seed = await (async () => { const q = await open(); await analyse(q, path.join(SONGS, "pop127_Amaj.wav")); const r = await q.evaluate(() => JSON.parse(localStorage.getItem("teardown_history_v1"))[0]); await q.close(); return r; })();
-  { const q = await open(); const rec = JSON.parse(JSON.stringify(seed)); delete rec.chords; delete rec.transcription; rec.hook = null; rec.bassline = null; rec.swing = null;
+  { const q = await open(); const rec = JSON.parse(JSON.stringify(seed)); delete rec.chords; delete rec.chordRegions; delete rec.transcription; rec.hook = null; rec.bassline = null; rec.swing = null;
     await q.evaluate(r => localStorage.setItem("teardown_history_v1", JSON.stringify([r])), rec); await q.reload(); await q.waitForTimeout(400); await q.click("#recent-btn"); await q.click("#hist .h-open"); await q.waitForTimeout(400);
     await q.click('.detail [role="tab"]:has-text("Piano roll")'); const nn = await q.locator('.detail [data-part="roll"]').innerText();
     await q.click('.detail [role="tab"]:has-text("Rhythm")'); const rh = await q.locator('.detail [data-part="rhythm"]').innerText();

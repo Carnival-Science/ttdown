@@ -126,6 +126,73 @@ function transcribe(x, SR, firstDown, barSec, sections, tune) {
     return { hook: { notes: foldNotes(mel, 64, 1), from: sec.label, bar: sec.startBar + 1 }, bass: { notes: bassNotes, from: sec.label, bar: sec.startBar + 1 } };
   } catch (e) { return {}; }
 }
+/* Chord regions (chords-v2): chords where they change, not one per bar. Harmonic evidence is read at every 8th note of the bar grid
+   (pitch-class profile: C2-B3 from 8192-sample spectra for pitch resolution, C4-B5 from 4096-sample ones for timing; the bass from the transcribed bass line); every major or minor
+   triad and "no chord" is scored at each 8th (as log-probabilities), and one Viterbi pass picks the sequence, with a cost per change so a
+   passing melody note does not become a chord, and a preference for the bar's own chord (chords.bars) so the steady reading wins unless
+   the 8ths clearly say otherwise. Tuned on the synthetic test songs (no worse than one chord per bar there) and ONE real paired render
+   (more chords right, chord changes kept off the bar line): see docs/CHORDS.md. Adjacent 8ths with the same chord merge, so a region keeps its real start and end (seconds and bar.beat),
+   which need not be bar lines. Pickup bar (-1) included. Triads only for now; "–" = no chord heard. Returns [{ t0, t1, bar, beat, endBar,
+   endBeat, c }] (bar 0 = bar 1; beat = quarter-note position in that bar from 0, in 8ths; the end is exclusive) or null without a bar grid. Measurement-free: never changes chords.bars. */
+const CR = { tau: 0.03, change: 3, offbeat: 0.6, onBar: 0.4, nc: 0.22, bassRoot: 0.3, bassTone: 0.08, outKey: 0.08, minStepEnergy: 0.02, barPrior: 0.1, pedalWin: 16, pedalShare: 0.85 };
+function chordRegions(x, SR, G, nBars, dur, tune, scale, bass, barChords) {
+  try {
+    if (!G || !(nBars > 0)) return null;
+    const P = CR;
+    const steps = [];
+    for (let b = -1; b < nBars; b++) { const s0 = G.barStart(b), s1 = G.barStart(b + 1); if (!(s1 > 0) || !(s0 < dur)) continue;
+      for (let i = 0; i < 8; i++) { const t0 = s0 + i * (s1 - s0) / 8, t1 = s0 + (i + 1) * (s1 - s0) / 8; if (t1 <= 0.02 || t0 >= dur - 0.02) continue; steps.push({ b, i, t0: Math.max(0, t0), t1: Math.min(dur, t1) }); } }
+    if (!steps.length) return null;
+    const NA = 4096, NB = 8192, ma = new Float32Array(NA / 2), mb = new Float32Array(NB / 2), pitch = f => 12 * Math.log2(f / 440) + 69 - tune;
+    const bassNotes = (bass || []).filter(n => n && n.off > n.on);
+    const feats = steps.map(st => {
+      const mid = (st.t0 + st.t1) / 2, c = new Array(12).fill(0), v = new Float32Array(128);
+      // low notes (C2-B3) from the long window for pitch resolution, higher ones (C4-B5) from the short one for time resolution
+      mag(x, Math.round(mid * SR - NB / 2), NB, mb);
+      for (let i = 8; i < NB / 2 - 1; i++) { const f = i * SR / NB; if (f > 255) break; const p = pitch(f), r = Math.round(p); if (r < 36 || r > 59 || Math.abs(p - r) > 0.4) continue; if (mb[i] > v[r]) v[r] = mb[i]; }
+      mag(x, Math.round(mid * SR - NA / 2), NA, ma);
+      for (let i = 8; i < NA / 2 - 1; i++) { const f = i * SR / NA; if (f > 1050) break; if (f < 250) continue; const p = pitch(f), r = Math.round(p); if (r < 60 || r > 83 || Math.abs(p - r) > 0.4) continue; if (ma[i] * NB / NA > v[r]) v[r] = ma[i] * NB / NA; }
+      let e = 0; for (let r = 36; r <= 83; r++) { const q = Math.log1p(20 * v[r]); c[r % 12] += q * (r < 60 ? 1.3 : 1); e += q; }
+      // the bass: the transcribed bass notes sounding in this 8th (the drums are not mistaken for it), weighted by how long they sound
+      const bc = new Array(12).fill(0); let bs = 0; bassNotes.forEach(n => { const o = Math.min(n.off, st.t1) - Math.max(n.on, st.t0); if (o > 0) { bc[n.midi % 12] += o; bs += o; } });
+      return { c, e, b: bs > 0 ? bc.map(q => q / bs) : null };
+    });
+    const eRef = feats.map(f => f.e).sort((p, q) => p - q)[Math.floor(feats.length * 0.9)] || 1;
+    const CH = []; for (let r = 0; r < 12; r++) for (const [q, iv] of [["", [0, 4, 7]], ["m", [0, 3, 7]]]) CH.push({ name: NAMES[r] + q, tones: iv.map(d => (r + d) % 12), out: !iv.every(d => scale.has((r + d) % 12)) });
+    const K = CH.length + 1, NC = CH.length; // last state = no chord
+    // a pedal (one bass note held under changing chords, common in dance music) says nothing about the chord: where the bass in the
+    // surrounding bars is (nearly) one note, it is not used
+    const bw = feats.map((f, s) => { const h = new Array(12).fill(0); let t = 0; for (let j = Math.max(0, s - P.pedalWin); j <= Math.min(feats.length - 1, s + P.pedalWin); j++) if (feats[j].b) feats[j].b.forEach((v, k) => { h[k] += v; t += v; }); return t && Math.max(...h) / t >= P.pedalShare ? 0 : 1; });
+    const emit = feats.map((f, s) => {
+      const out = new Float32Array(K), mean = f.c.reduce((p, q) => p + q, 0) / 12, z = f.c.map(v => v - mean), nz = Math.sqrt(z.reduce((p, v) => p + v * v, 0));
+      if (!(nz > 0) || f.e < P.minStepEnergy * eRef) { out.fill(-20); out[NC] = 0; return out; }
+      CH.forEach((h, k) => { let sc = h.tones.reduce((p, t, j) => p + z[t] * (j === 0 ? 1.1 : 1), 0) / (nz * Math.sqrt(3));
+        if (f.b && bw[s]) sc += P.bassRoot * (f.b[h.tones[0]] - 1 / 12) + P.bassTone * (f.b[h.tones[1]] + f.b[h.tones[2]] - 2 / 12);
+        if (h.out) sc -= P.outKey;
+        // the bar's own chord (read from the whole bar, steadier than one 8th) is preferred, so a change inside a bar needs clear evidence
+        if (barChords && barChords[steps[s].b] === h.name) sc += P.barPrior;
+        out[k] = sc; });
+      out[NC] = P.nc;
+      // as log-probabilities (softmax at temperature tau), so a steady preference adds up step by step against the cost of a change
+      let mx = -Infinity; for (let k = 0; k < K; k++) mx = Math.max(mx, out[k] / P.tau); let se = 0; for (let k = 0; k < K; k++) se += Math.exp(out[k] / P.tau - mx);
+      for (let k = 0; k < K; k++) out[k] = out[k] / P.tau - mx - Math.log(se); return out;
+    });
+    // Viterbi: score = sum of emissions - a cost per change (more on an off-beat 8th, less on a bar line)
+    const n = steps.length, back = Array.from({ length: n }, () => new Int16Array(K)); let prev = Float64Array.from(emit[0]);
+    for (let s = 1; s < n; s++) {
+      const st = steps[s], cost = P.change + (st.i % 2 ? P.offbeat : 0) - (st.i === 0 ? P.onBar : 0), cur = new Float64Array(K);
+      let bk = 0; for (let k = 1; k < K; k++) if (prev[k] > prev[bk]) bk = k;
+      for (let k = 0; k < K; k++) { const stay = prev[k], sw = prev[bk] - cost; if (stay >= sw || bk === k) { cur[k] = stay + emit[s][k]; back[s][k] = k; } else { cur[k] = sw + emit[s][k]; back[s][k] = bk; } }
+      prev = cur;
+    }
+    let k = 0; for (let j = 1; j < K; j++) if (prev[j] > prev[k]) k = j;
+    const path = new Array(n); for (let s = n - 1; s >= 0; s--) { path[s] = k; k = back[s][k]; }
+    const out = []; path.forEach((k, s) => { const c = k === NC ? "–" : CH[k].name, st = steps[s], last = out[out.length - 1];
+      const endBar = st.i === 7 ? st.b + 1 : st.b, endBeat = st.i === 7 ? 0 : (st.i + 1) / 2;
+      if (last && last.c === c && Math.abs(last.t1 - st.t0) < 1e-6) { last.t1 = st.t1; last.endBar = endBar; last.endBeat = endBeat; } else out.push({ t0: st.t0, t1: st.t1, bar: st.b, beat: st.i / 2, endBar, endBeat, c }); });
+    return out.map(r => ({ t0: +r.t0.toFixed(3), t1: +r.t1.toFixed(3), bar: r.bar, beat: r.beat, endBar: r.endBar, endBeat: r.endBeat, c: r.c }));
+  } catch (e) { return null; }
+}
 /* ---- full-track transcription: lead (per 16th) and bass (16th onsets) over EVERY bar, at their real times ----
    The 4-bar hook/bassline above stays as it is (a representative pattern from one section, folded). This one reads each 16th step of
    every bar on the bar grid G (the tracked grid when there is one, so it follows tempo drift), with the same harmonic-salience pitch
@@ -701,6 +768,7 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
   if (tempoFit) result.tempoFit = { method: "constant-comb-v1", bpm: +tempoFit.bpm.toFixed(3), ratio: tempoFit.ratio, quarters: tempoFit.quarters, locked: tempoFit.locked };
   if (rephased) result.downbeatFit = { method: "note-onsets-v1", movedBy8ths: rephased }; // bar 1 chosen from the notes (no backbeat); see B2 above
   if (full) result.transcription = full; // after every Version A field, so those are untouched and in their original order
+  { const regions = chordRegions(x, SR, barGrid, nBars, dur, tune, scaleOf(kt, kmi), full && full.bass, barChords); if (regions) result.chordRegions = { method: "chords-v2", regions }; }
   /* Measurement only (G0): the tracked beat and downbeat times in seconds, as the engine computed them.
      Non-enumerable, so saved history, account sync, sharing and the coach see exactly what they saw before.
      Section times use this grid (Phase 2c step 2); chords and MIDI still use firstDown + n * barSec. */

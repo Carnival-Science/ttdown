@@ -8,7 +8,7 @@ Issue #29, first engineering slice. This page says exactly what the exported MID
 |---|---|---|---|
 | 1 Kick, 2 Snare or clap, 3 Hi-hats | the detected drum pattern, per bar | analysis (`drumParts`) | **quantized**: whole 16th steps |
 | 4 808 / Bass | the detected bass line folded to a 4-bar loop, repeated over the bars where the kick plays | analysis (`bassline`) | **quantized**, loop-repeated |
-| 5 Chords (suggested) | triads built from the detected chord *names* (`chordFromName`), one per bar | **generated**, not heard in the audio | whole bars |
+| 5 Chords (suggested) | triads built from the detected chord *names* (`chordFromName`), one per bar (the per-part and all-parts files use chord regions: docs/CHORDS.md) | **generated**, not heard in the audio | whole bars |
 | 6 Hook (rough) | the detected melody folded to a 4-bar loop and repeated over the hook's section | analysis (`hook`) | **quantized**, loop-repeated |
 
 **The full-song package is quantized.** Every note onset is a whole 16th step counted from bar 1 (24 ticks at 96 per quarter), so the file sits on a grid, not on the times the notes were actually played. Nothing is silently substituted: the file names, each file's track name and a text event inside each file say "quantized to the 16th-note grid ... not the original timing", and the chord file says "SUGGESTED voicings generated from the detected chord names, not transcribed from the audio". Original timing and a tempo map are offered for the melody, bass and chords from the piano roll (next section).
@@ -23,7 +23,7 @@ Issue #29, first engineering slice. This page says exactly what the exported MID
 | **Follow tempo map** | notes placed on the tracked beats, with a tempo event wherever the beat length changes (microseconds carried forward, so beat k lands within 1 µs of the tracked beat). Notes play at their audio time *and* bar lines follow the song. The file starts at bar 1, or at the pickup bar when a note comes before it. | tracked beats (not the constant fallback), not stale. Tempo changes and drift are carried, not refused. Caveats when the downbeat or 4/4 are still assumptions. |
 | **Quantized** | 16th-grid steps at one tempo, as before. A whole-track file starts one bar before bar 1 when the transcription has a pickup (notes in bar -1), and says so in its text, so the pickup is not dropped. An explicit range is never widened. | only when `exportGate` allows it (unchanged: stale, refused, needs confirmation). |
 
-The gate is still the only rule for quantized MIDI and the bar-aligned WAV; it no longer blocks the other two timings. Chords are always suggested voicings of the detected chord names, one per bar at the bar's time on the grid, in every timing. Checked by `tests/midi-timing.test.js` (in `npm test`): original-timing and tempo-map onsets within 1 ms of the audio estimates; on `tempo_change_step`, `drift_fast` and `drift_slow` (quantized refused) a note on every tracked beat lands on a whole quarter note at its song bar and beat and within 1 ms of its audio time; Type 1 structure and track names; what is offered for a stale result, a fallback grid and a teardown with no transcription.
+The gate is still the only rule for quantized MIDI and the bar-aligned WAV; it no longer blocks the other two timings. Chords are always suggested voicings of the detected chord names, each where its chord region starts and ends (see docs/CHORDS.md; one per bar for teardowns analysed before regions, and for a bar the person corrected), in every timing. A whole-track file (no range) starts at the pickup bar when the transcription has notes before bar 1, so the pickup is kept. Checked by `tests/midi-timing.test.js` (in `npm test`): original-timing and tempo-map onsets within 1 ms of the audio estimates; on `tempo_change_step`, `drift_fast` and `drift_slow` (quantized refused) a note on every tracked beat lands on a whole quarter note at its song bar and beat and within 1 ms of its audio time; Type 1 structure and track names; what is offered for a stale result, a fallback grid and a teardown with no transcription.
 
 ## Tempo, bar 1, meter
 
@@ -67,8 +67,8 @@ The SMF spec does not say what overlapping notes of one pitch mean, and players 
 |---|---|---|
 | Notes tab, Top line | MIDI | the 4-bar phrase the piano roll shows (not the song-length repeat the package writes) |
 | Notes tab, Bass | MIDI | the displayed 4-bar bass phrase |
-| Harmony tab | Chords MIDI · bars x-y | one suggested triad per detected bar of the selected section, from that section's first bar |
-| Harmony tab | Copy chord names | text only: `Am \| F \| C \| G`, `N.C.` where no chord was found |
+| Harmony tab | Chords MIDI · bars x-y | one suggested triad per chord region (or per bar, for older teardowns) in the selected section, from that section's first bar |
+| Harmony tab | Copy chord names | text only: `Am \| F G \| C \| G`, bars separated by `\|`, a bar's chords in order, `N.C.` where no chord was found |
 | Export | Download the song as MIDI | the full package |
 
 The buttons read the same gate as Export (`exportState`, wrapping `domain.exportGate`): locked until the bar lines are confirmed, locked with a reason when the grid is refused or the result is stale, and nothing on a part button can lift either. Files carry the same honesty labels (rough, quantized, suggested voicings). Checked in `tests/midi-export.test.js` (decoded notes equal the displayed notes) and `tests/app-part-midi.test.js` (the real downloads, the lock, the copied text).

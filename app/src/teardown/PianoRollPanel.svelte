@@ -1,6 +1,7 @@
 <!-- The piano roll: the transcribed melody (orange), the transcribed bass (blue) and SUGGESTED chord voicings (purple, hollow outlines,
      because they are built from the detected chord names, not heard in the audio) on ONE keyboard, pitch axis and time axis, sharing the
-     arrangement's viewport and its one playhead. A chord strip above the notes names each bar's chord, marks the one under the playhead
+     arrangement's viewport and its one playhead. A chord strip above the notes names each chord where it sounds (several in a bar when the analysis
+     hears the chord change inside it), marks the one under the playhead
      and opens the chord correction when clicked. Parts can be shown, hidden or soloed (Alt/Option-click). "↓ MIDI ▾" writes a part, or all
      of them as one multitrack file, for the selected section, the visible range or the whole track, with a choice of timing; every mode
      that is unavailable says why. Inspection only: no note editing. -->
@@ -48,14 +49,19 @@
   const patternAt = (p: any) => p ? { from: p.bar, to: p.bar + 3, t: timeAtBeat(G, a, (p.bar - 1) * 4) } : null;
   const where = $derived(patternAt(hook) ?? patternAt(bassPat));
 
-  // ---- the chords: the detected name of each bar, voiced as the same root-position triad the chord MIDI writes (48 + root)
+  // ---- the chords where they sound: the analyzer's chord regions (a chord where it changes, which need not be a bar line) when the
+  // teardown has them, else one per bar; a bar the person corrected keeps their chord (domain chordSpans). Voiced as the same
+  // root-position triad the chord MIDI writes (48 + root).
+  type Span = { bar: number; s: number; e: number; t0: number; t1: number; c: string; corrected: boolean };
   const chordBars = $derived(((a.chords && a.chords.bars) || []) as string[]);
+  const spans = $derived.by(() => { void a.timingCorrections; void chordBars; return (D.chordSpans(a, G) || []) as Span[]; });
+  const regions = $derived(!!(a.chordRegions && a.chordRegions.regions && a.chordRegions.regions.length));
   const isChord = (c: string | undefined) => !!c && c !== "–";
   const triad = (c: string) => { const m = c.endsWith("m"), r = NAMES.indexOf(m ? c.slice(0, -1) : c); return r < 0 ? [] : [48 + r, 48 + r + (m ? 3 : 4), 48 + r + 7]; };
   const barT = (b: number) => G.barStart(b);
-  const chordNotesAll = $derived.by(() => { const out: LaneNote[] = []; chordBars.forEach((c, b) => { if (!isChord(c)) return; const t0 = barT(b), t1 = barT(b + 1); if (!(t1 > t0)) return; for (const p of triad(c)) out.push({ start: t0, end: t1, pitch: p }); }); return out; });
+  const chordNotesAll = $derived.by(() => { const out: LaneNote[] = []; spans.forEach(sp => { if (!(sp.t1 > sp.t0)) return; for (const p of triad(sp.c)) out.push({ start: sp.t0, end: sp.t1, pitch: p }); }); return out; });
   const inKey = $derived(keyChords(a.key) as Set<string>);
-  const count = $derived.by(() => { const c: Record<string, number> = {}; chordBars.forEach(x => { if (isChord(x)) c[x] = (c[x] || 0) + 1; }); return c; });
+  const count = $derived.by(() => { const c: Record<string, number> = {}; spans.forEach(x => { c[x.c] = (c[x.c] || 0) + 1; }); return c; });
   const shaky = (c: string) => isChord(c) && (!inKey.has(c) || count[c]! <= 2);
   const checks = $derived((a.chordChecks || {}) as Record<string, string>);
 
@@ -76,18 +82,22 @@
   ]);
 
   // ---- chord strip and the correction it opens
-  let cur = $state<number | null>(null);
-  $effect(() => { void index; cur = null; });
+  let cur = $state<number | null>(null), curKey = $state<string | null>(null);
+  $effect(() => { void index; cur = null; curKey = null; });
+  const posText = (sp: Span) => { const q = ((sp.s % 16) + 16) % 16; return sp.bar < 0 ? "Pickup" : `Bar ${sp.bar + 1}` + (q ? ` beat ${Math.floor(q / 4) + 1}${q % 4 === 2 ? "&" : q % 4 ? "+" : ""}` : ""); };
   const opts = $derived.by(() => { const k = keyInfo(a); return Array.from({ length: 7 }, (_, d) => chordFromDegree(k, d, false).name as string); });
-  const strip = $derived<AnnotationLane[]>(chordBars.length ? [{
-    id: "chords", label: "Chord", selected: cur,
-    items: chordBars.map((c, b): Annotation => {
-      const ok = isChord(c), sh = shaky(c);
-      return { key: b, start: barT(b), end: barT(b + 1), text: ok ? c + (sh ? "?" : "") : "·", tone: [ok ? "" : "none", sh ? "shaky" : "", checks[b] || ""].filter(Boolean).join(" "),
-        title: ok ? `Bar ${b + 1}: ${c} (${chordNotes(c)})${sh ? " · shaky guess" : ""}. Click to check or correct it.` : `Bar ${b + 1}: no clear chord. Click to set one.`, attrs: { "data-bar": String(b) } };
+  const strip = $derived<AnnotationLane[]>(spans.length ? [{
+    id: "chords", label: "Chord", selected: curKey,
+    items: spans.map((sp): Annotation => {
+      const sh = shaky(sp.c), where = posText(sp);
+      return { key: String(sp.s), start: sp.t0, end: sp.t1, text: sp.c + (sh ? "?" : ""), tone: [sh ? "shaky" : "", sp.corrected ? "fixed" : "", checks[sp.bar] || ""].filter(Boolean).join(" "),
+        title: `${where}: ${sp.c} (${chordNotes(sp.c)})${sh ? " · shaky guess" : ""}${sp.corrected ? " · your correction" : ""}.${sp.bar >= 0 ? ` Click to check or correct bar ${sp.bar + 1}.` : ""}`,
+        attrs: { "data-bar": String(sp.bar), "data-step": String(sp.s) } };
     }),
-    onpick: it => { cur = it.key as number; },
+    onpick: it => { const b = +(it.attrs?.["data-bar"] ?? -1); if (b < 0) return; cur = b; curKey = String(it.key); },
   }] : []);
+  // the chords sounding in the bar being corrected, in order
+  const inBar = $derived(cur == null ? [] : spans.filter(sp => sp.s < (cur! + 1) * 16 && sp.e > cur! * 16).map(sp => sp.c).filter((c, i, A) => i === 0 || c !== A[i - 1]));
   function hear(b: number) { if (!playable) return; player.loopRange?.(barT(b), barT(b + 1), 0.75); player.overlayOnly?.("chords"); }
   function setChord(name: string, mark: string) { const b = cur; if (b == null) return; teardown.replace(x => { const y: any = x; recordCorrection(y, { type: "chord", bar: b, from: y.chords.bars[b], to: name }); y.chords.bars[b] = name; y.chordChecks = { ...(y.chordChecks || {}), [b]: mark }; recomputeLoop(y); }); player.overlayRestart?.(); }
   function sounds() { const b = cur; if (b == null) return; teardown.replace(x => { const y: any = x; y.chordChecks = { ...(y.chordChecks || {}), [b]: "ok" }; }); }
@@ -100,8 +110,9 @@
   const zoomBy = (f: number) => view.zoom(f, transport.clock && view.contains(transport.clock.time) ? transport.clock.time : view.start + view.span / 2);
   // where the playhead is: bar.beat and the chord sounding there (updated when it changes, not every frame)
   let here = $state("");
-  const readout = (t: number) => { const p = barBeat(G, a, t); if (!p) return "Before bar 1"; const c = chordBars[p.bar - 1]; return `Bar ${p.bar}.${Math.floor(p.beat)}` + (isChord(c) ? ` · ${c}` : ""); };
-  $effect(() => { const c = transport.clock; void G; void chordBars; if (!c) { here = readout(view.start); return; } return untrack(() => c.subscribe(t => { const r = readout(t); if (r !== here) here = r; })); });
+  const chordAt = (t: number) => spans.find(sp => t >= sp.t0 && t < sp.t1)?.c;
+  const readout = (t: number) => { const p = barBeat(G, a, t), c = chordAt(t); if (!p) return "Before bar 1" + (c ? ` · ${c}` : ""); return `Bar ${p.bar}.${Math.floor(p.beat)}` + (isChord(c) ? ` · ${c}` : ""); };
+  $effect(() => { const c = transport.clock; void G; void spans; if (!c) { here = readout(view.start); return; } return untrack(() => c.subscribe(t => { const r = readout(t); if (r !== here) here = r; })); });
 
   // ---- MIDI: part, range and timing. Quantized MIDI keeps the one export gate; original timing and the tempo map have their own availability.
   type Timing = "original" | "tempo-map" | "quantized";
@@ -138,7 +149,9 @@
   let rangePick = $state<RangePick>("section");
   const visibleBars = (): [number, number] => { const b0 = Math.max(0, G.barOf(view.start)), b1 = Math.min(a.nBars + 1, G.barOf(view.end - 0.001) + 1); return [b0, Math.max(b0 + 1, b1)]; };
   const rangeOf = (r: RangePick): [number, number] => r === "section" ? [s.startBar, s.startBar + s.bars] : r === "visible" ? visibleBars() : [0, a.nBars + 1];
-  const rangeText = (r: RangePick) => { const [b0, b1] = rangeOf(r); return r === "whole" ? `bars 1–${a.nBars}` : `bars ${b0 + 1}–${b1}`; };
+  // the whole track has no range: the domain then starts the file at the pickup bar when notes come before bar 1, so a pickup is kept
+  const hasPickup = $derived(!!a.transcription && [...(a.transcription.lead || []), ...(a.transcription.bass || [])].some(n => n.bar < 0));
+  const rangeText = (r: RangePick) => { const [b0, b1] = rangeOf(r); return r === "whole" ? `bars 1–${a.nBars}${hasPickup ? " + pickup" : ""}` : `bars ${b0 + 1}–${b1}`; };
 
   let menuOpen = $state(false);
   const base = $derived(safeName(a.title, "song"));
@@ -146,12 +159,12 @@
     const t = timing;
     // decided again at the click, from the same rules the menu shows
     if (!okOf(t)) { notify("warning", "That timing isn't available: " + whyOf(t)); return; }
-    const [startBar, endBar] = rangeOf(rangePick), range = { startBar, endBar };
+    const [startBar, endBar] = rangeOf(rangePick), range = rangePick === "whole" ? undefined : { startBar, endBar };
     const tempo = t === "quantized" ? exportState.gate.tempo : undefined;
     try {
       const m = part === "all"
         ? D.allPartsMidi(a, { timing: t, grid: G, range, tempo })
-        : partMidi(a, part, { timing: t, grid: G, range, section: s, tempo, source: full && part !== "chords" ? "transcribed" : undefined });
+        : partMidi(a, part, { timing: t, grid: G, range, section: rangePick === "whole" ? undefined : s, tempo, source: full && part !== "chords" ? "transcribed" : undefined });
       if (!m) { notify("warning", "There is nothing to write for this part in that range."); return; }
       // the all-parts file is already named after the track
       await saveFile(part === "all" ? m.name.replace(/[\\/:*?"<>|]+/g, "") : `${base} - ${m.name}`, m.data, "audio/midi"); menuOpen = false;
@@ -191,7 +204,7 @@
     <Popover triggerClass="btn about" label="About the piano roll" class="about-pop" align="end">
       {#snippet trigger()}<span aria-hidden="true">ⓘ</span>{/snippet}
       <p class="small">{#if source === "full"}Melody and bass are read from the whole mix ({full?.method}). Rough: dense mixes make them hard to hear, and this has not been checked against real recordings.{:else}Melody and bass are a 4-bar phrase read from one section and folded into a loop, so they are not the song's notes bar by bar. {#if !full}This teardown was made before whole-track notes existed; analyse the track again to get them.{/if}{/if}
-        The purple outlined notes are suggested voicings: plain triads built from each bar's detected chord name (major or minor only), not notes heard in the audio.
+        The purple outlined notes are suggested voicings: plain triads built from the detected chord names (major or minor only), not notes heard in the audio.{#if regions} Each chord starts where the analysis hears the harmony change, which can be inside a bar.{/if}
         {#if a.chords?.loop}Most repeated 4-bar chord loop: <b class="mono">{a.chords.loop.join(" · ")}</b> (heard {a.chords.loopCount}×).{/if}
         Scroll with Shift + wheel or by dragging, zoom with Ctrl/⌘ + wheel or the buttons. Use "Check by ear" to hear the parts over the song.</p>
     </Popover>
@@ -239,13 +252,13 @@
     </div>
     {#if cur != null}
       <div class="fix" role="group" aria-label={`Bar ${cur + 1} chord`}>
-        <b>Bar {cur + 1}: {isChord(chordBars[cur]) ? chordBars[cur] : "no clear chord"}</b>{#if isChord(chordBars[cur])}<span class="small dim">({chordNotes(chordBars[cur])})</span>{/if}
+        <b>Bar {cur + 1}: {inBar.length ? inBar.join(" → ") : "no clear chord"}</b>{#if inBar.length === 1}<span class="small dim">({chordNotes(inBar[0])})</span>{:else if inBar.length > 1}<span class="small dim">A correction sets one chord for the whole bar.</span>{/if}
         <button class="btn" type="button" onclick={sounds}>✓ Sounds right</button>
         <select class="isel" aria-label="Change this bar's chord" value="" onchange={e => { const v = e.currentTarget.value; if (v) setChord(v, "fixed"); e.currentTarget.value = ""; }}>
           <option value="">Change chord…</option>{#each opts as o (o)}<option value={o}>{o}</option>{/each}<option value="–">No chord</option>
         </select>
         {#if playable}<button class="btn" type="button" onclick={() => hear(cur!)}>▶ Hear this bar with the chord</button>{/if}
-        <button class="btn close" type="button" aria-label="Close the chord correction" onclick={() => (cur = null)}>✕</button>
+        <button class="btn close" type="button" aria-label="Close the chord correction" onclick={() => { cur = null; curKey = null; }}>✕</button>
       </div>
     {/if}
     <div class="legend small" data-legend>

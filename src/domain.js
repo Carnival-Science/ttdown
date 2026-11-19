@@ -433,7 +433,8 @@ function songNotes(a) {
   parts.forEach(pt => { for (let b = pt.startBar; b < Math.min(nBars, pt.startBar + pt.bars); b++) ["kick", "snare", "hats"].forEach(k => pt[k].forEach((on, i) => { if (on) { D[k].push({ t: b * 16 + i, dur: 1, midi: 60, vel: k === "hats" && i % 4 ? 80 : 105 }); if (k === "kick") kickBars.add(b); } })); });
   const loopOver = (notes, bars, start) => { const out = []; bars.forEach(b => { const ofs = ((b - (start || 0)) % 4 + 4) % 4; notes.forEach(n => { if (Math.floor(n.t / 16) === ofs) out.push({ t: b * 16 + (n.t % 16), dur: n.dur, midi: n.midi, vel: 100 }); }); }); return out; };
   const bass = a.bassline && a.bassline.notes ? loopOver(foldBass(a.bassline.notes), Array.from(kickBars).sort((p, q) => p - q), (a.bassline.bar != null ? a.bassline.bar : 1) - 1) : [];
-  const chords = []; (a.chords && a.chords.bars || []).forEach((c, b) => { if (!c || c === "–" || b >= nBars) return; const ch = chordFromName(c); ch.notes.forEach(m => chords.push({ t: b * 16, dur: 16, midi: m, vel: 85 })); });
+  // each chord where it sounds (chordSpans: regions, else one per bar), from bar 1 to the last bar; a pickup chord is cut at bar 1
+  const chords = []; chordSpans(a, null).forEach(sp => { const q0 = Math.max(sp.s, 0), q1 = Math.min(sp.e, nBars * 16); if (q1 > q0) chordFromName(sp.c).notes.forEach(m => chords.push({ t: q0, dur: q1 - q0, midi: m, vel: 85 })); });
   let hook = [];
   if (a.hook && a.hook.notes && a.hook.notes.length >= 3) { const bars = []; a.sections.filter(x => x.label === a.hook.from).forEach(x => { for (let b = x.startBar; b < x.startBar + x.bars && b < nBars; b++) bars.push(b); }); hook = loopOver(a.hook.notes, bars, (a.hook.bar != null ? a.hook.bar : 1) - 1); }
   return { stepSec, D, bass, chords, hook };
@@ -475,6 +476,26 @@ function songMidiFiles(a, opts) {
 /* The full-track transcription (engine transcribeTrack: notes at their real positions, a.transcription) of one part, as 16th steps
    counted from bar startBar, for bars [startBar, endBar). A note that runs past endBar is cut there. null when the analysis has none
    (teardowns analysed before it existed): callers then fall back to the representative pattern and say so. */
+/* The chords in time (docs/CHORDS.md): the analyzer's chord REGIONS (chordRegions, chords-v2: a chord where it changes, which need not be a
+   bar line) when the teardown has them, else one chord per bar (chords.bars, saved teardowns from before regions). A bar the person
+   corrected (a "chord" correction) shows their chord for that whole bar. Each span: { bar, s, e (16th steps from bar 1; end exclusive;
+   negative in a pickup), t0, t1 (seconds; a per-bar span needs the grid), c, corrected }. Bars and regions without a chord are left out. */
+function chordSpans(a, grid) {
+  const bars = (a.chords && a.chords.bars) || [], R = a.chordRegions && a.chordRegions.regions, fixed = new Set((a.timingCorrections || []).filter(x => x.type === "chord").map(x => x.bar));
+  const bt = b => grid ? grid.barStart(b) : null, isC = c => !!c && c !== "–", out = [];
+  const perBar = b => { if (isC(bars[b])) out.push({ bar: b, s: b * 16, e: (b + 1) * 16, t0: bt(b), t1: bt(b + 1), c: bars[b], corrected: fixed.has(b) }); };
+  if (!R || !R.length) { bars.forEach((_, b) => perBar(b)); return out; }
+  R.forEach(r => {
+    if (!isC(r.c)) return;
+    const s = r.bar * 16 + Math.round(r.beat * 4), e = r.endBar != null ? r.endBar * 16 + Math.round(r.endBeat * 4) : s + 2; if (!(e > s)) return;
+    const tAt = q => q === s ? r.t0 : q === e ? r.t1 : grid && q % 16 === 0 ? grid.barStart(q / 16) : r.t0 + (q - s) / (e - s) * (r.t1 - r.t0);
+    // the parts of the region outside the corrected bars
+    let q0 = s; for (let q = s; q <= e; q++) { const inFixed = q < e && fixed.has(Math.floor(q / 16));
+      if (q === e || inFixed) { if (q > q0) out.push({ bar: Math.floor(q0 / 16), s: q0, e: q, t0: tAt(q0), t1: tAt(q), c: r.c, corrected: false }); q0 = q + 1; } }
+  });
+  fixed.forEach(b => perBar(b));
+  return out.sort((p, q) => p.s - q.s);
+}
 /* The bar a whole-track file starts at: -1 when the transcription has a pickup (notes before bar 1), else 0. */
 function pickupBar(a) { const T = a.transcription; return T && [...(T.lead || []), ...(T.bass || [])].some(n => n.bar < 0) ? -1 : 0; }
 const startText = b => b < 0 ? "the file starts one bar before bar 1, so the pickup is kept" : `the file starts at bar ${b + 1}`;
@@ -508,10 +529,14 @@ function partMidi(a, part, opts) {
     return { name: `${label} (rough, 4-bar phrase).mid`, data: midiBytes(notes, bpm, { name: label, text: `${label}: rough transcription read from ${from}, folded to a 4-bar phrase (a representative pattern, not every bar), ${q}` }) };
   }
   if (part === "chords") {
-    const sec = opts && (opts.range ? { startBar: opts.range.startBar, bars: opts.range.endBar - opts.range.startBar } : opts.section), bars = (a.chords && a.chords.bars) || []; if (!sec) return null;
-    const notes = []; for (let k = 0; k < sec.bars; k++) { const c = bars[sec.startBar + k]; if (!c || c === "–") continue; chordFromName(c).notes.forEach(m => notes.push({ t: k * 16, dur: 16, midi: m, vel: 85 })); }
+    // a range, else the section, else (neither: "Whole track") every bar from the pickup bar when the transcription has one
+    const nB = a.nBars || Math.floor(a.duration / a.barSec), whole = !(opts && (opts.range || opts.section)), b0 = pickupBar(a);
+    const sec = opts && opts.range ? { startBar: opts.range.startBar, bars: opts.range.endBar - opts.range.startBar } : opts && opts.section ? opts.section : { startBar: b0, bars: nB - b0 }; if (!(sec.bars > 0)) return null;
+    const notes = [], lo = sec.startBar * 16, hi = (sec.startBar + sec.bars) * 16;
+    chordSpans(a, null).forEach(sp => { const q0 = Math.max(sp.s, lo), q1 = Math.min(sp.e, hi); if (q1 > q0) chordFromName(sp.c).notes.forEach(m => notes.push({ t: q0 - lo, dur: q1 - q0, midi: m, vel: 85 })); });
     if (!notes.length) return null;
-    return { name: `Chords bars ${sec.startBar + 1}-${sec.startBar + sec.bars} (suggested voicings).mid`, data: midiBytes(notes, bpm, { name: "Chords", text: `Chords: SUGGESTED voicings generated from the detected chord names for bars ${sec.startBar + 1} to ${sec.startBar + sec.bars}, not transcribed from the audio; ${q}` }) };
+    const span = whole ? "the whole track" : `bars ${sec.startBar + 1} to ${sec.startBar + sec.bars}`;
+    return { name: whole ? "Chords entire track (suggested voicings).mid" : `Chords bars ${sec.startBar + 1}-${sec.startBar + sec.bars} (suggested voicings).mid`, data: midiBytes(notes, bpm, { name: "Chords", text: `Chords: SUGGESTED voicings generated from the detected chord names for ${span}${whole && sec.startBar < 0 ? " (the file starts one bar before bar 1, so the pickup is kept)" : ""}, not transcribed from the audio; ${q}` }) };
   }
   throw new Error("partMidi: unknown part " + part);
 }
@@ -554,8 +579,11 @@ function partSeconds(a, part, grid, range) {
     return out.length ? out : null;
   }
   if (part === "chords") {
-    const bars = (a.chords && a.chords.bars) || [], out = [];
-    bars.forEach((c, b) => { if (!c || c === "–" || !inR(b)) return; const s0 = Math.max(0, grid.barStart(b)), s1 = Math.min(a.duration, grid.barStart(b + 1)); if (s1 > s0) chordFromName(c).notes.forEach(m => out.push({ s0, s1, midi: m, vel: 85 })); });
+    // each chord where it sounds (chordSpans: regions when the analysis has them), cut at the range's bar lines
+    const lo = range ? range.startBar * 16 : -Infinity, hi = range ? range.endBar * 16 : Infinity, out = [];
+    chordSpans(a, grid).forEach(sp => { const q0 = Math.max(sp.s, lo), q1 = Math.min(sp.e, hi); if (!(q1 > q0)) return;
+      const s0 = Math.max(0, q0 === sp.s ? sp.t0 : grid.barStart(q0 / 16)), s1 = Math.min(a.duration, q1 === sp.e ? sp.t1 : grid.barStart(q1 / 16));
+      if (s1 > s0) chordFromName(sp.c).notes.forEach(m => out.push({ s0, s1, midi: m, vel: 85 })); });
     return out.length ? out : null;
   }
   throw new Error("partSeconds: unknown part " + part);
@@ -614,7 +642,10 @@ function allPartsMidi(a, opts) {
   if (timing === "quantized") {
     // a whole-track file starts at the pickup bar when there is one (step 0 = that bar), so the pickup is not dropped
     const bpm = opts.tempo != null ? opts.tempo : a.bpm, N = songNotes(a), nB = a.nBars || Math.floor(a.duration / a.barSec), b0 = r ? 0 : pickupBar(a), s0 = r ? r.startBar * 16 : 0, s1 = r ? r.endBar * 16 : Infinity;
-    const src = { hook: transcribedSteps(a, "hook", b0, nB + 1) || N.hook, bass: transcribedSteps(a, "bass", b0, nB + 1) || N.bass, chords: N.chords.map(n => ({ ...n, t: n.t - b0 * 16 })) };
+    const src = { hook: transcribedSteps(a, "hook", b0, nB + 1) || N.hook, bass: transcribedSteps(a, "bass", b0, nB + 1) || N.bass, chords: [] };
+    // chords are clipped to the exported bars, so a chord that began before the range and still sounds in it is kept
+    { const lo = r ? r.startBar * 16 : b0 * 16, hi = r ? r.endBar * 16 : (nB + 1) * 16;
+      chordSpans(a, null).forEach(sp => { const q0 = Math.max(sp.s, lo), q1 = Math.min(sp.e, hi); if (q1 > q0) chordFromName(sp.c).notes.forEach(m => src.chords.push({ t: q0 - b0 * 16, dur: q1 - q0, midi: m, vel: 85 })); }); }
     const T = 480 / 4; tempos = [{ tick: 0, us: Math.round(6e7 / bpm) }]; words = `quantized to the 16th-note grid at ${Math.round(bpm * 1000) / 1000} BPM, 4/4; not the original timing. ${startText(r ? r.startBar : b0).replace(/^t/, "T")}`;
     ["hook", "bass", "chords"].forEach(p => { const notes = src[p].filter(n => n.t >= s0 && n.t < s1).map(n => { const t = n.t - s0, e = Math.min(t + n.dur, s1 - s0); return { on: Math.round(t * T), off: Math.max(Math.round(t * T) + 1, Math.round(e * T) - 1), midi: n.midi, vel: n.vel || 100 }; });
       if (notes.length) tracks.push({ part: p, notes }); });
@@ -628,10 +659,12 @@ function allPartsMidi(a, opts) {
   return { name: `${title} - all parts ${spanText(r)} (${MODE_WORDS[timing]}).mid`, refTempo: refT,
     data: smfFile(named, tempos, { name: title, text: `Teardown export, ${spanText(r)}: ${words}.` }) };
 }
-/* The detected chord names for a section, as text to paste: one per bar, "N.C." where no chord was found. */
+/* The detected chord names for a section, as text to paste: bars separated by " | ", "N.C." where no chord was found. */
 function chordNamesText(a, sec) {
-  const bars = (a.chords && a.chords.bars) || [], out = [];
-  for (let k = 0; k < sec.bars && sec.startBar + k < bars.length; k++) { const c = bars[sec.startBar + k]; out.push(!c || c === "–" ? "N.C." : c); }
+  // one group per bar; a bar with more than one chord (chord regions) lists them in order
+  const bars = (a.chords && a.chords.bars) || [], sp = chordSpans(a, null), out = [];
+  for (let k = 0; k < sec.bars && sec.startBar + k < bars.length; k++) { const b = sec.startBar + k, lo = b * 16, hi = lo + 16;
+    const here = sp.filter(x => x.s < hi && x.e > lo).map(x => x.c).filter((c, i, A) => i === 0 || c !== A[i - 1]); out.push(here.length ? here.join(" ") : "N.C."); }
   return out.join(" | ");
 }
 /* True when no kick and no snare was found anywhere (the main pattern or any section's pattern). Says nothing about vocals or other
@@ -1116,5 +1149,5 @@ const EXAMPLE = {
   sections: [{ label: "Intro", startBar: 0, bars: 16 }, { label: "Build", startBar: 16, bars: 8 }, { label: "Drop", startBar: 24, bars: 32 }, { label: "Breakdown", startBar: 56, bars: 16 }, { label: "Build", startBar: 72, bars: 8 }, { label: "Drop", startBar: 80, bars: 24 }, { label: "Outro", startBar: 104, bars: 15 }].map(s => Object.assign(s, { start: +(s.startBar * 1.92).toFixed(1), end: +((s.startBar + s.bars) * 1.92).toFixed(1) })),
   barSec: 1.92, nBars: 119, balance: [17, 33, 19, 15, 10, 6], width: 0.31, loudRms: -8.9, crest: 8.2, peakDb: -0.3
 };
-return Object.freeze({ transcribedSteps, partMidi, midiModes, allPartsMidi, smfFile, refTempo, chordNamesText, noDrumsFound, exportGate, recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
+return Object.freeze({ chordSpans, transcribedSteps, partMidi, midiModes, allPartsMidi, smfFile, refTempo, chordNamesText, noDrumsFound, exportGate, recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
 });
