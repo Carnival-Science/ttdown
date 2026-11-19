@@ -358,22 +358,28 @@ function drumBar(d, b, noFill) { return !noFill && b % 4 === 3 && d.fill ? Objec
    Same-pitch notes never overlap in the file: a note still sounding when the next one of that pitch starts is cut off just before it
    (the SMF spec leaves overlapping same-pitch notes ambiguous, and players disagree), and a second note with the same pitch and onset
    is dropped as a duplicate. meta = { name, text } adds a track name and a text event; 4/4 is always stated, since exports are 4/4 only. */
-function midiBytes(notes, bpm, meta) {
-  if (!(bpm >= 20 && bpm <= 400)) throw new Error("midiBytes: tempo " + bpm + " BPM is outside 20 to 400");
-  const TPS = 24, ev = [], byPitch = new Map();
-  notes.forEach(n => {
-    const on = Math.round(n.t * TPS); if (!(on >= 0)) throw new Error("midiBytes: a note starts before bar 1 (step " + n.t + ")");
-    const off = Math.max(on + 1, Math.round((n.t + n.dur) * TPS) - 1); (byPitch.get(n.midi) || byPitch.set(n.midi, []).get(n.midi)).push({ on, off, midi: n.midi, vel: Math.max(1, Math.min(127, n.vel || 100)) });
-  });
+/* Notes already in ticks ({ on, off, midi, vel }) -> sorted [tick, status, pitch, velocity] events. Same-pitch notes never overlap: a note
+   still sounding when the next one of that pitch starts is cut just before it, and a second note with the same pitch and onset is dropped
+   (the longer one stands). Velocity is clamped to 1..127 (missing = 100). At one tick the note-offs come before the note-ons. */
+function noteEvents(notes) {
+  const ev = [], byPitch = new Map();
+  notes.forEach(n => { const x = { on: n.on, off: Math.max(n.on + 1, n.off), midi: n.midi, vel: Math.max(1, Math.min(127, Math.round(n.vel || 100))) }; (byPitch.get(n.midi) || byPitch.set(n.midi, []).get(n.midi)).push(x); });
   byPitch.forEach(list => {
     list.sort((x, y) => x.on - y.on || y.off - x.off);
     for (let i = 0; i < list.length; i++) {
       const x = list[i], nx = list.slice(i + 1).find(y => y.on > x.on); if (nx) x.off = Math.min(x.off, Math.max(x.on + 1, nx.on - 1));
-      if (i && list[i - 1].on === x.on) continue; // same pitch, same onset: the longer note (sorted first) stands
+      if (i && list[i - 1].on === x.on) continue;
       ev.push([x.on, 0x90, x.midi, x.vel], [x.off, 0x80, x.midi, 0]);
     }
   });
-  ev.sort((x, y) => x[0] - y[0] || x[1] - y[1] || x[2] - y[2]); // at one tick the note-offs come before the note-ons
+  return ev.sort((x, y) => x[0] - y[0] || x[1] - y[1] || x[2] - y[2]);
+}
+function midiBytes(notes, bpm, meta) {
+  if (!(bpm >= 20 && bpm <= 400)) throw new Error("midiBytes: tempo " + bpm + " BPM is outside 20 to 400");
+  const TPS = 24, ev = noteEvents(notes.map(n => {
+    const on = Math.round(n.t * TPS); if (!(on >= 0)) throw new Error("midiBytes: a note starts before bar 1 (step " + n.t + ")");
+    return { on, off: Math.max(on + 1, Math.round((n.t + n.dur) * TPS) - 1), midi: n.midi, vel: n.vel };
+  }));
   const vl = v => { const b = [v & 0x7f]; while ((v >>= 7)) b.unshift((v & 0x7f) | 0x80); return b; };
   const us = Math.round(60000000 / bpm), trk = []; let last = 0;
   const text = (type, str) => { const b = Array.from(new TextEncoder().encode(str)); trk.push(0, 0xff, type, ...vl(b.length), ...b); };
@@ -482,6 +488,7 @@ function transcribedSteps(a, part, startBar, endBar) {
    opts.range = { startBar, endBar } (end exclusive) writes the transcribed notes in those bars, starting the file at startBar; opts.source
    "transcribed" | "pattern" chooses explicitly. Without either, hook/bass write the displayed 4-bar phrase, as before. */
 function partMidi(a, part, opts) {
+  if (opts && (opts.timing === "original" || opts.timing === "tempo-map")) return timedPartMidi(a, part, opts);
   const bpm = opts && opts.tempo != null ? opts.tempo : a.bpm, q = `quantized to the 16th-note grid at ${Math.round(bpm * 1000) / 1000} BPM, 4/4; not the original timing`;
   if (part === "hook" || part === "bass") {
     const label = part === "hook" ? "Top line" : is808(a, genreOf(a)) ? "808" : "Bass", nBars = a.nBars || Math.floor(a.duration / a.barSec);
@@ -504,6 +511,118 @@ function partMidi(a, part, opts) {
     return { name: `Chords bars ${sec.startBar + 1}-${sec.startBar + sec.bars} (suggested voicings).mid`, data: midiBytes(notes, bpm, { name: "Chords", text: `Chords: SUGGESTED voicings generated from the detected chord names for bars ${sec.startBar + 1} to ${sec.startBar + sec.bars}, not transcribed from the audio; ${q}` }) };
   }
   throw new Error("partMidi: unknown part " + part);
+}
+
+/* ---- MIDI in three timings (docs/MIDI_EXPORT.md) ----
+   "quantized"  notes snapped to the 16th grid at one tempo: only when exportGate allows it (a steady, verified grid).
+   "original"   the transcription's onsets and ends in audio seconds, written at one reference tempo: correct whatever the beat grid is,
+                as long as the file plays at that tempo (or the DAW imports the file's tempo). Bar lines in the DAW are not the song's.
+   "tempo-map"  notes placed on the tracked beats and a tempo event wherever the beat length changes, so the file plays in the audio's time
+                AND its bar lines follow the song. Needs tracked beats (not a fallback grid) and a result that is not stale.
+   Chords are always SUGGESTED voicings of the detected chord names, one per bar, at the bar's position on the grid. grid = forAnalysis(a). */
+const PPQ = 480, MODE_WORDS = { original: "original timing", "tempo-map": "tempo map", quantized: "quantized" };
+function smfFile(tracks, tempos, title) {
+  const vl = v => { const b = [v & 0x7f]; while ((v >>= 7)) b.unshift((v & 0x7f) | 0x80); return b; };
+  const txt = (type, str) => { const b = Array.from(new TextEncoder().encode(str)); return [0xff, type, ...vl(b.length), ...b]; };
+  const u32 = n => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+  tempos.forEach(t => { if (!(t.us >= 150000 && t.us <= 3000000)) throw new Error("smfFile: tempo " + (6e7 / t.us) + " BPM is outside 20 to 400"); });
+  const conductor = tempos.map(t => [t.tick, [0xff, 0x51, 3, (t.us >> 16) & 255, (t.us >> 8) & 255, t.us & 255]]).concat([[0, [0xff, 0x58, 4, 4, 2, 24, 8]]]);
+  const notesOf = tr => noteEvents(tr.notes).map(e => { if (!(e[0] >= 0)) throw new Error("smfFile: a note starts before the file"); return [e[0], [e[1], e[2], e[3]]]; });
+  const chunk = (head, evs) => { evs = evs.slice().sort((x, y) => x[0] - y[0]); const out = []; head.filter(Boolean).forEach(h => out.push(0, ...h)); let last = 0;
+    evs.forEach(([tk, b]) => { out.push(...vl(tk - last), ...b); last = tk; }); out.push(0, 0xff, 0x2f, 0); return [0x4d, 0x54, 0x72, 0x6b, ...u32(out.length)].concat(out); };
+  const chunks = !title
+    ? [chunk([txt(0x03, tracks[0].name), tracks[0].text && txt(0x01, tracks[0].text)], conductor.concat(notesOf(tracks[0])))]
+    : [chunk([txt(0x03, title.name), title.text && txt(0x01, title.text)], conductor)].concat(tracks.map(tr => chunk([txt(0x03, tr.name), tr.text && txt(0x01, tr.text)], notesOf(tr))));
+  const fmt = title ? 1 : 0, n = chunks.length;
+  return new Uint8Array([0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, fmt, (n >> 8) & 255, n & 255, (PPQ >> 8) & 255, PPQ & 255].concat(...chunks));
+}
+const partLabel = (a, part) => part === "hook" ? "Melody" : part === "bass" ? (is808(a, genreOf(a)) ? "808" : "Bass") : "Chords";
+const spanText = r => r ? `bars ${r.startBar + 1}-${r.endBar}` : "entire track";
+/* The reference tempo for original timing: the export grid's tempo when beats were tracked, else the analysis tempo; returned as exactly
+   what the file can hold (a whole number of microseconds per quarter), so ticks are converted with the tempo the reader will use. */
+function refTempo(a, grid) { let bpm = a.bpm; try { const g = grid && grid.tracked && grid.map.exportGrid(); if (g && g.bpm >= 20 && g.bpm <= 400) bpm = g.bpm; } catch (e) {} return 6e7 / Math.round(6e7 / bpm); }
+/* One part's notes in audio seconds ({ s0, s1, midi, vel }) for bars [range.startBar, range.endBar) (null = the whole track); null when
+   there is nothing time-resolved to write. Melody and bass need the full-track transcription; chords come from the per-bar chord names. */
+function partSeconds(a, part, grid, range) {
+  const inR = b => !range || (b >= range.startBar && b < range.endBar), end = range ? Math.min(a.duration, grid.barStart(range.endBar)) : a.duration;
+  if (part === "hook" || part === "bass") {
+    const T = a.transcription, list = T && (part === "hook" ? T.lead : T.bass); if (!list) return null;
+    const out = list.filter(n => inR(n.bar) && n.on < end).map(n => ({ s0: n.on, s1: Math.min(n.off, end), midi: n.midi, vel: n.vel || 100 })).filter(n => n.s1 > n.s0);
+    return out.length ? out : null;
+  }
+  if (part === "chords") {
+    const bars = (a.chords && a.chords.bars) || [], out = [];
+    bars.forEach((c, b) => { if (!c || c === "–" || !inR(b)) return; const s0 = Math.max(0, grid.barStart(b)), s1 = Math.min(a.duration, grid.barStart(b + 1)); if (s1 > s0) chordFromName(c).notes.forEach(m => out.push({ s0, s1, midi: m, vel: 85 })); });
+    return out.length ? out : null;
+  }
+  throw new Error("partSeconds: unknown part " + part);
+}
+/* seconds -> ticks for one export, with the tempo events that make the ticks play back at those seconds. lists = every part's notes,
+   so a whole-track tempo-map file can start at a pickup bar when a note comes before bar 1. */
+function timeline(a, grid, timing, range, lists) {
+  if (timing === "original") {
+    const R = refTempo(a, grid), us = Math.round(6e7 / R), t0 = range ? Math.max(0, grid.barStart(range.startBar)) : 0;
+    return { tempos: [{ tick: 0, us }], tick: s => Math.max(0, Math.round((s - t0) * 1e6 / us * PPQ)), refTempo: R, startSec: t0,
+      words: `original timing: onsets and lengths as estimated in the audio, written at a reference tempo of ${+R.toFixed(3)} BPM. Play the file at that tempo (or import its tempo) to keep the timing; the DAW's bar lines are not the song's bars. File time 0 is ${fmtT(t0)} in the audio` };
+  }
+  if (timing === "tempo-map") {
+    const map = grid.map, n = 4, first = Math.min(Infinity, ...lists.flat().map(x => x.s0));
+    const startBar = range ? range.startBar : Math.min(0, isFinite(first) ? grid.barOf(first) : 0), q0 = (startBar + grid.barOffset) * n;
+    const last = Math.max(0, ...lists.flat().map(x => x.s1)), K = Math.max(1, Math.ceil(map.timeToBeat(Math.max(last, grid.barStart(startBar))) - q0) + 1), t0 = map.beatToTime(q0), tempos = [];
+    for (let k = 0, prev = 0; k < K; k++) { const us = Math.round((map.beatToTime(q0 + k + 1) - t0) * 1e6) - Math.round((map.beatToTime(q0 + k) - t0) * 1e6); if (us !== prev) tempos.push({ tick: k * PPQ, us }); prev = us; }
+    return { tempos, tick: s => Math.max(0, Math.round((map.timeToBeat(s) - q0) * PPQ)), startSec: t0, startBar,
+      words: `follows the song's tempo map: a tempo change wherever the tracked beat length changes, so notes play at their time in the audio and the bar lines follow the song. The file starts at bar ${startBar + 1} (${fmtT(Math.max(0, t0))} in the audio)` };
+  }
+  throw new Error("timeline: unknown timing " + timing);
+}
+const toTicks = (L, notes) => notes.map(x => { const on = L.tick(x.s0); return { on, off: Math.max(on + 1, L.tick(x.s1) - 1), midi: x.midi, vel: x.vel }; });
+const kindOf = part => part === "chords" ? "SUGGESTED voicings generated from the detected chord names, not transcribed from the audio" : "rough transcription of the audio";
+function timedPartMidi(a, part, opts) {
+  const grid = opts.grid, r = opts.range || null, notes = partSeconds(a, part, grid, r); if (!notes) return null;
+  const L = timeline(a, grid, opts.timing, r, [notes]), label = partLabel(a, part), kind = part === "chords" ? "suggested voicings" : "rough transcription";
+  return { name: `${label} ${spanText(r)} (${kind}, ${MODE_WORDS[opts.timing]}).mid`, refTempo: L.refTempo,
+    data: smfFile([{ name: label, text: `${label}: ${kindOf(part)}, ${spanText(r)}; ${L.words}.`, notes: toTicks(L, notes) }], L.tempos) };
+}
+/* Which MIDI timings this teardown can export now, and why not. confirmed = the person confirmed the bar lines (only quantized uses it). */
+function midiModes(a, grid, confirmed) {
+  const quantized = exportGate(a, grid && grid.map, confirmed), T = a.transcription;
+  const parts = { hook: !!(T && T.lead && T.lead.length), bass: !!(T && T.bass && T.bass.length), chords: ((a.chords && a.chords.bars) || []).some(c => c && c !== "–") };
+  const any = parts.hook || parts.bass || parts.chords;
+  const original = { ok: any, parts, refTempo: refTempo(a, grid), why: any ? "" : "Nothing time-resolved to write. Analyse the track again to get its full transcription." };
+  let tm = { ok: false, parts, caveats: [], why: "" };
+  if (quantized.stale.length) tm.why = "Out of date after a correction. Upload the track again to follow its tempo.";
+  else if (!grid || !grid.tracked) tm.why = "No tracked beats for this teardown, so there is no tempo map to follow. Use original timing.";
+  else if (!any) tm.why = original.why;
+  else {
+    try { timeline(a, grid, "tempo-map", null, [[{ s0: 0, s1: a.duration }]]).tempos.forEach(t => { if (!(t.us >= 150000 && t.us <= 3000000)) throw new Error("tempo"); }); tm.ok = true; }
+    catch (e) { tm.why = "The tracked beats include a tempo outside 20 to 400 BPM, so they can't be written as a tempo map. Use original timing."; }
+    if (!confirmed && quantized.needs.includes("downbeat")) tm.caveats.push("Bar lines assume the analyzer's first downbeat; the note timing follows the audio either way.");
+    if (!confirmed && quantized.needs.includes("meter")) tm.caveats.push("Bars assume 4/4.");
+    if (quantized.reasons.some(x => /^tempo/.test(x))) tm.caveats.push("The tempo moves in this track; the file carries those changes.");
+  }
+  return { original, tempoMap: tm, quantized };
+}
+/* Every part in ONE Type 1 MIDI file: a tempo track, then Melody, Bass (or 808) and Chords (suggested), each with its own name and
+   provenance text, all in one timing. Quantized uses opts.tempo (the export gate's tempo; the caller checks exportGate) and the
+   transcription when the teardown has one, else the representative pattern repeated, as the full-song package does. */
+function allPartsMidi(a, opts) {
+  const timing = opts.timing || "quantized", r = opts.range || null, title = (a.title || "Teardown").trim(), tracks = [];
+  let tempos, words, refT = null;
+  if (timing === "quantized") {
+    const bpm = opts.tempo != null ? opts.tempo : a.bpm, N = songNotes(a), nB = a.nBars || Math.floor(a.duration / a.barSec), s0 = r ? r.startBar * 16 : 0, s1 = r ? r.endBar * 16 : Infinity;
+    const src = { hook: transcribedSteps(a, "hook", 0, nB + 1) || N.hook, bass: transcribedSteps(a, "bass", 0, nB + 1) || N.bass, chords: N.chords };
+    const T = 480 / 4; tempos = [{ tick: 0, us: Math.round(6e7 / bpm) }]; words = `quantized to the 16th-note grid at ${Math.round(bpm * 1000) / 1000} BPM, 4/4; not the original timing. The file starts at bar ${r ? r.startBar + 1 : 1}`;
+    ["hook", "bass", "chords"].forEach(p => { const notes = src[p].filter(n => n.t >= s0 && n.t < s1).map(n => { const t = n.t - s0, e = Math.min(t + n.dur, s1 - s0); return { on: Math.round(t * T), off: Math.max(Math.round(t * T) + 1, Math.round(e * T) - 1), midi: n.midi, vel: n.vel || 100 }; });
+      if (notes.length) tracks.push({ part: p, notes }); });
+  } else {
+    const lists = ["hook", "bass", "chords"].map(p => [p, partSeconds(a, p, opts.grid, r)]).filter(x => x[1]);
+    const L = timeline(a, opts.grid, timing, r, lists.map(x => x[1])); tempos = L.tempos; words = L.words; refT = L.refTempo || null;
+    lists.forEach(([p, notes]) => tracks.push({ part: p, notes: toTicks(L, notes) }));
+  }
+  if (!tracks.length) return null;
+  const named = tracks.map(t => ({ name: t.part === "chords" ? "Chords (suggested)" : `${partLabel(a, t.part)} (rough)`, text: `${partLabel(a, t.part)}: ${kindOf(t.part)}, ${spanText(r)}.`, notes: t.notes }));
+  return { name: `${title} - all parts ${spanText(r)} (${MODE_WORDS[timing]}).mid`, refTempo: refT,
+    data: smfFile(named, tempos, { name: title, text: `Teardown export, ${spanText(r)}: ${words}.` }) };
 }
 /* The detected chord names for a section, as text to paste: one per bar, "N.C." where no chord was found. */
 function chordNamesText(a, sec) {
@@ -993,5 +1112,5 @@ const EXAMPLE = {
   sections: [{ label: "Intro", startBar: 0, bars: 16 }, { label: "Build", startBar: 16, bars: 8 }, { label: "Drop", startBar: 24, bars: 32 }, { label: "Breakdown", startBar: 56, bars: 16 }, { label: "Build", startBar: 72, bars: 8 }, { label: "Drop", startBar: 80, bars: 24 }, { label: "Outro", startBar: 104, bars: 15 }].map(s => Object.assign(s, { start: +(s.startBar * 1.92).toFixed(1), end: +((s.startBar + s.bars) * 1.92).toFixed(1) })),
   barSec: 1.92, nBars: 119, balance: [17, 33, 19, 15, 10, 6], width: 0.31, loudRms: -8.9, crest: 8.2, peakDb: -0.3
 };
-return Object.freeze({ transcribedSteps, partMidi, chordNamesText, noDrumsFound, exportGate, recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
+return Object.freeze({ transcribedSteps, partMidi, midiModes, allPartsMidi, smfFile, refTempo, chordNamesText, noDrumsFound, exportGate, recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
 });

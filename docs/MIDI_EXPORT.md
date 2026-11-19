@@ -11,7 +11,19 @@ Issue #29, first engineering slice. This page says exactly what the exported MID
 | 5 Chords (suggested) | triads built from the detected chord *names* (`chordFromName`), one per bar | **generated**, not heard in the audio | whole bars |
 | 6 Hook (rough) | the detected melody folded to a 4-bar loop and repeated over the hook's section | analysis (`hook`) | **quantized**, loop-repeated |
 
-**Original timing is not exported.** Every note onset is a whole 16th step counted from bar 1 (24 ticks at 96 per quarter), so the file sits on a grid, not on the times the notes were actually played. Nothing is silently substituted: the file names, each file's track name and a text event inside each file say "quantized to the 16th-note grid ... not the original timing", and the chord file says "SUGGESTED voicings generated from the detected chord names, not transcribed from the audio". The original per-note times are not kept by the analyzer, so there is no original-timing export to offer yet (that needs the symbolic event contract in #29, not built here).
+**The full-song package is quantized.** Every note onset is a whole 16th step counted from bar 1 (24 ticks at 96 per quarter), so the file sits on a grid, not on the times the notes were actually played. Nothing is silently substituted: the file names, each file's track name and a text event inside each file say "quantized to the 16th-note grid ... not the original timing", and the chord file says "SUGGESTED voicings generated from the detected chord names, not transcribed from the audio". Original timing and a tempo map are offered for the melody, bass and chords from the piano roll (next section).
+
+## Three timings (piano roll MIDI menu)
+
+`domain.midiModes(a, grid, confirmed)` says which timings are available and why not; `partMidi(a, part, { timing, grid, range })` writes one part, `allPartsMidi(a, { timing, grid, range, tempo })` writes all of them as **one Type 1 file** (a tempo track, then Melody, Bass or 808, Chords (suggested)). 480 ticks per quarter.
+
+| Timing | What the file holds | Available when |
+|---|---|---|
+| **Original timing** | the transcription's onsets and ends in audio seconds, written at one *reference tempo* (the export grid's tempo when beats were tracked, else the analysis tempo). Plays at the audio's time as long as the DAW uses that tempo (or imports the file's). DAW bar lines are not the song's. | the teardown has a full-track transcription (melody, bass) or chord names (chords). Not blocked by the beat grid or by a stale tempo correction: it does not use the grid for melody and bass. |
+| **Follow tempo map** | notes placed on the tracked beats, with a tempo event wherever the beat length changes (microseconds carried forward, so beat k lands within 1 µs of the tracked beat). Notes play at their audio time *and* bar lines follow the song. The file starts at bar 1, or at the pickup bar when a note comes before it. | tracked beats (not the constant fallback), not stale. Tempo changes and drift are carried, not refused. Caveats when the downbeat or 4/4 are still assumptions. |
+| **Quantized** | 16th-grid steps at one tempo, as before | only when `exportGate` allows it (unchanged: stale, refused, needs confirmation). |
+
+The gate is still the only rule for quantized MIDI and the bar-aligned WAV; it no longer blocks the other two timings. Chords are always suggested voicings of the detected chord names, one per bar at the bar's time on the grid, in every timing. Checked by `tests/midi-timing.test.js` (in `npm test`): original-timing and tempo-map onsets within 1 ms of the audio estimates; on `tempo_change_step`, `drift_fast` and `drift_slow` (quantized refused) a note on every tracked beat lands on a whole quarter note at its song bar and beat and within 1 ms of its audio time; Type 1 structure and track names; what is offered for a stale result, a fallback grid and a teardown with no transcription.
 
 ## Tempo, bar 1, meter
 
@@ -42,7 +54,7 @@ The SMF spec does not say what overlapping notes of one pitch mean, and players 
 ## Not done (still open in #29)
 
 * Importing into two DAWs and checking the result by ear and by eye: **manual, not done**.
-* The symbolic event contract (pitch bend, voice labels, provenance and correction state per event, beat positions) and an *original-timing* export beside the quantized one.
+* The symbolic event contract (pitch bend, voice labels, provenance and correction state per event). Original timing and tempo-map exports exist for the transcribed parts (above); the drum parts are still quantized only.
 * The round trip is in the unit and product tests, not yet in the product benchmark (`bench/`) as a scored dimension.
 * Comparing exported notes against the reference audio (onset detection on the WAV) rather than against the internal events and the tracked beats.
 * Real-music fixtures: everything here ran on the synthetic fixtures.
