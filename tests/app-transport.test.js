@@ -1,7 +1,7 @@
-// One transport and ONE playhead, DAW-style: the audio element's currentTime is the only clock, and the arrangement and both piano rolls draw
+// One transport and ONE playhead, DAW-style: the audio element's currentTime is the only clock, and the arrangement and the piano roll draw
 // the same playhead from it, on a shared horizontal viewport.
 //   1. the transport sits directly above the arrangement with play, stop, volume, time, bar.beat, loop and Follow
-//   2. while playing, the playhead in the arrangement and in BOTH piano rolls is where audio.currentTime says (a few px), and it moves
+//   2. while playing, the playhead in the arrangement and in the piano roll is where audio.currentTime says (a few px), and it moves
 //   3. Space plays and pauses (not while typing); the ruler seeks on press and drag
 //   4. a click on the arrangement takes the editor to that bar; Follow pages the editor along with playback, turns off when the editor is
 //      scrolled or zoomed by hand, and turns back on with its button
@@ -35,7 +35,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   });
 
   // ---- 1-4. a steady track with a whole-track transcription
-  { const p = await open(); await analyse(p, path.join(SONGS, "sections120.mp3")); await inject(p); await p.waitForTimeout(300); await tab(p, "Notes"); await p.waitForTimeout(300);
+  { const p = await open(); await analyse(p, path.join(SONGS, "sections120.mp3")); await inject(p); await p.waitForTimeout(300); await tab(p, "Piano roll"); await p.waitForTimeout(300);
     const tr = await rect(p, ".transport"), tl = await rect(p, "#explorer .timeline"), ru = await rect(p, ".barruler");
     check(tr.y + tr.height <= tl.y + 1, `1: the transport (y ${Math.round(tr.y)}) sits directly above the arrangement (y ${Math.round(tl.y)})`);
     check(await p.locator('.transport button[aria-label="Play"]').isVisible() && await p.locator('.transport button[aria-label^="Stop"]').isVisible() && await p.locator("#volume").isVisible() && await p.locator(".transport .clock").isVisible() && await p.locator(".transport .posn").isVisible() && await p.locator('.transport [role="radiogroup"][aria-label="Loop"]').isVisible() && await p.locator('.transport button:has-text("Follow")').isVisible(), "1: it has play, stop, volume, time, bar.beat, loop and Follow");
@@ -44,7 +44,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
     await p.click('button[aria-label="Play"]'); await p.waitForTimeout(1200);
     const h1 = await heads(p); await p.waitForTimeout(900); const h2 = await heads(p);
     const off = [h2.arr, ...h2.lanes].map(x => Math.abs(x.got - x.want));
-    check(h2.lanes.length === 2 && off.every(d => d < 4) && [h2.arr, ...h2.lanes].every(x => x.shown), `2: the playhead in the arrangement and in both piano rolls is where currentTime ${h2.t.toFixed(2)} s says (off by ${off.map(d => d.toFixed(1)).join(", ")} px)`);
+    check(h2.lanes.length === 1 && off.every(d => d < 4) && [h2.arr, ...h2.lanes].every(x => x.shown), `2: the playhead in the arrangement and in the piano roll is where currentTime ${h2.t.toFixed(2)} s says (off by ${off.map(d => d.toFixed(1)).join(", ")} px)`);
     check(h2.t > h1.t + 0.5 && h2.arr.got > h1.arr.got + 4, `2: and it moves with the audio (${h1.t.toFixed(2)} s to ${h2.t.toFixed(2)} s; arrangement x ${h1.arr.got.toFixed(0)} to ${h2.arr.got.toFixed(0)})`);
     check(/^\d+\.\d$/.test((await p.locator(".posn b").innerText()).trim()), `3: the bar.beat readout follows it (${await p.locator(".posn b").innerText()})`);
 
@@ -83,7 +83,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
     check(fOn === "1" && vs2 > vsA + 5 && tf >= vs2 && tf <= vs2 + sp2, `4: with Follow on the editor pages along (view ${vsA.toFixed(1)} s to ${vs2.toFixed(1)} s; the playhead ${tf.toFixed(1)} s stays inside it)`);
     await p.click('button[aria-label="Zoom in"]'); await p.waitForTimeout(200);
     check(await p.locator(".lanes").getAttribute("data-follow") === "0" && await p.locator('.transport button:has-text("Follow")').getAttribute("aria-pressed") === "false", "4: zooming the editor by hand turns Follow off");
-    const lr = await rect(p, ".laneh"); await p.mouse.move(lr.x + lr.width / 2, lr.y + lr.height / 2); await p.keyboard.down("Shift"); await p.mouse.wheel(0, 300); await p.keyboard.up("Shift"); await p.waitForTimeout(200);
+    const lr = await rect(p, ".mroll .track"); await p.mouse.move(lr.x + lr.width / 2, lr.y + lr.height / 2); await p.keyboard.down("Shift"); await p.mouse.wheel(0, 300); await p.keyboard.up("Shift"); await p.waitForTimeout(200);
     const vs3 = await p.evaluate(() => +document.querySelector(".lanes").dataset.vpStart);
     check(vs3 !== (await p.evaluate(() => +document.querySelector(".lanes").dataset.vpStart)) || true, "4: Shift + wheel scrolls the editor");
     await p.evaluate(() => document.querySelector("#explorer audio").pause());
@@ -99,17 +99,17 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
     const real = await p.evaluate(() => !!(window.__td.transcription && window.__td.transcription.lead.length));
     check(real, "7: a fresh analysis now carries whole-track notes (a.transcription)");
     await p.evaluate(() => window.__tdReplace(r => { delete r.transcription; })); // as an older teardown would be
-    await tab(p, "Notes"); await p.waitForTimeout(300);
-    check(await p.locator(".lanes").getAttribute("data-source") === "pattern" && /Representative pattern: 4 bars read from bars/.test(await p.locator(".notesed").innerText()), "7: without whole-track notes the rolls show the representative pattern and say where it was read");
-    check(await p.locator('.notesed button:has-text("MIDI")').count() === 2, "7: each roll has a MIDI button");
+    await tab(p, "Piano roll"); await p.waitForTimeout(300);
+    check(await p.locator(".lanes").getAttribute("data-source") === "pattern" && /Representative pattern: 4 bars read from bars/.test(await p.locator(".proll").innerText()), "7: without whole-track notes the roll shows the representative pattern and say where it was read");
+    check(await p.locator('.proll .phead button:has-text("MIDI")').count() === 1, "7: the roll has one MIDI menu");
     await inject(p); await p.waitForTimeout(300);
-    check(await p.locator(".lanes").getAttribute("data-source") === "full" && await p.locator('.notesed [role="radio"]:has-text("Representative pattern")').count() === 1, "7: with whole-track notes they are the default, and the pattern is one toggle away");
+    check(await p.locator(".lanes").getAttribute("data-source") === "full" && await p.locator('.proll [role="radio"]:has-text("Representative pattern")').count() === 1, "7: with whole-track notes they are the default, and the pattern is one toggle away");
     const x0 = await p.evaluate(() => { const l = window.__td.transcription.lead[0]; return l.on; });
-    const first = await p.evaluate(() => { const g = document.querySelector(".lanes svg"); const r = [...g.querySelectorAll("rect")].filter(e => e.getAttribute("rx"))[0]; return +r.getAttribute("x"); });
-    const [vs, sp, w] = await p.evaluate(() => { const l = document.querySelector(".lanes"); return [+l.dataset.vpStart, +l.dataset.vpSpan, document.querySelector(".lanes .laneh .phbox").getBoundingClientRect().width]; });
+    const first = await p.evaluate(() => { const r = document.querySelector('.lanes g[data-layer="hook"] rect'); return +r.getAttribute("x"); });
+    const [vs, sp, w] = await p.evaluate(() => { const l = document.querySelector(".lanes"); return [+l.dataset.vpStart, +l.dataset.vpSpan, document.querySelector(".lanes .phbox").getBoundingClientRect().width]; });
     const want = ((x0 - vs) / sp) * w;
     check(Math.abs(first - want) < 3, `7: the first note is drawn at its real time (${first.toFixed(1)} px, wanted ${want.toFixed(1)} px for ${x0.toFixed(2)} s)`);
-    await p.click('.notesed [role="radio"]:has-text("Representative pattern")'); await p.waitForTimeout(250);
+    await p.click('.proll [role="radio"]:has-text("Representative pattern")'); await p.waitForTimeout(250);
     check(await p.locator(".lanes").getAttribute("data-source") === "pattern", "7: the toggle switches to the representative pattern");
     await p.context().close(); }
 

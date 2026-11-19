@@ -110,19 +110,49 @@
   const parts = $derived(Object.entries(overlay.parts as Record<string, boolean>).filter(([, on]) => on).map(([k]) => k));
   function setParts(v: string[]) { const p = overlay.parts as any; for (const k of Object.keys(p)) p[k] = v.includes(k); }
 
-  // A click on the arrangement takes the editor (and, with the audio, the playhead) to the bar that was clicked; the keyboard goes to the
-  // section's first bar. The pointer position is remembered at press, since the section control only reports which section was chosen.
-  let lastPtr: { t: number; at: number } | null = null;
-  function pressMap(e: PointerEvent) { const r = mapEl.getBoundingClientRect(); lastPtr = { t: dur * Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), at: performance.now() }; }
+  // The arrangement is a scrubbing surface. A click seeks to exactly where it lands and selects that section; a drag scrubs (paused stays
+  // paused, playing keeps playing from the new place) without changing the selection; a double-click fits that section in the piano roll;
+  // the view box's handle pans the piano roll without seeking. The keyboard (the section radios) selects a section and goes to its start.
+  const tAt = (e: { clientX: number }) => { const r = mapEl.getBoundingClientRect(); return dur * Math.max(0, Math.min(1, (e.clientX - r.left) / Math.max(1, r.width))); };
+  const sectionIndexAt = (t: number) => a.sections.findIndex((s: any) => t >= s.start && t < s.end);
+  let press: { x: number; t: number; scrub: boolean } | null = null, scrubbing = $state(false);
+  function mapDown(e: PointerEvent) {
+    if (e.button !== 0 || (e.target as HTMLElement).closest(".vphandle")) return;
+    press = { x: e.clientX, t: tAt(e), scrub: false }; mapEl.setPointerCapture(e.pointerId);
+  }
+  function mapMove(e: PointerEvent) {
+    onHover(e); if (!press) return;
+    if (!press.scrub) { if (Math.abs(e.clientX - press.x) < 4) return; press.scrub = true; scrubbing = true; }
+    const t = tAt(e); if (playable) seekTo(t); else view.reveal(t, 0.5);
+  }
+  function mapUp(e: PointerEvent) {
+    if (!press) return; const p = press; press = null; scrubbing = false;
+    try { mapEl.releasePointerCapture(e.pointerId); } catch { /* released */ }
+    if (p.scrub) return;
+    const i = sectionIndexAt(p.t); if (i >= 0) teardown.selected = i;
+    if (!playable) { view.reveal(p.t, 0.1); return; }
+    if (i >= 0 && tools && tools.loopSel !== "" && tools.loopSel !== "here") tools.setLoop(String(i));
+    seekTo(p.t); if (!view.contains(p.t)) view.reveal(p.t, 0.1);
+  }
+  function fitSection(e: MouseEvent) { const i = sectionIndexAt(tAt(e)), s = a.sections[i]; if (!s) return; view.follow = false; view.jump(Math.max(0, s.start), Math.min(dur, s.end) - Math.max(0, s.start)); }
   function pick(i: number) {
     teardown.selected = i; const s = a.sections[i]; if (!s) return;
-    let target = s.start;
-    if (lastPtr && performance.now() - lastPtr.at < 600) { const t = Math.min(Math.max(lastPtr.t, s.start), s.end - 0.01), b = Math.max(0, G.barOf(t)); target = Math.min(Math.max(G.barStart(b), s.start), Math.max(s.start, s.end - 0.05)); }
-    lastPtr = null;
-    view.reveal(target, 0.1);
+    view.reveal(Math.max(0, s.start), 0.1);
     if (!playable) return;
-    if (tools && tools.loopSel !== "" && tools.loopSel !== "here") tools.setLoop(String(i)); else player.seek(target);
+    if (tools && tools.loopSel !== "" && tools.loopSel !== "here") tools.setLoop(String(i)); else player.seek(Math.max(0, s.start));
   }
+  // the view box's handle: drag (or arrow keys) to move what the piano roll shows, without touching playback
+  let pan: { x: number; start: number } | null = null, panning = $state(false);
+  function hDown(e: PointerEvent) { e.stopPropagation(); pan = { x: e.clientX, start: view.start }; panning = true; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); }
+  function hMove(e: PointerEvent) { if (!pan) return; const w = Math.max(1, mapEl.getBoundingClientRect().width); view.follow = false; view.jump(pan.start + ((e.clientX - pan.x) / w) * dur); }
+  function hUp() { pan = null; panning = false; }
+  function hKey(e: KeyboardEvent) {
+    const step = view.span * (e.shiftKey ? 1 : 0.25);
+    if (e.key === "ArrowRight") view.pan(step); else if (e.key === "ArrowLeft") view.pan(-step); else if (e.key === "Home") { view.follow = false; view.jump(0); } else if (e.key === "End") { view.follow = false; view.jump(dur); } else return;
+    e.preventDefault();
+  }
+  // the section the playhead is in (playing), shown apart from the selected one
+  const playingIdx = $derived(playable && transport.clock ? sectionIndexAt(now) : -1);
   function togglePlay() { const el = audioEl; if (!el) return; if (el.paused) el.play().catch(() => {}); else el.pause(); }
   function stop() { const el = audioEl; if (!el) return; el.pause(); el.currentTime = 0; view.follow = true; view.reveal(Math.max(0, G.barStart(0)), 0.05); }
   function seekTo(t: number) { const el = audioEl; if (!el) return; el.currentTime = Math.min(Math.max(0, t), dur - 0.05); if (view.follow) view.reveal(el.currentTime, 0.06); }
@@ -215,15 +245,17 @@
 
     <div class="songmap" class:quiet={!loud}>
       <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="map" bind:this={mapEl} onpointermove={onHover} onpointerleave={() => (hover = null)} onpointerdowncapture={pressMap}>
+      <div class="map" class:scrubbing bind:this={mapEl} onpointerdown={mapDown} onpointermove={mapMove} onpointerup={mapUp} onpointercancel={mapUp} onpointerleave={() => (hover = null)} ondblclick={fitSection}
+        title="Click to play from there and select the section; drag to scrub; double-click to fit a section in the piano roll">
         <div class="timeline" data-grid={G.kind}>
           {#each bands as b, bi (bi)}
             {#if b.kind === "gap"}<span class="seggap" style:left={pct(b.from)} style:width={`calc(${pct(b.to)} - ${pct(b.from)})`} title="Before bar 1 / after the last bar"></span>{/if}
           {/each}
           <Segmented class="bands" label="Sections" {items} value={String(sel)} onchange={v => pick(+v)} indicator={false}
             itemProps={(it: any) => ({ class: "seg", title: `${sectionName(it.s.label, a)}: bars ${it.s.startBar + 1}–${it.s.startBar + it.s.bars} (starts ${fmtT(it.s.start)})`,
-              style: `left:${pct(Math.max(0, it.s.start))};width:calc(${pct(it.s.end)} - ${pct(Math.max(0, it.s.start))});--c:${sectionColor(it.s.label)}`, "data-label": it.s.label })}>
-            {#snippet item(it: any)}<span class="seglabel">{it.label}</span>{/snippet}
+              style: `left:${pct(Math.max(0, it.s.start))};width:calc(${pct(it.s.end)} - ${pct(Math.max(0, it.s.start))});--c:${sectionColor(it.s.label)}`, "data-label": it.s.label,
+              "data-playing": +it.value === playingIdx ? "" : undefined })}>
+            {#snippet item(it: any)}<span class="seglabel">{#if +it.value === playingIdx}<span class="nowmark" aria-label="playing">▶ </span>{/if}{it.label}</span>{/snippet}
           </Segmented>
           {#if loud}
             <svg class="loud" viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true">
@@ -239,7 +271,13 @@
             </svg>
           {/if}
         </div>
-        {#if view.span < dur - 0.05}<div class="vpwin" style:left={pct(view.start)} style:width={`calc(${pct(view.end)} - ${pct(view.start)})`} aria-hidden="true" data-viewport></div>{/if}
+        {#if view.span < dur - 0.05}
+          <div class="vpwin" class:panning style:left={pct(view.start)} style:width={`calc(${pct(view.end)} - ${pct(view.start)})`} data-viewport>
+            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+            <div class="vphandle" role="slider" tabindex="0" aria-label="What the piano roll shows (drag, or use the arrow keys)" aria-valuemin={0} aria-valuemax={Math.round(dur)} aria-valuenow={Math.round(view.start)} aria-valuetext={`From ${fmtT(view.start)} to ${fmtT(view.end)}`}
+              title="Drag to move what the piano roll shows (playback stays where it is)" onpointerdown={hDown} onpointermove={hMove} onpointerup={hUp} onpointercancel={hUp} onkeydown={hKey} ondblclick={e => e.stopPropagation()}><i></i></div>
+          </div>
+        {/if}
         {#if playable}<Playhead clock={transport.clock} viewport={transport.overview} label="arrangement" />{/if}
         {#if hover}<div class="readout" style:left={hover.x} aria-hidden="true">{hover.text}</div>{/if}
       </div>
@@ -300,6 +338,16 @@
 
   .map { --tl-playhead: var(--tt-lcd); }
   .vpwin { position: absolute; top: 0; bottom: 0; border: 1.5px solid rgb(255 255 255 / .6); background: rgb(255 255 255 / .06); border-radius: 4px; pointer-events: none; z-index: 3; transition: left 120ms cubic-bezier(0.23, 1, 0.32, 1), width 120ms cubic-bezier(0.23, 1, 0.32, 1); }
+  .vpwin.panning { transition: none; }
+  .vphandle { position: absolute; left: 50%; bottom: -1px; translate: -50% 0; width: max(28px, min(64px, 100%)); height: 14px; border-radius: 6px 6px 0 0; background: rgb(255 255 255 / .78); pointer-events: auto; cursor: ew-resize; touch-action: none; display: grid; place-items: center; }
+  .vphandle i { width: 16px; height: 4px; border-block: 1.5px solid #222; }
+  .vphandle:hover, .vpwin.panning .vphandle { background: #fff; }
+  .vphandle:focus-visible { outline: 2px solid var(--tt-focus); outline-offset: 2px; }
+  .map { cursor: pointer; }
+  .map.scrubbing, .map.scrubbing :global(.seg) { cursor: ew-resize; }
+  :global(.explorer .bands .seg[data-playing]) { box-shadow: inset 1px 0 0 rgb(0 0 0 / 0.9), inset 0 3px 0 var(--c), inset 0 -4px 0 var(--tt-lcd); }
+  :global(.explorer .bands .seg[data-playing][data-checked]) { box-shadow: inset 0 0 0 2px var(--tt-ink), inset 0 5px 0 var(--c), inset 0 -5px 0 var(--tt-lcd); }
+  :global(.explorer .bands .seg .nowmark) { color: var(--tt-lcd); }
   .posn { font: 500 .9rem var(--tt-font-body); color: var(--tt-ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .posn b { color: var(--tt-ink); font-weight: 600; }
   .posn .plabel { margin-right: 4px; }

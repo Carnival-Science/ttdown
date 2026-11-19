@@ -50,9 +50,9 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
     await analyse(p, path.join(SONGS, "pop127_Amaj.wav"));
     const g = await page(), sel = s => inView(p, s);
     check(g.sh <= g.ih && g.sw <= 0, `0b: with a track loaded the window still does not scroll (${g.sh} <= ${g.ih})`);
-    check(await sel('button[aria-label="Play"]') && await sel("#explorer .timeline") && await sel('.detail [role="tab"]:has-text("Notes")') && await sel('[data-finding="tempo"] .big') && await sel('#exports button:has-text("Download the song as MIDI")'), "0b: at 1280x720 the transport, the song map, the section tabs, the findings and the export are all on screen");
-    await p.click('.detail [role="tab"]:has-text("Notes")'); await p.waitForTimeout(250);
-    const roll = await p.locator(".detail .layer").first().boundingBox();
+    check(await sel('button[aria-label="Play"]') && await sel("#explorer .timeline") && await sel('.detail [role="tab"]:has-text("Piano roll")') && await sel('[data-finding="tempo"] .big') && await sel('#exports button:has-text("Download the song as MIDI")'), "0b: at 1280x720 the transport, the song map, the section tabs, the findings and the export are all on screen");
+    await p.click('.detail [role="tab"]:has-text("Piano roll")'); await p.waitForTimeout(250);
+    const roll = await p.locator(".detail .mroll").first().boundingBox();
     check(!!roll && roll.y >= 0 && roll.y + 120 <= 720, `0b: and a piano roll starts on screen (top ${roll && Math.round(roll.y)} px) with the editor scrolling inside itself for the rest`);
     const scr = await p.evaluate(() => ({ ed: (() => { const t = document.querySelector(".tt-tabpanel:not([hidden])"); return t ? t.scrollHeight > t.clientHeight : false; })(), insp: (() => { const t = document.querySelector(".inspector .scroll"); return t.scrollHeight > t.clientHeight; })() }));
     check(scr.ed || scr.insp, `0b: only the editor (${scr.ed}) and the inspector (${scr.insp}) scroll, never the window`);
@@ -92,18 +92,18 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
     await p.click('.inspector summary:has-text("Measured sound")', { position: { x: 14, y: 10 } });
 
     const y0 = await p.evaluate(() => scrollY);
-    await p.click('.detail [role="tab"]:has-text("Notes")'); await p.waitForTimeout(250);
+    await p.click('.detail [role="tab"]:has-text("Piano roll")'); await p.waitForTimeout(250);
     await p.locator("#explorer .timeline .seg").nth(2).click(); await p.waitForTimeout(300);
     check(await p.evaluate(() => scrollY) === y0 && await inView(p, '#exports button:has-text("Analysis data")'), `3: changing the tab and the section leaves the page where it was (scrollY ${y0}) and the export in view`);
     const tl = await p.evaluate(() => { const el = document.querySelector(".tt-tablist"), cs = getComputedStyle(el); return { pos: cs.position }; });
-    const bar = await box(p, ".detail .tt-tabbar"), roll = await p.locator(".detail .layer, .detail [data-part=notes] .pianoroll, .detail [data-part=notes] svg").first().boundingBox().catch(() => null);
+    const bar = await box(p, ".detail .tt-tabbar"), roll = await p.locator(".detail .mroll").first().boundingBox().catch(() => null);
     check(tl.pos !== "sticky" && (!roll || bar.y + bar.height <= roll.y + 1), `4: the tab bar is ${tl.pos}, not sticky, and ends above the notes (${Math.round(bar.y + bar.height)} <= ${roll ? Math.round(roll.y) : "n/a"})`);
 
     await p.click('.inspector .fold'); await p.waitForTimeout(350);
     const f = await box(p, ".workspace .inspector"), m2 = await box(p, ".workspace .main");
     check(f.width < 80 && m2.width > m.width + 200 && await p.locator('[data-finding="tempo"]').isHidden(), `5: folded, the inspector is a ${Math.round(f.width)} px rail and the main area grows (${Math.round(m.width)} to ${Math.round(m2.width)} px)`);
     await p.click('.inspector .fold'); await p.waitForTimeout(350);
-    check(await p.locator('[data-finding="tempo"] .big').isVisible() && await p.locator('.detail [role="tab"][aria-selected="true"]').innerText() === "Notes", "5: unfolded again, and the editor is still on Notes, same section");
+    check(await p.locator('[data-finding="tempo"] .big').isVisible() && await p.locator('.detail [role="tab"][aria-selected="true"]').innerText() === "Piano roll", "5: unfolded again, and the editor is still on the Piano roll, same section");
     await p.context().close(); }
 
   // ---- narrow
@@ -117,7 +117,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
     await p.click('button:has-text("Close")'); await p.waitForTimeout(150);
 
     await p.locator("#explorer .timeline .seg").nth(1).click(); await p.waitForTimeout(250);
-    await p.click('.detail [role="tab"]:has-text("Harmony")'); await p.waitForTimeout(150);
+    await p.click('.detail [role="tab"]:has-text("Piano roll")'); await p.waitForTimeout(150);
     await p.evaluate(() => document.querySelector("#explorer audio").pause()); await p.waitForTimeout(150);
     const t0 = await p.evaluate(() => document.querySelector("#explorer audio").currentTime), sel0 = await p.locator("#explorer .seg[aria-checked=true]").getAttribute("data-label");
     await p.click('.sheetbar .btn:has-text("Findings")'); await p.waitForTimeout(700);
@@ -127,7 +127,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
     check(await p.locator('.tt-sheet #exports button:has-text("Download the song as MIDI")').isVisible() && await p.locator('.tt-sheet [data-finding="tempo"]').isHidden(), "7: Export opens the sheet at the export, without the findings");
     await p.click(".tt-sheet-close"); await p.waitForTimeout(500);
     const t1 = await p.evaluate(() => document.querySelector("#explorer audio").currentTime);
-    check(await p.locator("#explorer .seg[aria-checked=true]").getAttribute("data-label") === sel0 && await p.locator('.detail [role="tab"][aria-selected="true"]').innerText() === "Harmony" && Math.abs(t1 - t0) < 0.5, `7: after the sheets, the section (${sel0}), the Harmony tab and the playback position (${t0.toFixed(1)} s) are unchanged`);
+    check(await p.locator("#explorer .seg[aria-checked=true]").getAttribute("data-label") === sel0 && await p.locator('.detail [role="tab"][aria-selected="true"]').innerText() === "Piano roll" && Math.abs(t1 - t0) < 0.5, `7: after the sheets, the section (${sel0}), the Piano roll tab and the playback position (${t0.toFixed(1)} s) are unchanged`);
     check(await p.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 0, "8: nothing is wider than the screen");
     await p.context().close(); }
 

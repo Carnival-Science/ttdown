@@ -29,7 +29,7 @@ const NULLED = ["chords", "hook", "bassline", "swing", "drumParts"];
     try { await p.click("#recent-btn", { timeout: 4000 }); await p.click("#hist button", { timeout: 4000 }); await p.waitForTimeout(500);
       if (/^http/.test(url) && url.includes("/app/dist/")) { // the v1 app: findings, then the section detail tabs
         await p.waitForSelector('[data-finding="tempo"]', { timeout: 3000 });
-        for (const tab of ["Harmony", "Notes", "Rhythm"]) { await p.click(`[role=tab]:has-text("${tab}")`, { timeout: 3000 }); await p.waitForTimeout(120); }
+        for (const tab of ["Piano roll", "Rhythm"]) { await p.click(`[role=tab]:has-text("${tab}")`, { timeout: 3000 }); await p.waitForTimeout(120); }
         shown = new RegExp(`\\b${rec.bpm}\\b`).test(await p.locator('[data-finding="tempo"] .big').innerText());
       } else { // the legacy page
         for (const tab of ["Build it", "Idea generator", "Song map", "Sounds and mix", "Compare", "Overview"]) { await p.click(`.tdtabs button:has-text("${tab}")`, { timeout: 3000 }); await p.waitForTimeout(120); }

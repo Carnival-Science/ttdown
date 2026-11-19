@@ -1,0 +1,307 @@
+<!-- The piano roll: the transcribed melody (orange), the transcribed bass (blue) and SUGGESTED chord voicings (purple, outlined and dashed,
+     because they are built from the detected chord names, not heard in the audio) on ONE keyboard, pitch axis and time axis, sharing the
+     arrangement's viewport and its one playhead. A chord strip above the notes names each bar's chord, marks the one under the playhead
+     and opens the chord correction when clicked. Parts can be shown, hidden or soloed (Alt/Option-click). "↓ MIDI ▾" writes a part, or all
+     of them as one multitrack file, for the selected section, the visible range or the whole track, with a choice of timing; every mode
+     that is unavailable says why. Inspection only: no note editing. -->
+<script lang="ts">
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  import { untrack } from "svelte";
+  import { teardown } from "../lib/state/teardown.svelte";
+  import { transport } from "../lib/state/transport.svelte";
+  import { exportState } from "../lib/state/exportState.svelte";
+  import { player } from "../lib/state/player.svelte";
+  import { domain } from "../lib/domain";
+  import { engine } from "../lib/engine";
+  import { gridOf } from "../lib/timeline/grid";
+  import { barBeat, barTicks, gridLines, timeAtBeat } from "../lib/timeline/position";
+  import { saveFile, safeName } from "../lib/files/download";
+  import Basis from "../lib/ui/Basis.svelte";
+  import Segmented from "../lib/ui/Segmented.svelte";
+  import Popover from "../lib/ui/Popover.svelte";
+  import MultiRoll from "../lib/ui/timeline/MultiRoll.svelte";
+  import type { RollLayer, AnnotationLane, Annotation, LaneNote } from "../lib/ui/timeline/MultiRoll.svelte";
+
+  let { index }: { index: number } = $props();
+  const D = domain as any;
+  const { partMidi, keyChords, chordNotes, keyInfo, chordFromDegree, recomputeLoop, recordCorrection, chordNamesText } = D;
+  const a = $derived(teardown.result as any);
+  const s = $derived(a.sections[index] as any);
+  const G = $derived(gridOf(a));
+  const view = transport.view;
+  const playable = $derived(!!teardown.audioURL);
+  const NAMES = engine.NAMES as readonly string[];
+  const noteName = (m: number) => (NAMES[((m % 12) + 12) % 12] ?? "?") + (Math.floor(m / 12) - 1);
+
+  // ---- the notes
+  const full = $derived((a.transcription && a.transcription.version === 1 ? a.transcription : null) as { lead: any[]; bass: any[]; method: string } | null);
+  const hook = $derived(a.hook && a.hook.notes && a.hook.notes.length >= 3 ? a.hook : null);
+  const bassPat = $derived(a.bassline && a.bassline.notes && a.bassline.notes.length >= 2 ? a.bassline : null);
+  let want = $state<"full" | "pattern">("full");
+  const source = $derived(full && want === "full" ? "full" : "pattern");
+  const fromFull = (list: any[]): LaneNote[] => list.map(n => ({ start: n.on, end: n.off, pitch: n.midi, level: Math.min(1, (n.vel || 90) / 127) }));
+  // the 4-bar phrase was read from `bar` (1-based) and folded into 16 beats: place it where it was read
+  const fromPattern = (p: any): LaneNote[] => p ? p.notes.map((n: any) => ({ start: timeAtBeat(G, a, (p.bar - 1) * 4 + n.t / 4), end: timeAtBeat(G, a, (p.bar - 1) * 4 + (n.t + Math.max(0.5, n.dur ?? n.len ?? 1)) / 4), pitch: n.midi })) : [];
+  const leadNotes = $derived(source === "full" ? fromFull(full!.lead) : fromPattern(hook));
+  const bassNotes = $derived(source === "full" ? fromFull(full!.bass) : fromPattern(bassPat));
+  const patternAt = (p: any) => p ? { from: p.bar, to: p.bar + 3, t: timeAtBeat(G, a, (p.bar - 1) * 4) } : null;
+  const where = $derived(patternAt(hook) ?? patternAt(bassPat));
+
+  // ---- the chords: the detected name of each bar, voiced as the same root-position triad the chord MIDI writes (48 + root)
+  const chordBars = $derived(((a.chords && a.chords.bars) || []) as string[]);
+  const isChord = (c: string | undefined) => !!c && c !== "–";
+  const triad = (c: string) => { const m = c.endsWith("m"), r = NAMES.indexOf(m ? c.slice(0, -1) : c); return r < 0 ? [] : [48 + r, 48 + r + (m ? 3 : 4), 48 + r + 7]; };
+  const barT = (b: number) => G.barStart(b);
+  const chordNotesAll = $derived.by(() => { const out: LaneNote[] = []; chordBars.forEach((c, b) => { if (!isChord(c)) return; const t0 = barT(b), t1 = barT(b + 1); if (!(t1 > t0)) return; for (const p of triad(c)) out.push({ start: t0, end: t1, pitch: p }); }); return out; });
+  const inKey = $derived(keyChords(a.key) as Set<string>);
+  const count = $derived.by(() => { const c: Record<string, number> = {}; chordBars.forEach(x => { if (isChord(x)) c[x] = (c[x] || 0) + 1; }); return c; });
+  const shaky = (c: string) => isChord(c) && (!inKey.has(c) || count[c]! <= 2);
+  const checks = $derived((a.chordChecks || {}) as Record<string, string>);
+
+  // ---- which parts are shown (Alt/Option-click shows only that one; again brings the others back)
+  type Part = "hook" | "bass" | "chords";
+  const PARTS: { id: Part; label: string; cls: string }[] = [{ id: "hook", label: "Melody", cls: "sw-mel" }, { id: "bass", label: "Bass", cls: "sw-bass" }, { id: "chords", label: "Chords (suggested)", cls: "sw-ch" }];
+  let show = $state<Record<Part, boolean>>({ hook: true, bass: true, chords: true });
+  const has = $derived<Record<Part, boolean>>({ hook: leadNotes.length > 0, bass: bassNotes.length > 0, chords: chordNotesAll.length > 0 });
+  function toggle(p: Part, e: MouseEvent) {
+    if (!e.altKey) return; e.preventDefault();
+    const solo = (Object.keys(show) as Part[]).every(k => show[k] === (k === p));
+    show = solo ? { hook: true, bass: true, chords: true } : { hook: p === "hook", bass: p === "bass", chords: p === "chords" };
+  }
+  const layers = $derived<RollLayer[]>([
+    { id: "chords", label: "Suggested chord voicings", notes: chordNotesAll, hidden: !show.chords, fill: "#a78bfa", fillOpacity: 0.14, stroke: "#b9a2ff", strokeWidth: 1.2, dash: "3 2" },
+    { id: "bass", label: "Bass", notes: bassNotes, hidden: !show.bass, fill: "#5b9dff" },
+    { id: "hook", label: "Melody", notes: leadNotes, hidden: !show.hook, fill: "#ff7a1a" },
+  ]);
+
+  // ---- chord strip and the correction it opens
+  let cur = $state<number | null>(null);
+  $effect(() => { void index; cur = null; });
+  const opts = $derived.by(() => { const k = keyInfo(a); return Array.from({ length: 7 }, (_, d) => chordFromDegree(k, d, false).name as string); });
+  const strip = $derived<AnnotationLane[]>(chordBars.length ? [{
+    id: "chords", label: "Chord", selected: cur,
+    items: chordBars.map((c, b): Annotation => {
+      const ok = isChord(c), sh = shaky(c);
+      return { key: b, start: barT(b), end: barT(b + 1), text: ok ? c + (sh ? "?" : "") : "·", tone: [ok ? "" : "none", sh ? "shaky" : "", checks[b] || ""].filter(Boolean).join(" "),
+        title: ok ? `Bar ${b + 1}: ${c} (${chordNotes(c)})${sh ? " · shaky guess" : ""}. Click to check or correct it.` : `Bar ${b + 1}: no clear chord. Click to set one.`, attrs: { "data-bar": String(b) } };
+    }),
+    onpick: it => { cur = it.key as number; },
+  }] : []);
+  function hear(b: number) { if (!playable) return; player.loopRange?.(barT(b), barT(b + 1), 0.75); player.overlayOnly?.("chords"); }
+  function setChord(name: string, mark: string) { const b = cur; if (b == null) return; teardown.replace(x => { const y: any = x; recordCorrection(y, { type: "chord", bar: b, from: y.chords.bars[b], to: name }); y.chords.bars[b] = name; y.chordChecks = { ...(y.chordChecks || {}), [b]: mark }; recomputeLoop(y); }); player.overlayRestart?.(); }
+  function sounds() { const b = cur; if (b == null) return; teardown.replace(x => { const y: any = x; y.chordChecks = { ...(y.chordChecks || {}), [b]: "ok" }; }); }
+
+  // ---- axis, readout and seeking
+  let rulerW = $state(600);
+  const lines = (from: number, to: number) => gridLines(G, a, from, to);
+  const ticks = $derived(barTicks(G, a, view.start, view.end, Math.max(200, rulerW)));
+  function seek(t: number) { const el = document.querySelector("#explorer audio") as HTMLAudioElement | null; if (el) el.currentTime = Math.min(Math.max(0, t), (a.duration || 1) - 0.05); }
+  const zoomBy = (f: number) => view.zoom(f, transport.clock && view.contains(transport.clock.time) ? transport.clock.time : view.start + view.span / 2);
+  // where the playhead is: bar.beat and the chord sounding there (updated when it changes, not every frame)
+  let here = $state("");
+  const readout = (t: number) => { const p = barBeat(G, a, t); if (!p) return "Before bar 1"; const c = chordBars[p.bar - 1]; return `Bar ${p.bar}.${Math.floor(p.beat)}` + (isChord(c) ? ` · ${c}` : ""); };
+  $effect(() => { const c = transport.clock; void G; void chordBars; if (!c) { here = readout(view.start); return; } return untrack(() => c.subscribe(t => { const r = readout(t); if (r !== here) here = r; })); });
+
+  // ---- MIDI: part, range and timing. Quantized MIDI keeps the one export gate; original timing and the tempo map have their own availability.
+  type Timing = "original" | "tempo-map" | "quantized";
+  type Mode = { ok: boolean; why: string; refTempo?: number | null; caveats?: string[]; parts?: Record<Part, boolean> };
+  const NOT_YET: Mode = { ok: false, why: "Not available in this version yet.", caveats: [] };
+  const modes = $derived.by((): { original: Mode; tempoMap: Mode } => {
+    if (typeof D.midiModes !== "function") return { original: NOT_YET, tempoMap: NOT_YET };
+    try { const m = D.midiModes(a, G, exportState.confirmed); return { original: m.original, tempoMap: m.tempoMap }; } catch { return { original: NOT_YET, tempoMap: NOT_YET }; }
+  });
+  const okOf = (t: Timing) => t === "quantized" ? exportState.gate.canExport : t === "tempo-map" ? modes.tempoMap.ok : modes.original.ok;
+  const whyOf = (t: Timing) => t === "quantized" ? exportState.lockedWhy : t === "tempo-map" ? modes.tempoMap.why : modes.original.why;
+  const fallback = $derived<Timing>(exportState.gate.canExport ? "quantized" : modes.tempoMap.ok ? "tempo-map" : modes.original.ok ? "original" : "quantized");
+  let timingPick = $state<Timing | null>(null);
+  const timing = $derived<Timing>(timingPick && okOf(timingPick) ? timingPick : fallback);
+  const refTempo = $derived(modes.original.refTempo != null ? Math.round(modes.original.refTempo * 10) / 10 : null);
+
+  type PartPick = Part | "all";
+  let partPick = $state<PartPick>("hook");
+  // original timing and the tempo map need notes at their real times: an older teardown without a transcription has chords only there
+  const timedParts = $derived(timing === "quantized" ? null : (timing === "tempo-map" ? modes.tempoMap.parts : modes.original.parts) ?? null);
+  const baseOk = (p: Part) => p === "hook" ? !!(full?.lead.length || hook) : p === "bass" ? !!(full?.bass.length || bassPat) : chordBars.some(isChord);
+  const partOk = (p: PartPick): boolean => {
+    if (p === "all") return typeof D.allPartsMidi === "function" && (["hook", "bass", "chords"] as Part[]).some(partOk);
+    return baseOk(p) && (!timedParts || !!timedParts[p]);
+  };
+  const partWhy = (p: PartPick) => {
+    if (p === "all") return typeof D.allPartsMidi === "function" ? "Nothing was found to write." : "Not available in this version yet.";
+    if (!baseOk(p)) return p === "chords" ? "No chords were found." : "No notes were found for this part.";
+    return "Needs whole-track notes, which this teardown doesn't have: analyse the track again, or use Quantized for the 4-bar phrase.";
+  };
+  const part = $derived<PartPick>(partOk(partPick) ? partPick : (["hook", "bass", "chords", "all"] as PartPick[]).find(partOk) ?? partPick);
+
+  type RangePick = "section" | "visible" | "whole";
+  let rangePick = $state<RangePick>("section");
+  const visibleBars = (): [number, number] => { const b0 = Math.max(0, G.barOf(view.start)), b1 = Math.min(a.nBars + 1, G.barOf(view.end - 0.001) + 1); return [b0, Math.max(b0 + 1, b1)]; };
+  const rangeOf = (r: RangePick): [number, number] => r === "section" ? [s.startBar, s.startBar + s.bars] : r === "visible" ? visibleBars() : [0, a.nBars + 1];
+  const rangeText = (r: RangePick) => { const [b0, b1] = rangeOf(r); return r === "whole" ? `bars 1–${a.nBars}` : `bars ${b0 + 1}–${b1}`; };
+
+  let menuOpen = $state(false), note = $state("");
+  $effect(() => { void index; note = ""; });
+  const base = $derived(safeName(a.title, "song"));
+  async function download() {
+    const t = timing;
+    // decided again at the click, from the same rules the menu shows
+    if (!okOf(t)) { note = "That timing isn't available: " + whyOf(t); return; }
+    const [startBar, endBar] = rangeOf(rangePick), range = { startBar, endBar };
+    const tempo = t === "quantized" ? exportState.gate.tempo : undefined;
+    try {
+      const m = part === "all"
+        ? D.allPartsMidi(a, { timing: t, grid: G, range, tempo })
+        : partMidi(a, part, { timing: t, grid: G, range, section: s, tempo, source: full && part !== "chords" ? "transcribed" : undefined });
+      if (!m) { note = "There is nothing to write for this part in that range."; return; }
+      // the all-parts file is already named after the track
+      await saveFile(part === "all" ? m.name.replace(/[\\/:*?"<>|]+/g, "") : `${base} - ${m.name}`, m.data, "audio/midi"); menuOpen = false;
+      const rt = m.refTempo != null ? Math.round(m.refTempo * 10) / 10 : refTempo;
+      const how = t === "quantized" ? `snapped to the 16th-note grid at ${Math.round((exportState.gate.tempo || a.bpm) * 10) / 10} BPM, not the original timing` : t === "tempo-map" ? "following the song's tempo map" : `with the original timing${rt ? `; it plays in time at ${rt} BPM (set your DAW to it, or import the file's tempo)` : ""}`;
+      note = `Saved, ${how}.` + (part === "chords" || part === "all" ? " Chords are suggested voicings built from the detected chord names, not transcribed from the audio." : " The notes are a rough transcription.");
+    } catch (e) { note = "Couldn't save the file" + ((e as Error)?.message ? ": " + (e as Error).message.slice(0, 80) : "."); }
+  }
+  async function copyChords() {
+    const text = chordNamesText(a, s);
+    try { await navigator.clipboard.writeText(text); note = "Copied: " + text; } catch { note = "Couldn't copy. The chords are: " + text; }
+  }
+  const TIMINGS: { id: Timing; label: string }[] = [{ id: "original", label: "Original timing" }, { id: "tempo-map", label: "Follow tempo map" }, { id: "quantized", label: "Quantized" }];
+  const PART_PICKS: { id: PartPick; label: string }[] = [{ id: "hook", label: "Melody" }, { id: "bass", label: "Bass" }, { id: "chords", label: "Chords (suggested)" }, { id: "all", label: "All parts (multitrack MIDI)" }];
+  const RANGES: { id: RangePick; label: string }[] = [{ id: "section", label: "Selected section" }, { id: "visible", label: "Visible range" }, { id: "whole", label: "Whole track" }];
+  const nothing = $derived(!has.hook && !has.bass && !has.chords);
+  const missing = $derived(PARTS.filter(p => !has[p.id]).map(p => p.id === "chords" ? "chords" : p.label.toLowerCase()));
+</script>
+
+<div class="proll">
+  <div class="phead">
+    <h3 class="sr-only">Piano roll</h3>
+    <Basis kind="estimated" note={source === "full" ? "Melody and bass are a rough transcription of the whole track from the full mix: expect wrong and missing notes. Chord voicings are suggestions built from the detected chord names." : "Melody and bass are a rough 4-bar phrase read from the full mix and folded into a loop, shown where it was read. Chord voicings are suggestions."} />
+    <span class="parts" role="group" aria-label="Parts shown (Alt/Option-click one to show only it)">
+      {#each PARTS as p (p.id)}
+        <label class="part" title="Alt/Option-click to show only this part; again to show all" data-part-toggle={p.id}>
+          <input type="checkbox" bind:checked={show[p.id]} disabled={!has[p.id]} onclick={e => toggle(p.id, e)} /><i class={"sw " + p.cls}></i>{p.label}
+        </label>
+      {/each}
+    </span>
+    <span class="here mono" data-readout aria-live="off">{here}</span>
+    <span class="zoom" role="group" aria-label="Zoom the piano roll">
+      <button type="button" class="btn" aria-label="Zoom out" onclick={() => zoomBy(2)}>−</button>
+      <button type="button" class="btn" aria-label="Zoom in" onclick={() => zoomBy(0.5)}>+</button>
+      <button type="button" class="btn" onclick={() => view.fit()}>Fit</button>
+    </span>
+    <Popover triggerClass="btn about" label="About the piano roll" class="about-pop" align="end">
+      {#snippet trigger()}<span aria-hidden="true">ⓘ</span>{/snippet}
+      <p class="small">{#if source === "full"}Melody and bass are read from the whole mix ({full?.method}). Rough: dense mixes make them hard to hear, and this has not been checked against real recordings.{:else}Melody and bass are a 4-bar phrase read from one section and folded into a loop, so they are not the song's notes bar by bar. {#if !full}This teardown was made before whole-track notes existed; analyse the track again to get them.{/if}{/if}
+        The purple outlined notes are suggested voicings: plain triads built from each bar's detected chord name (major or minor only), not notes heard in the audio.
+        {#if a.chords?.loop}Most repeated 4-bar chord loop: <b class="mono">{a.chords.loop.join(" · ")}</b> (heard {a.chords.loopCount}×).{/if}
+        Scroll with Shift + wheel or by dragging, zoom with Ctrl/⌘ + wheel or the buttons. Use "Check by ear" to hear the parts over the song.</p>
+    </Popover>
+    <Popover bind:open={menuOpen} triggerClass="btn midi" label="Download MIDI: choose the part, range and timing" class="midi-pop" align="end" side="bottom" disabled={nothing}>
+      {#snippet trigger()}↓ MIDI ▾{/snippet}
+      <div class="mcols"><div class="mcol">
+      <fieldset><legend>Part</legend>
+        {#each PART_PICKS as o (o.id)}
+          <label class="opt" class:off={!partOk(o.id)}><input type="radio" name="midi-part" value={o.id} checked={part === o.id} disabled={!partOk(o.id)} onchange={() => (partPick = o.id)} /><span>{o.label}{#if !partOk(o.id)}<em class="why">{partWhy(o.id)}</em>{/if}</span></label>
+        {/each}
+      </fieldset>
+      <fieldset><legend>Range</legend>
+        {#each RANGES as o (o.id)}
+          <label class="opt"><input type="radio" name="midi-range" value={o.id} checked={rangePick === o.id} onchange={() => (rangePick = o.id)} /><span>{o.label} <span class="mono dim">· {rangeText(o.id)}</span></span></label>
+        {/each}
+      </fieldset>
+      </div><div class="mcol">
+      <fieldset><legend>Timing</legend>
+        {#each TIMINGS as o (o.id)}
+          {@const ok = okOf(o.id)}
+          <label class="opt" class:off={!ok} data-timing={o.id}><input type="radio" name="midi-timing" value={o.id} checked={timing === o.id} disabled={!ok} onchange={() => (timingPick = o.id)} />
+            <span>{o.label}
+              {#if !ok}<em class="why">{whyOf(o.id)}</em>
+              {:else if o.id === "original" && refTempo}<em class="hint">Plays in time at {refTempo} BPM; set your DAW to this tempo or import the file's tempo.</em>
+              {:else if o.id === "tempo-map" && modes.tempoMap.caveats?.length}<em class="hint">{modes.tempoMap.caveats.join(" ")}</em>
+              {:else if o.id === "quantized"}<em class="hint">Snapped to the 16th-note grid at one tempo.</em>{/if}
+            </span></label>
+        {/each}
+      </fieldset>
+      </div></div>
+      <div class="mfoot">
+      <button type="button" class="btn primary dl" disabled={!okOf(timing) || !partOk(part)} onclick={download}>Download {PART_PICKS.find(o => o.id === part)?.label.replace(" (multitrack MIDI)", "")} · {rangeText(rangePick)}</button>
+      <button type="button" class="btn" onclick={copyChords}>Copy this section's chord names</button>
+      </div>
+    </Popover>
+  </div>
+
+  {#if nothing}
+    <p>No melody, bass or chords could be read reliably. <Basis kind="unknown" /></p>
+  {:else}
+    {#if source === "pattern" && where}<p class="small pat">Representative pattern: 4 bars read from bars {where.from}–{where.to}, shown where it was read. <button type="button" class="btn" onclick={() => view.reveal(where.t, 0.05)}>Go to bars {where.from}–{where.to}</button></p>{/if}
+    <div class="lanes" bind:clientWidth={rulerW} data-source={source} data-vp-start={view.start.toFixed(3)} data-vp-span={view.span.toFixed(3)} data-follow={view.follow ? "1" : "0"}>
+      <MultiRoll viewport={view} clock={transport.clock} {layers} annotations={strip} {lines} {ticks} pitchName={noteName} label="Piano roll" empty="No notes in this stretch"
+        onseek={playable ? (t => seek(t)) : undefined} />
+    </div>
+    {#if cur != null}
+      <div class="fix" role="group" aria-label={`Bar ${cur + 1} chord`}>
+        <b>Bar {cur + 1}: {isChord(chordBars[cur]) ? chordBars[cur] : "no clear chord"}</b>{#if isChord(chordBars[cur])}<span class="small dim">({chordNotes(chordBars[cur])})</span>{/if}
+        <button class="btn" type="button" onclick={sounds}>✓ Sounds right</button>
+        <select class="isel" aria-label="Change this bar's chord" value="" onchange={e => { const v = e.currentTarget.value; if (v) setChord(v, "fixed"); e.currentTarget.value = ""; }}>
+          <option value="">Change chord…</option>{#each opts as o (o)}<option value={o}>{o}</option>{/each}<option value="–">No chord</option>
+        </select>
+        {#if playable}<button class="btn" type="button" onclick={() => hear(cur!)}>▶ Hear this bar with the chord</button>{/if}
+        <button class="btn close" type="button" aria-label="Close the chord correction" onclick={() => (cur = null)}>✕</button>
+      </div>
+    {/if}
+    <div class="legend small" data-legend>
+      <span><i class="sw sw-mel"></i><i class="sw sw-bass"></i>Transcribed notes</span>
+      <span><i class="sw sw-ch"></i>Suggested chord voicings</span>
+      {#if source === "pattern"}<span><i class="sw sw-pat"></i>Representative pattern</span>{/if}
+      {#if full}<Segmented class="srcseg" label="Which notes" items={[{ value: "full", label: "Full track" }, { value: "pattern", label: "Representative pattern" }]} value={source} onchange={v => (want = v as "full" | "pattern")} />{/if}
+    </div>
+    {#if missing.length}<p class="small missing">Not found: {missing.join(", ")}. <Basis kind="unknown" note="The analyzer could not read these reliably from the mix, so nothing is drawn for them." /></p>{/if}
+    {#if exportState.lockedWhy}<p class="small">Quantized MIDI is locked: {exportState.lockedWhy} <a href="#exports">Go to Export</a></p>{/if}
+  {/if}
+  {#if note}<p class="small" role="status">{note}</p>{/if}
+</div>
+
+<style>
+  .proll { display: grid; gap: 8px; min-width: 0; }
+  .phead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+  .phead :global(.btn) { min-height: 32px; padding: 0 10px; }
+  .phead :global(.about) { width: 32px; padding: 0; justify-content: center; }
+  .parts { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; }
+  .part { display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; color: var(--tt-ink-2); cursor: pointer; user-select: none; min-height: 28px; }
+  .part input { accent-color: var(--tt-accent); margin: 0; }
+  .part:has(input:disabled) { opacity: .45; cursor: default; }
+  .here { margin-left: auto; color: var(--tt-ink); font-size: .82rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .zoom { display: inline-flex; gap: 4px; }
+  .sw { display: inline-block; width: 12px; height: 8px; border-radius: 2px; vertical-align: 0; }
+  .sw-mel { background: #ff7a1a; } .sw-bass { background: #5b9dff; }
+  .sw-ch { background: rgb(167 139 250 / .14); border: 1.2px dashed #b9a2ff; box-sizing: border-box; }
+  .sw-pat { background: repeating-linear-gradient(45deg, #ff7a1a 0 2px, transparent 2px 4px); }
+  .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; color: var(--tt-ink-3); }
+  .legend :global(.srcseg) { margin-left: auto; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .pat { margin: 0; }
+  .lanes { height: clamp(220px, 38dvh, 460px); min-width: 0; --tl-ann-ink: #cdbfff; }
+  .lanes :global(.ann-item.shaky) { color: #f5c26b; }
+  .lanes :global(.ann-item.none) { color: #6d6c67; }
+  .lanes :global(.ann-item.fixed) { text-decoration: underline dotted; }
+  .fix { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+  .fix .close { margin-left: auto; }
+  .dim { color: var(--tt-ink-3); }
+  :global(.about-pop) { max-width: 360px; padding: 10px 12px; }
+  :global(.about-pop p) { margin: 0; }
+  :global(.tt-pop.midi-pop) { display: grid; gap: 10px; padding: 12px 14px; width: min(580px, 94vw); max-width: min(580px, 94vw); }
+  :global(.midi-pop .mcols) { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; }
+  :global(.midi-pop .mcol) { display: grid; gap: 10px; align-content: start; }
+  :global(.midi-pop .mfoot) { display: flex; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--tt-line); padding-top: 10px; }
+  @media (max-width: 560px) { :global(.midi-pop .mcols) { grid-template-columns: 1fr; } }
+  :global(.midi-pop fieldset) { border: 0; margin: 0; padding: 0; display: grid; gap: 2px; }
+  :global(.midi-pop legend) { font-size: .72rem; color: var(--tt-ink-3); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
+  :global(.midi-pop .opt) { display: grid; grid-template-columns: 18px 1fr; gap: 6px; align-items: start; padding: 4px 2px; font-size: .84rem; cursor: pointer; }
+  :global(.midi-pop .opt input) { margin: 3px 0 0; accent-color: var(--tt-accent); }
+  :global(.midi-pop .opt.off) { color: var(--tt-ink-3); cursor: default; }
+  :global(.midi-pop .why), :global(.midi-pop .hint) { display: block; font-style: normal; font-size: .74rem; color: var(--tt-ink-3); }
+  :global(.midi-pop .why) { color: #f0a58f; }
+  :global(.midi-pop .dim) { color: var(--tt-ink-3); }
+  :global(.midi-pop .dl) { justify-content: center; }
+  :global(.srcseg .tt-seg-item) { height: 30px; font-size: .78rem; padding: 0 10px; }
+  @media (max-width: 1179px) { .lanes { height: 300px; } .here { margin-left: 0; } }
+</style>

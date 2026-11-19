@@ -3,7 +3,7 @@
 //   1. with the audio, a tempo correction analyses the track again: dnb_174 is read at 87 BPM (an octave error, truth 174); correcting it
 //      to 174 takes the tracked beats and downbeats from wrong to right against the known answer
 //   2. moving bar 1 by one beat four times is a full turn, so the result equals a fresh analysis (identical, apart from the record of the edits)
-//   3. without the audio (a saved teardown) a tempo correction cannot be analysed again: Rhythm, Harmony and Notes are marked out of date
+//   3. without the audio (a saved teardown) a tempo correction cannot be analysed again: Rhythm and the Piano roll are marked out of date
 //      (hidden, not shown as valid), exports are blocked, bar 1 cannot be moved; the correction is recorded and no confidence is invented
 //   4. "this track isn't in 4/4" invalidates the same way, and unticking it restores everything
 //   5. a key correction is recorded with its original, keeps the measured confidence (no hard-coded 99) and invalidates nothing
@@ -69,10 +69,10 @@ const F = (pred, ref, tol = 0.07) => { const used = new Set(); let tp = 0; for (
     check(await p.locator('button:has-text("One beat later")').isDisabled() && /needs the audio/.test(await p.locator('[data-finding="meter"]').innerText()), "without the audio bar 1 cannot be moved, and it says why");
     check(/audio isn't here, so a corrected tempo can't be analysed again/.test(await p.locator('[data-finding="tempo"]').innerText()), "and the tempo control says what a correction will do");
     await p.locator('input[aria-label="Type the BPM"]').fill("100"); await p.locator('button:has-text("Set BPM")').click(); await p.waitForTimeout(500);
-    for (const t of ["Rhythm", "Harmony", "Notes"]) { await tab(p, t); await p.waitForTimeout(100); }
+    for (const t of ["Rhythm", "Piano roll"]) { await tab(p, t); await p.waitForTimeout(100); }
     const stale = await p.evaluate(() => [...document.querySelectorAll(".detail [data-stale]")].map(e => ({ part: e.dataset.part, text: e.innerText })));
-    check(stale.length === 3 && stale.every(s => /Out of date/i.test(s.text) && /audio isn't here/.test(s.text)), "Rhythm, Harmony and Notes are marked out of date, with the reason, instead of showing results that no longer match");
-    check(await p.locator(".detail .rack-row, .detail .chcell, .detail svg").count() === 0, "and none of the stale drum pattern, chords or notes is drawn");
+    check(stale.length === 2 && stale.every(s => /Out of date/i.test(s.text) && /audio isn't here/.test(s.text)), "Rhythm and the Piano roll are marked out of date, with the reason, instead of showing results that no longer match");
+    check(await p.locator(".detail .rack-row, .detail .mroll, .detail .ann-item, .detail svg").count() === 0, "and none of the stale drum pattern, chords or notes is drawn");
     const ex = await p.locator("#exports").innerText(); check(/Blocked/.test(ex) && await p.locator('#exports button:has-text("Download the song as MIDI")').isDisabled() && await p.locator('#exports button:has-text("lined up")').isDisabled(), "bar-aligned exports are blocked");
     const rec = await p.evaluate(() => JSON.parse(localStorage.getItem("teardown_history_v1"))[0]);
     check(rec.bpmFixed === true && rec.timingCorrections.length === 1 && rec.timingCorrections[0].from === saved.bpm && rec.timingCorrections[0].to === 100 && rec.timingCorrections[0].recomputed === undefined && rec.bpmConf === saved.bpmConf && rec.keyConf === saved.keyConf, `the correction is recorded (original ${saved.bpm}), marked as not recomputed, and no confidence was invented (bpmConf ${rec.bpmConf})`);
@@ -83,8 +83,8 @@ const F = (pred, ref, tol = 0.07) => { const used = new Set(); let tp = 0; for (
   { const p = await open(); await analyse(p, path.join(FIX, "meter_3_4.wav")); const box = p.locator('[data-finding="meter"] input[type=checkbox]');
     check(!(await staleCount(p)) && await p.locator('[data-finding="meter"] .basis-assumed').count() === 1, "a 3/4 track is read as 4/4 and the page says 4/4 is assumed");
     await box.check(); await p.waitForTimeout(300);
-    for (const t of ["Rhythm", "Harmony", "Notes"]) { await tab(p, t); await p.waitForTimeout(100); }
-    check(await staleCount(p) === 3 && /isn't in 4\/4/.test(await p.locator(".detail [data-stale]").first().innerText()), "ticking “This track isn't in 4/4” marks the bar-based parts out of date, with the reason");
+    for (const t of ["Rhythm", "Piano roll"]) { await tab(p, t); await p.waitForTimeout(100); }
+    check(await staleCount(p) === 2 && /isn't in 4\/4/.test(await p.locator(".detail [data-stale]").first().innerText()), "ticking “This track isn't in 4/4” marks the bar-based parts out of date, with the reason");
     check(await p.locator('[data-finding="meter"] .big').innerText().then(t => /Not 4\/4/.test(t)) && await p.locator("#exports").innerText().then(t => /Blocked/.test(t) && /4\/4/.test(t)), "the meter reads “Not 4/4” and bar-aligned exports are blocked");
     check(await p.locator('button:has-text("Check by ear")').isDisabled(), "and “Check by ear” is off, because it would play the stale parts");
     await box.uncheck(); await p.waitForTimeout(300); await tab(p, "Rhythm");
@@ -105,7 +105,7 @@ const F = (pred, ref, tol = 0.07) => { const used = new Set(); let tp = 0; for (
     await kickRow().nth(1).click(); await p.waitForTimeout(150);
     rec = (await full(p)).timingCorrections.filter(c => c.type === "drum"); check(rec.length === 0, "editing the step back to its original removes the record");
     // chord edit twice keeps the first original
-    await tab(p, "Harmony"); await p.locator(".detail .chcell").first().click(); const orig = (await full(p)).chords.bars[+(await p.locator(".detail .chcell .chnum").first().innerText()) - 1];
+    await tab(p, "Piano roll"); const cell = p.locator('.detail [data-annotations="chords"] .ann-item').first(); const orig = (await full(p)).chords.bars[+(await cell.getAttribute("data-bar"))]; await cell.click();
     const sel = p.locator('.detail select[aria-label="Change this bar\'s chord"]'); const opts = await sel.locator("option").allInnerTexts(); const pick = opts.filter(o => o && !/Change|No chord/.test(o) && o !== orig);
     await sel.selectOption(pick[0]); await p.waitForTimeout(150); await sel.selectOption(pick[1]); await p.waitForTimeout(150);
     rec = (await full(p)).timingCorrections.filter(c => c.type === "chord"); check(rec.length === 1 && rec[0].from === orig && rec[0].to === pick[1], `two edits of one bar's chord keep the original once (${orig} → ${pick[1]})`);

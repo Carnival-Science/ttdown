@@ -3,15 +3,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Grid } from "./grid";
 
-const beatsPerBar = (G: any) => (G.map && G.map.meter && G.map.meter.beatsPerBar) || 4;
+const beatsPerBar = (G: any) => G.beatsPerBar || (G.map && G.map.meter && G.map.meter.beatsPerBar) || 4;
+// The map counts beats from its own origin; bar 1 starts `barOffset` bars later (G.barStart applies the same offset).
+const offBeats = (G: any) => (G.barOffset || 0) * beatsPerBar(G);
 /** Beat coordinate (0 = beat 1 of bar 1) at a time. */
 export function beatAt(G: Grid, a: any, t: number): number {
-  const m = (G as any).map; if (m && m.timeToBeat) return m.timeToBeat(t);
+  const m = (G as any).map; if (m && m.timeToBeat) return m.timeToBeat(t) - offBeats(G);
   return (t - (a.firstDown || 0)) / (a.barSec / 4);
 }
 /** Time of a beat coordinate. */
 export function timeAtBeat(G: Grid, a: any, q: number): number {
-  const m = (G as any).map; if (m && m.beatToTime) return m.beatToTime(q);
+  const m = (G as any).map; if (m && m.beatToTime) return m.beatToTime(q + offBeats(G));
   return (a.firstDown || 0) + q * (a.barSec / 4);
 }
 /** The bar (1-based) and beat (1-based, fractional) at a time, or null before bar 1. */

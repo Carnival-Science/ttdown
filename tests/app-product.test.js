@@ -49,12 +49,13 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   const segs = p.locator("#explorer .timeline .seg"); check(await segs.count() === secs.length, "one clickable block per section");
   check(await segs.nth(0).getAttribute("aria-checked") === "true", "the first section starts selected");
   const hdr0 = await p.locator(".detail h3").first().innerText();
-  await segs.nth(2).click(); await p.waitForTimeout(400);
+  await p.evaluate(() => document.querySelector("#explorer audio").pause());
+  const sb = await segs.nth(2).boundingBox(), cx = sb.x + sb.width / 2, mb = await p.locator(".map").boundingBox(), tWant = (cx - mb.x) / mb.width * (await p.evaluate(() => window.__td.duration));
+  await p.mouse.click(cx, sb.y + sb.height / 2); await p.waitForTimeout(400);
   const hdr2 = await p.locator(".detail h3").first().innerText(), t = await p.evaluate(() => document.querySelector("#explorer audio").currentTime);
   check(hdr2 !== hdr0 && hdr2.includes(secs[2].label) && hdr2.includes(`bars ${secs[2].startBar + 1}–${secs[2].startBar + secs[2].bars}`), `clicking a section shows its detail ("${hdr2.replace(/\s+/g, " ")}")`);
   check(await segs.nth(2).getAttribute("aria-checked") === "true" && await segs.nth(0).getAttribute("aria-checked") === "false", "and marks it selected");
-  const onBar = await p.evaluate(t => [...document.querySelectorAll(".barruler span[data-bar]")].length > 0 && (() => { const r = window.TimeMap.forAnalysis(window.__td); const d = t - r.barStart(r.barOf(t)); return d >= 0 && d < 0.7; })(), t); // it plays from the bar start, read ~0.4 s later
-  check(t >= secs[2].start - 0.1 && onBar, `and the player seeks to the bar that was clicked, inside it (${t.toFixed(2)} s, section starts ${secs[2].start} s)`);
+  check(t >= secs[2].start - 0.1 && Math.abs(t - tWant) < 0.3, `and the player seeks to exactly where it was clicked, inside it (${t.toFixed(2)} s for ${tWant.toFixed(2)} s, section starts ${secs[2].start} s)`);
   // the song map: measured loudness per bar inside the estimated sections, a transport, keyboard section choice
   const nb = await p.evaluate(() => ({ cols: document.querySelectorAll("#explorer svg.loud g").length, bars: window.__td.nBars }));
   check(nb.cols >= nb.bars - 1 && nb.cols <= nb.bars + 2 && await p.locator("#explorer .keyloud .basis-measured").count() === 1, `the map draws the loudness of each bar, labelled Measured (${nb.cols} columns, ${nb.bars} bars)`);
@@ -67,9 +68,9 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   check(tEnd > (await p.evaluate(() => window.__td.duration)) - 1, `the ruler is a keyboard slider that moves the song (End → ${tEnd.toFixed(1)} s)`);
   await segs.nth(2).focus(); await p.keyboard.press("ArrowLeft"); await p.waitForTimeout(250);
   check(await segs.nth(1).getAttribute("aria-checked") === "true" && (await p.locator(".detail h3").first().innerText()).includes(secs[1].label), "arrow keys move between sections and show the chosen one");
-  const tabs = await p.locator('.detail [role="tab"]').allInnerTexts(); check(JSON.stringify(tabs) === '["Rhythm","Harmony","Notes"]', `a section's detail has Rhythm, Harmony and Notes (${tabs})`);
-  await p.click('.detail [role="tab"]:has-text("Harmony")'); await p.waitForTimeout(150);
-  check(await p.locator('.detail [data-part="harmony"] .chcell').count() >= 1, "Harmony lists the chords of the selected section's bars");
+  const tabs = await p.locator('.detail [role="tab"]').allInnerTexts(); check(JSON.stringify(tabs) === '["Rhythm","Piano roll"]', `a section's detail has Rhythm and Piano roll (${tabs})`);
+  await p.click('.detail [role="tab"]:has-text("Piano roll")'); await p.waitForTimeout(150);
+  check(await p.locator('.detail [data-part="roll"] [data-annotations="chords"] .ann-item').count() >= 1, "the Piano roll names the chords of the bars in view");
 
   // volume is in the player
   check(await p.locator("#explorer .playerbar #volume").count() === 1, "volume is a control inside the player");
@@ -89,11 +90,9 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   const seed = await (async () => { const q = await open(); await analyse(q, path.join(SONGS, "pop127_Amaj.wav")); const r = await q.evaluate(() => JSON.parse(localStorage.getItem("teardown_history_v1"))[0]); await q.close(); return r; })();
   { const q = await open(); const rec = JSON.parse(JSON.stringify(seed)); delete rec.chords; delete rec.transcription; rec.hook = null; rec.bassline = null; rec.swing = null;
     await q.evaluate(r => localStorage.setItem("teardown_history_v1", JSON.stringify([r])), rec); await q.reload(); await q.waitForTimeout(400); await q.click("#recent-btn"); await q.click("#hist button"); await q.waitForTimeout(400);
-    await q.click('.detail [role="tab"]:has-text("Harmony")'); const h = await q.locator('.detail [data-part="harmony"]').innerText();
-    await q.click('.detail [role="tab"]:has-text("Notes")'); const nn = await q.locator('.detail [data-part="notes"]').innerText();
+    await q.click('.detail [role="tab"]:has-text("Piano roll")'); const nn = await q.locator('.detail [data-part="roll"]').innerText();
     await q.click('.detail [role="tab"]:has-text("Rhythm")'); const rh = await q.locator('.detail [data-part="rhythm"]').innerText();
-    check(/No chords were found/.test(h) && await q.locator('.detail [data-part="harmony"] .basis-unknown').count() === 1, "no chords found: Harmony says unknown instead of inventing some");
-    check(/could be read reliably/.test(nn) && await q.locator('.detail [data-part="notes"] .basis-unknown').count() === 1, "no top line or bass found: Notes says unknown");
+    check(/No melody, bass or chords could be read reliably/.test(nn) && await q.locator('.detail [data-part="roll"] .basis-unknown').count() === 1 && await q.locator('.detail [data-part="roll"] .mroll').count() === 0, "no chords, melody or bass found: the Piano roll says unknown instead of inventing some");
     check(/Swing: unknown/.test(rh), "swing that could not be measured is reported as unknown");
     check(/Saved teardowns don't keep the audio/.test(await q.locator("#explorer").innerText()), "a saved teardown says it has no audio to play");
     check(await q.locator("#explorer svg.loud").count() === 0 && await q.locator("#explorer .transport").count() === 0 && await q.locator("#explorer .timeline .seg").count() >= 1, "and shows its sections without a loudness shape or a player (nothing measured is invented)");
