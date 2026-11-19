@@ -37,3 +37,16 @@ only adopted when it beats Version A on the benchmark below without losing speed
 * No accuracy claim on real music until the real-music fixtures (G1A) exist; the synthetic benchmark cannot see this failure.
 * Gates are never lowered; Version A parity and the 15 G0 gates keep passing for anything on the default path.
 * Speed is a feature: report analysis latency next to every accuracy number.
+
+## First real-music measurements (2026-11-19; audio stays local, never committed)
+
+Reference method: a whole-track comb, one BPM and one phase laid over low/mid/high onset evidence, scanned at 0.05 BPM, and repeated per quarter of
+the track (a constant tempo peaks at the same BPM in every quarter). Offline scratch tool, not in the engine.
+
+| Track | Source value | Engine (Version A) | Whole-track comb | Verdict |
+|---|---|---|---|---|
+| Jane Remover, "it's a vicious cycle" | 161 BPM, C major (songbpm.com, tunebat.com) | 161.5, C major, "Variable 149-175", export refused | peak 161.40 in all four quarters (161.0 scores half as well) | constant tempo; engine BPM about 0.1 off; **false "variable"**. The sources' 161 is a rounding or a different master; the audio is 161.4 |
+| Porter Robinson, "Mother" | 98 BPM, E major (tunebat.com) | 98.0, E major, "Variable 94.7-105.6", export refused | peak 98.00 in all four quarters | BPM and key right; **false "variable"** (worst beat 345 ms off the grid) |
+
+Both failures are the CLASSIFICATION (tracker beats called a tempo change), not the global tempo estimate. A typed 161 on the first track is 0.4 BPM
+off the audio (about 0.4 s of drift over the song), so "set it to what the site says" can make the grid worse than the detection.
