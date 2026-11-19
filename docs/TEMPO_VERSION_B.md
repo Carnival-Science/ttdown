@@ -138,3 +138,29 @@ resembles the performance). Work is on level 1 first. `bench/paired-renders.js` 
 Not gates: one render, development split, thresholds not tuned on it (they are the proposed targets). The last row's 59.5 ms is note-onset estimation error (notes are matched
 within 50 ms), not grid error. The reference beats extend over the audio's tail (the render keeps sounding after the MIDI's last note); an earlier run that did not
 counted those 3 beats as wrong. The target list becomes a CI gate only when there are several renders and a holdout.
+
+### Experiment: the detected key as a prior on pitch (2026-11-19, `more please`; not adopted)
+
+Tried: multiply the salience of every pitch outside the detected key's scale by a factor (0.9 / 0.8 / 0.7 / 0.55) in the lead and bass pitch pickers, so strong evidence can
+still win. Exact pitch, onset within 50 ms, lead + bass against all 590 MIDI notes:
+
+| Out-of-key factor | Matched | Precision | Recall | F | Out-of-key notes kept (of 25 in the MIDI) | Out-of-key notes written |
+|---|---|---|---|---|---|---|
+| off (current) | 283 | 0.664 | 0.480 | 0.557 | 10 | 16 |
+| 0.9 | 282 | 0.660 | 0.478 | 0.555 | 10 | 16 |
+| 0.7 | 282 | 0.670 | 0.478 | 0.558 | 8 | 9 |
+| 0.55 | 282 | 0.668 | 0.478 | 0.557 | 7 | 9 |
+| 0.7, key wrong by +1 semitone | 278 | 0.660 | 0.471 | 0.550 | | |
+| 0.55, key wrong by +1 semitone | 271 | 0.644 | 0.459 | 0.536 | | |
+
+No gain (0.557 to 0.558 at best), it removes some correct chromatic notes (10 to 7 of 25), and a wrong key costs up to 2 points. Why: classifying every estimated note by what
+the MIDI has at that time, **there are no semitone errors at all** (0 of 426). The misses are elsewhere:
+
+* **Range.** 153 of the 590 notes (26 %) are in MIDI 48-59, between the bass range (24-47) and the melody range (60-91): nothing listens there.
+* **Bass octave errors:** 44 of 157 bass notes have the right pitch class in the wrong octave.
+* **Timing of onsets:** 38 lead notes are 50-150 ms from the nearest real onset, because notes are read on the 16th grid (143 ms at 105 BPM) and the render's notes are not on it.
+* Polyphony: one melody and one bass line at a time, by design.
+
+So a key prior has nothing to fix on this piece. Not tested: local-harmony and continuity priors (no semitone errors to correct, but they could still help vocals or noisy mixes), key
+changes, vocals and pitch bends (no such renders yet), and the key's own accuracy (the detected key here, A# major, is the weakest part of that chain). Next candidates by measured loss:
+cover MIDI 48-59, an octave decision for the bass, onsets not locked to the 16th grid. Engine reverted; nothing from this experiment is in the code.
