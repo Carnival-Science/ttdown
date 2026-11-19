@@ -26,7 +26,8 @@ Accuracy first, explainability second, workflow third, UI polish last. An unmeas
 ## Hard rules
 1. **Changes reach `main` through pull requests.** Agents never push to `main` and never merge on their own.
    A connected agent may execute one specific PR merge only when the CEO expressly authorizes it. This file grants agents
-   no permission to deploy: deployments need separately defined authorization and governance. Humans also use PRs. Emergency exception (humans only): a direct push to `main` to stop a broken production deploy or a private-data
+   no permission to deploy: deployments need separately defined authorization and governance. Humans also use PRs.
+   Emergency exception (humans only): a direct push to `main` to stop a broken production deploy or a private-data
    exposure, followed within one working day by an issue or PR that records what was pushed and why. Branch protection is
    configured by humans, never by an agent, and no one bypasses existing GitHub protection.
 2. **One branch per agent and task.** Claude Code uses `claude/<topic>`, Codex uses `codex/<topic>`. Never push to another
