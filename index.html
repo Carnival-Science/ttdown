@@ -1133,6 +1133,35 @@ const ANALYSIS_STATS = { checkpoints: 0, aborted: 0 }; // the page exposes it as
 /* `signal` (optional AbortSignal) is honoured at every checkpoint: between decoding and each analysis stage, and every
    few percent inside the long arrangement pass. The stages themselves are synchronous, so a cancel takes effect at the next
    checkpoint, not instantly (moving the work to a Web Worker is a separate, later change). */
+/* ---- Version B: one constant tempo for the whole recording, fitted from onset evidence ----
+   `tot` is onset evidence per frame (low + mid + half of high band, each scaled to its own 98th percentile). A constant tempo is a comb of
+   equally spaced beats: score(bpm, phase) = the mean evidence at beat positions t_n = phase + n*period (the strongest of the 3 nearest frames, so a
+   hit a frame early or late still counts). BPM is scanned over the whole track at 0.05 and refined to 0.005; each QUARTER of the track is then fitted
+   on its own. A steady tempo peaks at the same BPM in every quarter; a drifting or stepping tempo does not. The fit is accepted only when the
+   whole-track peak stands clear of the scan (peak / median >= 1.5) and every quarter that has evidence (peak / median >= 1.3, at least 3 of 4) peaks within
+   0.1 % of it. Otherwise null: the tracker's beats stand, as before. `locked` (a BPM the person typed) skips the test and fits only the phase.
+   Returns { bpm, phase (frames), ratio, quarters:[bpm|null], locked } with beats at phase + n*60*fps/bpm. */
+function fitConstantTempo(tot, fps, bpm0, locked) {
+  const N = tot.length; if (N < fps * 20) return null;
+  const sc = (bpm, from, to, ph0, ph1, step) => { const beat = fps * 60 / bpm; let bs = -1, bp = 0;
+    for (let ph = ph0; ph < ph1; ph += step) { let s = 0, c = 0; for (let t = ph + Math.ceil((from - ph) / beat) * beat; t < to - 1; t += beat) { const i = Math.round(t); s += Math.max(tot[i - 1] || 0, tot[i], tot[i + 1] || 0); c++; } s = c ? s / c : 0; if (s > bs) { bs = s; bp = ph; } }
+    return { s: bs, ph: bp }; };
+  const phaseOf = (bpm, from, to, fine) => { const beat = fps * 60 / bpm, c = sc(bpm, from, to, from, from + beat, 0.5); return fine ? sc(bpm, from, to, c.ph - 0.5, c.ph + 0.5, 0.05) : c; };
+  if (locked > 0) { const r = phaseOf(locked, 0, N, true); return { bpm: locked, phase: r.ph, ratio: null, quarters: [], locked: true }; }
+  const lo = Math.max(60, bpm0 - Math.min(2.9, bpm0 * 0.03)), hi = bpm0 + Math.min(2.9, bpm0 * 0.03), scan = [];
+  for (let b = lo; b <= hi + 1e-9; b += 0.05) scan.push([b, phaseOf(b, 0, N, false).s]);
+  const sorted = scan.map(x => x[1]).sort((p, q) => p - q), med = sorted[Math.floor(sorted.length / 2)] || 1e-9; let top = scan[0]; scan.forEach(x => { if (x[1] > top[1]) top = x; });
+  let gb = top[0], gs = top[1]; for (let b = top[0] - 0.1; b <= top[0] + 0.1 + 1e-9; b += 0.005) { const s = phaseOf(b, 0, N, false).s; if (s > gs) { gs = s; gb = b; } }
+  const ratio = gs / med; if (ratio < 1.5) return null;
+  const quarters = []; let valid = 0, ok = true;
+  for (let q = 0; q < 4; q++) { const from = Math.floor(N * q / 4), to = Math.floor(N * (q + 1) / 4), qs = []; let qt = null;
+    for (let b = gb - 0.5; b <= gb + 0.5 + 1e-9; b += 0.02) qs.push([b, phaseOf(b, from, to, false).s]);
+    const far = []; for (let b = lo; b <= hi + 1e-9; b += 0.25) far.push(phaseOf(b, from, to, false).s); far.sort((p, q2) => p - q2); const qmed = far[Math.floor(far.length / 2)] || 1e-9;
+    qs.forEach(x => { if (!qt || x[1] > qt[1]) qt = x; });
+    if (qt[1] / qmed >= 1.3) { valid++; quarters.push(+qt[0].toFixed(3)); if (Math.abs(qt[0] - gb) > 0.001 * gb) ok = false; } else quarters.push(null); }
+  if (valid < 3 || !ok) return null;
+  const r = phaseOf(gb, 0, N, true); return { bpm: gb, phase: r.ph, ratio: +ratio.toFixed(2), quarters, locked: false };
+}
 /* `forced` (optional) is what a person corrected: { bpm, downbeatShift }. With it, the analysis runs again from the same audio with the tempo
    fixed at `bpm` (instead of the detected one) and/or bar 1 moved by `downbeatShift` beats (applied where the engine picks which beat of the bar
    is "1"), and everything downstream (beats, bars, drums,
@@ -1239,6 +1268,12 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
     let t = N - 1, m = -1e9; for (let i = Math.max(0, N - Math.round(beat)); i < N; i++) if (sc[i] > m) { m = sc[i]; t = i; }
     const out = []; while (t >= 0) { out.push(t); t = bp[t]; } return out.reverse();
   })();
+  // Version B: when one constant tempo explains the whole recording (or the person locked a tempo), the beats ARE that grid, not the tracker's wandering ones
+  let tempoFit = null;
+  { const q98 = e => { const f = Array.from(e).filter(v => v > 0).sort((p, q) => p - q); return f[Math.floor(f.length * 0.98)] || 1; }, qL = q98(el), qM = q98(emRaw), qH = q98(eh);
+    const tot = new Float32Array(el.length); for (let i = 0; i < tot.length; i++) tot[i] = el[i] / qL + emRaw[i] / qM + 0.5 * eh[i] / qH;
+    tempoFit = fitConstantTempo(tot, fps, bpm, forced && forced.bpm > 0 ? forced.bpm : 0);
+    if (tempoFit) { const per = fps * 60 / tempoFit.bpm, nb2 = []; for (let t = tempoFit.phase - Math.floor(tempoFit.phase / per) * per; t < el.length - 1; t += per) nb2.push(t); beatsF.length = 0; beatsF.push(...nb2); } }
   let pat = null, downK0 = null; // downK0: index into beatsF of a beat chosen as "1" (recorded for measurement only)
   if (beatsF.length >= 16) {
     // the tracker can lock onto the offbeat: pick the quarter-beat shift where kick + snare hit hardest
@@ -1354,7 +1389,7 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
     lowPulse: +LA(beat).toFixed(2),
     busy: +(eAll.reduce((p, q) => p + q, 0) / eAll.length).toFixed(1)
   };
-  if (pat && pat.trackedBpm && !(forced && forced.bpm > 0)) { const r1 = Math.round(pat.trackedBpm), r10 = Math.round(pat.trackedBpm * 10) / 10; bpm = Math.abs(pat.trackedBpm - r1) < 0.25 ? r1 : r10; }
+  if (pat && pat.trackedBpm && !(forced && forced.bpm > 0)) { const r1 = Math.round(pat.trackedBpm), r10 = Math.round(pat.trackedBpm * 10) / 10; bpm = tempoFit ? (Math.abs(pat.trackedBpm - r1) < 0.03 ? r1 : Math.round(pat.trackedBpm * 100) / 100) : Math.abs(pat.trackedBpm - r1) < 0.25 ? r1 : r10; }
   await gate(); onProg(45, "Mapping the arrangement and frequency balance…");
 
   // ---- sections + spectral bands over whole track ----
@@ -1510,7 +1545,7 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
   // there are any (they follow tempo drift), otherwise firstDown + n * barSec as before. The arrangement pass itself is unchanged.
   // `timing` records which grid gave the times, so a saved teardown keeps them (saved results do not keep the tracked grid).
   const fr2s = f => +((start + f * hop) / SR + ONSET_LAG).toFixed(4);
-  const grid = { source: beatsF.length >= 16 ? "dp-tracker" : "dp-tracker (too few beats; downbeats not chosen)",
+  const grid = { source: tempoFit ? (tempoFit.locked ? "constant-locked" : "constant-fit") : beatsF.length >= 16 ? "dp-tracker" : "dp-tracker (too few beats; downbeats not chosen)",
     beats: beatsF.map(fr2s), downbeats: downK0 == null ? [] : beatsF.filter((_, k) => ((k - downK0) % 4 + 4) % 4 === 0).map(fr2s) };
   const barGrid = (() => { try { return TimeMap.forAnalysis({ duration: dur, bpm, barSec, firstDown, grid }); } catch (e) { return null; } })();
   sections.forEach(s => {
@@ -1529,6 +1564,8 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
     pattern: Object.assign({ kick, snare, hats }, pat ? { ghost: pat.ghost, vel: pat.vel, freq: pat.freq, bars: pat.bars, tracked: true } : {}), rhythm, sections, steady: steadyGroove, barSec: +barSec.toFixed(3), nBars,
     balance, width: +width.toFixed(2), loudRms: +loudRms.toFixed(1), crest: +crest.toFixed(1), peakDb: +(20 * Math.log10(peak + 1e-9)).toFixed(1)
   };
+  if (tempoFit) result.tempoFit = { method: "constant-comb-v1", bpm: +tempoFit.bpm.toFixed(3), ratio: tempoFit.ratio, quarters: tempoFit.quarters, locked: tempoFit.locked };
+  if (tempoFit) result.tempoFit = { method: "constant-comb-v1", bpm: +tempoFit.bpm.toFixed(3), ratio: tempoFit.ratio, quarters: tempoFit.quarters, locked: tempoFit.locked };
   if (full) result.transcription = full; // after every Version A field, so those are untouched and in their original order
   /* Measurement only (G0): the tracked beat and downbeat times in seconds, as the engine computed them.
      Non-enumerable, so saved history, account sync, sharing and the coach see exactly what they saw before.
@@ -1540,7 +1577,7 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
   return result;
 }
 
-return Object.freeze({ analyze, analyzeDecoded, transcribe, transcribeTrack, tick, mag, detrend, acfAt, NAMES, CAM_MAJ, CAM_MIN, LIMITS, InputLimitError, fmtLen, ANALYSIS_STATS });
+return Object.freeze({ analyze, analyzeDecoded, transcribe, transcribeTrack, fitConstantTempo, tick, mag, detrend, acfAt, NAMES, CAM_MAJ, CAM_MIN, LIMITS, InputLimitError, fmtLen, ANALYSIS_STATS });
 });
 /* END src/engine.js */
 </script>

@@ -1,4 +1,4 @@
-# Version B: tempo and grid accuracy (research milestone, not started)
+# Version B: tempo and grid accuracy (step 1 built: whole-track constant-tempo fit)
 
 Opened 2026-11-19 after a real-music failure: *Jane Remover, "a vicious cycle"* (C major, 161 BPM, constant) is read as 161.5 BPM and
 "Variable 149-175". The user's own correction to 161 used to come back as 161.5 (fixed in `353f920`: a typed tempo is no longer overwritten
@@ -50,3 +50,25 @@ the track (a constant tempo peaks at the same BPM in every quarter). Offline scr
 
 Both failures are the CLASSIFICATION (tracker beats called a tempo change), not the global tempo estimate. A typed 161 on the first track is 0.4 BPM
 off the audio (about 0.4 s of drift over the song), so "set it to what the site says" can make the grid worse than the detection.
+
+## Built: the constant-tempo fit (2026-11-19)
+
+`engine.fitConstantTempo` (engine.js, before `analyzeDecoded`): onset evidence (low + mid + half of high band) is combed with one BPM and one phase over the
+WHOLE track, scanned at 0.05 BPM near the autocorrelation tempo and refined to 0.005, then each quarter is fitted on its own. Accepted only when the whole-track peak
+stands clear (peak / median >= 1.5) and every quarter with evidence (>= 3 of 4, each peak / median >= 1.3) peaks within 0.1 % of it. When accepted the beats ARE
+that grid (`a.grid.source` = "constant-fit", `a.tempoFit` = { method, bpm, ratio, quarters, locked }), `a.bpm` follows it (0.01 BPM precision, an integer only
+within 0.03), and the track is constant by construction. When not accepted nothing changes: the tracker's beats stand (this is why drift and tempo-change tracks stay
+refused). A tempo the person types is **locked**: only the phase is fitted, no acceptance test, and the grid is exactly that tempo.
+
+| Track | Before | After |
+|---|---|---|
+| Jane Remover, "it's a vicious cycle" | 161.5, "Variable 149-175", export refused | 161.4 (fit 161.415, quarters 161.395/161.435/161.395/161.455), constant, worst beat 0.1 ms off one tempo, export needs only the usual confirmation |
+| Porter Robinson, "Mother" | 98.0, "Variable 94.7-105.6", export refused (345 ms) | 98.0 (fit 97.995), constant, 0.1 ms |
+| time fixtures (12) | | identical to Version A on all but long_7min (now exactly constant, 0 ms pinned error); drift_slow, drift_fast, tempo_change_step still refused for the same reasons |
+
+Checks: G0 15 gates pass with unchanged numbers (tracked beat F 0.994); app parity 0 differ on all three manifests (same engine hash); `tests/constant-tempo.test.js` (in `npm test`):
+noisy steady tempo, drumless breakdown, step and drift rejected, 10 s clip rejected, locking, and the two real tracks (skipped where the audio is not present; run it with the files in
+`~/Soulseek Downloads/complete` or `TT_REAL_AUDIO`). Analysis time unchanged (about 4.4 s for a 3-4 minute track).
+
+Not done: more real-music cases (each needs a vouched BPM), a tempo benchmark scored on false-variable rate, gradual-drift and tempo-change *classification* (a rejected fit
+just falls back to the tracker), Version A comparison on real music (G1A), and the candidate comparison with Essentia / madmom / Beat This!.
