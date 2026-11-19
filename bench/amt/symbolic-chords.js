@@ -16,12 +16,12 @@ const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const Q = [["", [0, 4, 7], 0], ["m", [0, 3, 7], 0], ["dim", [0, 3, 6], 0.08], ["aug", [0, 4, 8], 0.12], ["sus2", [0, 2, 7], 0.1], ["sus4", [0, 5, 7], 0.1],
   ["maj7", [0, 4, 7, 11], 0.05], ["m7", [0, 3, 7, 10], 0.03], ["7", [0, 4, 7, 10], 0.04], ["m7b5", [0, 3, 6, 10], 0.1], ["dim7", [0, 3, 6, 9], 0.12]];
 const CH = []; for (let r = 0; r < 12; r++) for (const [q, iv, pen] of Q) CH.push({ name: NAMES[r] + q, root: r, tones: iv.map(d => (r + d) % 12), pen, seventh: iv.length === 4 });
-const P = { win: 0.5, other: 0.5, rootBass: 0.35, change: 0.9, offbeat: 0.5, nc: 0.25, minW: 0.05 };
+const P = { win: 0.5, other: 0.5, rootBass: 0.35, change: 0.9, offbeat: 0.5, nc: 0.25, minW: 0.05, bassW: 1.6 };
 function analyse(notes, { bar1, bpm, steps }) {
   const bar = 240 / bpm, st = bar / 8, n = steps.length, feats = [];
   for (const k of steps) {
     const t = bar1 + k * st, lo = t - P.win * 60 / bpm, hi = t + st + P.win * 60 / bpm, w = new Array(12).fill(0); let low = null, tot = 0;
-    for (const x of notes) { const o = Math.min(x.off, hi) - Math.max(x.on, lo); if (o <= 0) continue; const wt = o * (x.midi < 48 ? 1.6 : 1); w[x.midi % 12] += wt; tot += wt;
+    for (const x of notes) { const o = Math.min(x.off, hi) - Math.max(x.on, lo); if (o <= 0) continue; const wt = o * (x.midi < 48 ? P.bassW : 1); w[x.midi % 12] += wt; tot += wt;
       if (x.on < t + st && x.off > t && (low === null || x.midi < low)) low = x.midi; }
     feats.push({ w, tot, low });
   }

@@ -1,6 +1,6 @@
 # Symbolic chord reading from transcribed notes: a first experiment (2026-11-19)
 
-Status: **research prototype on one track, no chord ground truth, nothing integrated.** Follows `docs/AMT_BASELINE.md` (PR #43) and feeds #26. #26 says "no algorithm rewrite prior to a measurable baseline": this is **not** that baseline, because there is no annotated chord truth yet. It tests one narrower question: does reading chords from *notes* hold up better than reading them from the audio, and how much does note-transcription error change the reading?
+Status: **research prototype on one track, scored against a development-reference annotation that the owner has not signed off, nothing integrated.** Follows `docs/AMT_BASELINE.md` (PR #43) and feeds #26. #26 says "no algorithm rewrite prior to a measurable baseline": this is **not** that baseline (one track, an unsigned annotation). It tests a narrower question: does reading chords from *notes* hold up better than reading them from the audio, and how much does note-transcription error change the reading?
 
 ## The prototype
 
@@ -33,15 +33,45 @@ Reading the chords from *notes* gives a calm progression (about one region per b
 - **The opening bars:** the original's bars 1–2 (E♭, F on beat 4&, F7, F♯dim7 by the notes) come out as `D#sus2, F7, F#dim7` at 1.1, 1.4, 2.4: the F♯dim7 and F7 are found, the first chord is called sus2 rather than E♭, and there is no separate F before the F7.
 - Not run: other tracks, other chord vocabularies or algorithms, or a chord ground truth.
 
-## What would make it a baseline
+## Scored against a chord annotation (second run)
 
-1. A **short human chord annotation** for *more please* (change times, root, quality, N), made from the audio and the score, starting with bars 1–8 and 18–24. Chord symbols are not derivable from the MIDI alone (#36 says so).
-2. Score all three readings (original MIDI, Basic Pitch notes, audio detector) against that annotation: change-time F1 at ±150 ms, root, major/minor and 7th-aware accuracy, regions per bar.
-3. Only then tune the change cost, bass weight and vocabulary, with the tuning track kept apart from a held-out one.
+I drafted a chord annotation for bars 1–8 and 18–24 from the original MIDI's notes, and a reviewer corrected eight entries (each checked against the MIDI before adopting: no G in the first region, no new attack at 7.4, no C at 7.3&, and so on). It has 25 segments and 23 chord changes, with root, bass, triad, seventh, extensions and alternatives per segment, and stays **outside the repo** (it is someone's music). Status: **a development reference, not an answer key**: it has not been signed off by the owner, extensions are the least certain part, and it was drafted from the same notes the symbolic reader sees, so the "original MIDI" row is not independent evidence.
+
+`bench/amt/score-chords.js` scores at every 8th note in the annotated bars (120 steps; 99 for quality, skipping the region with no third and the two marked uncertain). Columns are cumulative: root; root and triad class; root, triad and seventh. Change F1 counts a reading's chord changes within ±150 ms of the annotation's.
+
+| Reading | Root | + triad | + seventh | Change F1 (P / R) | Regions per bar |
+|---|---|---|---|---|---|
+| Symbolic reader on the **original MIDI** | 70% | 62% | 46% | 45% (53 / 39) | 1.1 |
+| Symbolic reader on Basic Pitch (default) | 80% | 75% | 61% | 45% (53 / 39) | 1.1 |
+| Symbolic reader on Basic Pitch (stricter) | 79% | 74% | 60% | 40% (47 / 35) | 1.1 |
+| Teardown audio detector (chord regions) | 64% | 49% | 10% | 49% (36 / 74) | 3.1 |
+
+What it says:
+- **The symbolic reader is not yet good, even on perfect notes.** Its root accuracy is 70% on the original MIDI, and only 50% in the arpeggio bars (88% in bars 1–8). That is the harmonic analysis failing, not the transcription, which is exactly the separation the experiment was meant to make. The cause is visible in bar 21, where the bass spells Cm and the reader goes with the upper voices (G minor).
+- It beats the audio detector on root (70–80% vs 64%), triad (62–75% vs 49%) and seventh (46–61% vs 10%), but the vocabulary is part of that gap (the audio detector only says major or minor).
+- On change times, the audio detector has the better F1 (49%) because it finds most changes (74% recall) at the cost of 3 times as many regions (36% precision); the symbolic reader finds fewer (39% recall) and is more often right when it does.
+- Reading Basic Pitch's notes scored *higher* than reading the original MIDI (80% vs 70% at the root). I do not know why, and have not looked; one possibility is that the transcription drops the inner and ornamental notes that mislead the reader.
+
+## Tuning: a small, mixed, one-track result
+
+I swept bass weight (1.6, 3, 5), the bass-is-root bonus (0.35, 0.8, 1.5), the change cost (0.5, 0.9, 1.4) and the other-tones penalty (0.5, 0.25), tuning on one annotated range and testing on the other (the same piece, so this is not a real held-out test):
+- Tuned on bars 1–8, the best setting (heavy bass) **drops the arpeggio bars from 50% to 32% root**. Not usable.
+- Tuned on bars 18–24, the best setting (bass weight 3, change cost 0.5, other penalty 0.25) raises them from 50% to 77% root and the seventh from 36% to 66%, and costs bars 1–8 a little (root 88 to 84%, triad 77 to 72%, seventh 60 to 56%).
+- I did **not** change the defaults. One piece with two ranges cannot choose between those, and the change cost still produces 26% change F1 in bars 1–8.
+
+## What would make this a baseline
+
+1. The owner signing off, or correcting, the annotation, and extending it to the rest of the piece.
+2. More annotated pieces, including a piano-only one (the stated failure), with a development and a held-out split.
+3. A reader that decides the bass role from the music: an arpeggiated bass line against sustained upper voices (bar 21) needs the bass pattern, not a weight.
+4. Only then, tuning, and only against the held-out pieces.
 
 ## Reproduce
 
 ```
+node bench/amt/score-chords.js --annotation "annotation.json" --ref-midi "more please.mid" --offset -8.571 --engine-audio "more please.mp3" --est out/bp_default.mid --est out/bp_tight.mid
+node bench/amt/score-chords.js ... --only-range 1 --param bassW=3 --param change=0.5   # one range, with parameter overrides
+
 node bench/amt/symbolic-chords.js "more please.mid" --offset -8.571 --bar1 0.571 --bpm 105 --from 18 --to 25 --print
 node bench/amt/compare-chords.js --ref "more please.mid" --offset -8.571 --bar1 0.571 --bpm 105 --engine-audio "more please.mp3" --est out/bp_default.mid --est out/bp_tight.mid
 ```
