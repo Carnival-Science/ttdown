@@ -53,7 +53,8 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   const hdr2 = await p.locator(".detail h3").first().innerText(), t = await p.evaluate(() => document.querySelector("#explorer audio").currentTime);
   check(hdr2 !== hdr0 && hdr2.includes(secs[2].label) && hdr2.includes(`bars ${secs[2].startBar + 1}–${secs[2].startBar + secs[2].bars}`), `clicking a section shows its detail ("${hdr2.replace(/\s+/g, " ")}")`);
   check(await segs.nth(2).getAttribute("aria-checked") === "true" && await segs.nth(0).getAttribute("aria-checked") === "false", "and marks it selected");
-  check(Math.abs(t - secs[2].start) < 0.5, `and the player seeks to it (${t.toFixed(2)} s, section starts ${secs[2].start} s)`);
+  const onBar = await p.evaluate(t => [...document.querySelectorAll(".barruler span[data-bar]")].length > 0 && (() => { const r = window.TimeMap.forAnalysis(window.__td); const d = t - r.barStart(r.barOf(t)); return d >= 0 && d < 0.7; })(), t); // it plays from the bar start, read ~0.4 s later
+  check(t >= secs[2].start - 0.1 && onBar, `and the player seeks to the bar that was clicked, inside it (${t.toFixed(2)} s, section starts ${secs[2].start} s)`);
   // the song map: measured loudness per bar inside the estimated sections, a transport, keyboard section choice
   const nb = await p.evaluate(() => ({ cols: document.querySelectorAll("#explorer svg.loud g").length, bars: window.__td.nBars }));
   check(nb.cols >= nb.bars - 1 && nb.cols <= nb.bars + 2 && await p.locator("#explorer .keyloud .basis-measured").count() === 1, `the map draws the loudness of each bar, labelled Measured (${nb.cols} columns, ${nb.bars} bars)`);
@@ -61,9 +62,9 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   await p.click('#explorer button[aria-label="Play"]'); await p.waitForTimeout(500);
   check(await p.evaluate(() => !document.querySelector("#explorer audio").paused) && await p.locator('#explorer button[aria-label="Pause"]').count() === 1, "the play button plays and turns into Pause");
   await p.click('#explorer button[aria-label="Pause"]'); await p.waitForTimeout(150);
-  const scrub = p.locator('#explorer .scrub input[type=range]'); await scrub.focus(); await p.keyboard.press("End"); await p.waitForTimeout(150);
+  const scrub = p.locator('#explorer .barruler[role="slider"]'); await scrub.focus(); await p.keyboard.press("End"); await p.waitForTimeout(150);
   const tEnd = await p.evaluate(() => document.querySelector("#explorer audio").currentTime);
-  check(tEnd > (await p.evaluate(() => window.__td.duration)) - 1, `the scrubber moves the song (End → ${tEnd.toFixed(1)} s)`);
+  check(tEnd > (await p.evaluate(() => window.__td.duration)) - 1, `the ruler is a keyboard slider that moves the song (End → ${tEnd.toFixed(1)} s)`);
   await segs.nth(2).focus(); await p.keyboard.press("ArrowLeft"); await p.waitForTimeout(250);
   check(await segs.nth(1).getAttribute("aria-checked") === "true" && (await p.locator(".detail h3").first().innerText()).includes(secs[1].label), "arrow keys move between sections and show the chosen one");
   const tabs = await p.locator('.detail [role="tab"]').allInnerTexts(); check(JSON.stringify(tabs) === '["Rhythm","Harmony","Notes"]', `a section's detail has Rhythm, Harmony and Notes (${tabs})`);
@@ -86,7 +87,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
 
   // unknown is shown as unknown
   const seed = await (async () => { const q = await open(); await analyse(q, path.join(SONGS, "pop127_Amaj.wav")); const r = await q.evaluate(() => JSON.parse(localStorage.getItem("teardown_history_v1"))[0]); await q.close(); return r; })();
-  { const q = await open(); const rec = JSON.parse(JSON.stringify(seed)); delete rec.chords; rec.hook = null; rec.bassline = null; rec.swing = null;
+  { const q = await open(); const rec = JSON.parse(JSON.stringify(seed)); delete rec.chords; delete rec.transcription; rec.hook = null; rec.bassline = null; rec.swing = null;
     await q.evaluate(r => localStorage.setItem("teardown_history_v1", JSON.stringify([r])), rec); await q.reload(); await q.waitForTimeout(400); await q.click("#recent-btn"); await q.click("#hist button"); await q.waitForTimeout(400);
     await q.click('.detail [role="tab"]:has-text("Harmony")'); const h = await q.locator('.detail [data-part="harmony"]').innerText();
     await q.click('.detail [role="tab"]:has-text("Notes")'); const nn = await q.locator('.detail [data-part="notes"]').innerText();

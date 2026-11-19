@@ -112,8 +112,8 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
     check(/BPM/.test(await p.locator(".sheetbar .summary").innerText()) && await p.locator(".sheetbar .btn").allInnerTexts().then(t => t.join() === "Findings,Export"), "6: the bar says the tempo and key, and offers Findings and Export");
     const prim = await box(p, ".transport .primary");
     check(prim.height < 70 && await p.locator("#transport-more").isHidden() && await p.locator('button[aria-label="Play"]').isVisible(), `6: the transport is one ${Math.round(prim.height)} px row (play, time, mute); speed, loop and beat clicks are on demand`);
-    await p.click('button:has-text("Speed, loop")'); await p.waitForTimeout(200);
-    check(await p.locator('#transport-more [role="radiogroup"][aria-label="Loop"]').isVisible() && await p.locator('#transport-more button:has-text("Beat clicks")').isVisible(), "6: “Speed, loop” opens speed, loop and beat clicks");
+    await p.click('.transport .morebtn'); await p.waitForTimeout(200);
+    check(await p.locator('#transport-more [role="radiogroup"][aria-label="Loop"]').isVisible() && await p.locator('#transport-more button:has-text("Beat clicks")').isVisible(), "6: “More” opens speed, loop, beat clicks and Follow");
     await p.click('button:has-text("Close")'); await p.waitForTimeout(150);
 
     await p.locator("#explorer .timeline .seg").nth(1).click(); await p.waitForTimeout(250);

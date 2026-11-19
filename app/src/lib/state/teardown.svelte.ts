@@ -22,8 +22,8 @@ class Teardown {
   /** Index of the selected section on the timeline. */
   selected = $state(0);
   audioURL = $state<string | null>(null);
-  /** The decoded audio of the teardown on screen (never reactive, never persisted, never a production global). */
-  buffer: AudioBuffer | null = null;
+  /** The decoded audio of the teardown on screen (a reference, never copied or persisted, never a production global). Reactive, so what is drawn from it appears when audio is attached. */
+  buffer = $state.raw<AudioBuffer | null>(null);
   status = $state({ text: "Choose an audio file to take apart. It is analysed in this browser and never uploaded.", err: false });
   progress = $state(0);
   running = $state(false);
@@ -85,7 +85,7 @@ class Teardown {
     this.supersede("Opened a saved teardown, so the analysis in progress was stopped.");
     if (this.audioURL) URL.revokeObjectURL(this.audioURL);
     this.audioURL = null; this.buffer = null; this.selected = 0;
-    this.title = saved.title || ""; this.titleTyped = false;
+    this.title = saved.title || ""; this.titleTyped = false; this.attachNote = { text: "", ok: false };
     this.show(saved); this.mountId++;
   }
   /* ---- corrections (Phase 2d). A tempo or first-downbeat correction re-runs the analysis from the SAME audio with that value fixed, so
@@ -127,6 +127,29 @@ class Teardown {
   async moveBar1(delta: number) { return this.canRecompute ? this.reanalyze({ type: "downbeat", shift: delta }) : false; }
   /** "This isn't in 4/4": everything built on the analyzer's bars is then marked unreliable (it cannot read other meters). */
   setNotFourFour(on: boolean) { return this.replace(n => applyMeter(n, on)); }
+  /* ---- audio for a saved teardown. A saved teardown has no audio; attaching the track again makes it playable (the playhead, loops,
+     beat clicks, the loudness shape). Before enabling playback the file must match: the same length (within 0.15 s: a different export of the same song can differ by a few tens of milliseconds, but anything more would put the playhead out of step) and the same loudest
+     sample, measured exactly as the analysis measured it (peakDb). That is a cheap fingerprint, not proof of identity, and it says so. */
+  attachNote = $state({ text: "", ok: false });
+  async attachAudio(file: File | undefined | null): Promise<boolean> {
+    const cur = this.result as AnalysisResult | null; if (!file || !cur || this.running) return false;
+    const fmt = (x: number) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, "0")}`;
+    const say = (text: string, ok = false) => { this.attachNote = { text, ok }; return ok; };
+    say("Comparing the file with this teardown…");
+    let ab: AudioBuffer;
+    try { ab = await new OfflineAudioContext(2, 44100, 44100).decodeAudioData(await file.arrayBuffer()); }
+    catch { return say("Couldn't read that file. Try the MP3 or WAV the teardown was made from."); }
+    if (Math.abs(ab.duration - cur.duration) > 0.15) return say(`That file is ${fmt(ab.duration)} long, but this teardown is ${fmt(cur.duration)}. It looks like a different track or a different cut, so playback stays off.`);
+    const L = ab.getChannelData(0), R = ab.numberOfChannels > 1 ? ab.getChannelData(1) : L; let peak = 0;
+    for (let i = 0; i < L.length; i += 2) { const p = Math.max(Math.abs(L[i] ?? 0), Math.abs(R[i] ?? 0)); if (p > peak) peak = p; }
+    const pk = +(20 * Math.log10(peak + 1e-9)).toFixed(1);
+    if (typeof cur.peakDb === "number" && Math.abs(pk - cur.peakDb) > 0.3) return say(`Same length, but its loudest peak is ${pk} dBFS and this teardown's was ${cur.peakDb}. It looks like a different recording or master, so playback stays off.`);
+    if (this.result !== cur) return false; // another teardown was opened meanwhile
+    const old = this.audioURL; this.audioURL = URL.createObjectURL(file); this.buffer = ab;
+    const next = copy(cur); Object.defineProperty(next, "__buf", { value: ab, enumerable: false, configurable: true });
+    this.show(next); if (old) URL.revokeObjectURL(old);
+    return say(`Audio attached: it matches (same length and loudest peak${typeof cur.peakDb === "number" ? "" : "; this save has no peak to compare, so only the length was checked"}). Nothing was uploaded.`, true);
+  }
   /** The name field was edited: before a track it names the next analysis, after one it renames the teardown on screen. */
   nameEdited() { this.titleTyped = true; }
   rename() {

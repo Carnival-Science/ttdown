@@ -19,6 +19,7 @@ const TESTS = [
   "app-part-midi.test.js",      // per-part MIDI beside the piano rolls and chords; drumless tracks hide the drum tools
   "app-corrections.test.js",    // Phase 2d: a correction recomputes (equals a fresh analysis) or invalidates (stale, not exported)
   "app-workspace.test.js",      // the analysis workspace: arrangement and editor stay put, findings and export as an inspector (wide) or a sheet (narrow)
+  "app-transport.test.js",      // one transport and one playhead across the arrangement and the piano rolls; follow, attach audio, variable tempo
   "app-product.test.js",        // what v1 is and is not: labels, timeline, volume, no removed features, nothing leaves the browser
 ];
 (async () => {

@@ -10,6 +10,11 @@
   import { player } from "../lib/state/player.svelte";
   import { audio } from "../lib/audio/service.svelte";
   import { workspace } from "../lib/state/workspace.svelte";
+  import { transport } from "../lib/state/transport.svelte";
+  import { createPlayClock } from "../lib/ui/timeline/clock";
+  import Playhead from "../lib/ui/timeline/Playhead.svelte";
+  import TimeRuler from "../lib/ui/timeline/TimeRuler.svelte";
+  import { barBeat } from "../lib/timeline/position";
   import { domain } from "../lib/domain";
   import { gridOf } from "../lib/timeline/grid";
   import { barLoudness } from "../lib/timeline/loudness";
@@ -41,8 +46,8 @@
   const items = $derived(a.sections.map((s: any, i: number) => ({ value: String(i), label: sectionName(s.label, a), s })));
   const G = $derived(gridOf(a));
   const ticks = $derived.by(() => {
-    const every = a.nBars > 96 ? 16 : a.nBars > 40 ? 8 : 4, out: { b: number; left: string; ext: boolean; end: boolean }[] = [];
-    for (let b = 0, guard = 0; guard < 4000; b += every, guard++) { let t = G.barStart(b); if (t > dur) break; if (t < -0.05) continue; t = Math.max(0, t); out.push({ b, left: pct(t), ext: G.tracked && G.isExtrapolated(t), end: t / dur > 0.97 }); }
+    const every = a.nBars > 96 ? 16 : a.nBars > 40 ? 8 : 4, out: { t: number; label: string; dashed: boolean; end: boolean; attrs: Record<string, string> }[] = [];
+    for (let b = 0, guard = 0; guard < 4000; b += every, guard++) { let t = G.barStart(b); if (t > dur) break; if (t < -0.05) continue; t = Math.max(0, t); out.push({ t, label: String(b + 1), dashed: G.tracked && G.isExtrapolated(t), end: t / dur > 0.97, attrs: { "data-bar": String(b) } }); }
     return out;
   });
   const labels = $derived([...new Set(a.sections.map((s: any) => s.label === "Outro" ? "Intro" : s.label))] as string[]);
@@ -55,23 +60,40 @@
   });
   const playable = $derived(!!teardown.audioURL);
 
-  let audioEl = $state<HTMLAudioElement | null>(null);
-  let tools = $state<PlayerTools | null>(null), now = $state(0), paused = $state(true), scrubbing = false;
+  let audioEl = $state<HTMLAudioElement | null>(null), attachEl = $state<HTMLInputElement | null>(null);
+  let tools = $state<PlayerTools | null>(null), now = $state(0), paused = $state(true);
   const overlay = new Overlay(), clicks = new BeatClicks();
+  const view = transport.view;
+  // the two viewports follow the track: the overview always shows all of it, the editor starts on about 16 bars from bar 1
   $effect(() => {
-    const el = audioEl; if (!el) { player.el = null; return; }
+    const d = dur, g = G, aa = a;
+    // configure() reads and writes the viewport, so none of it may be tracked by this effect (it would re-run itself forever)
+    untrack(() => {
+      transport.overview.configure(0, d, d); view.configure(0, d, Math.min(4, d));
+      const t0 = Math.max(0, g.barStart(0)), t1 = g.barStart(16);
+      view.follow = true; view.jump(t0, Math.min(d, (Number.isFinite(t1) ? t1 : t0 + aa.barSec * 16) - t0));
+    });
+  });
+  $effect(() => {
+    const el = audioEl; if (!el) { player.el = null; transport.clock = null; return; }
     const t = new PlayerTools(untrack(() => teardown.result), el); tools = t;
     player.el = el; player.loopSection = (i, rate) => t.loopSection(i, rate); player.loopRange = (s0, s1, rate) => t.loopRange(s0, s1, rate);
     player.overlayOnly = k => overlay.only(k, teardown.result, el); player.overlayRestart = () => overlay.restart(teardown.result, el);
     const unreg = audio.player(el);
-    const move = () => { if (!scrubbing) now = el.currentTime; }; let raf = 0;
-    const loopRaf = () => { move(); if (!el.paused) raf = requestAnimationFrame(loopRaf); };
-    const onPlay = () => { paused = false; cancelAnimationFrame(raf); loopRaf(); }, onPause = () => { paused = true; move(); };
+    // ONE clock: the media element's currentTime, read per animation frame. Follow pages the editor along with it.
+    const clock = createPlayClock(el); transport.clock = clock;
+    // subscribe() calls back at once: untracked, or this effect would depend on the viewport and rebuild the player on every scroll
+    const off = untrack(() => clock.subscribe(tm => {
+      now = tm;
+      if (view.follow && (tm < view.start || tm > view.end - view.span * 0.06)) view.reveal(tm, 0.06);
+    }));
+    const onPlay = () => { paused = false; }, onPause = () => { paused = true; };
+    paused = el.paused;
     el.addEventListener("play", onPlay); el.addEventListener("pause", onPause); el.addEventListener("ended", onPause);
-    el.addEventListener("timeupdate", move); el.addEventListener("seeked", move);
     return () => {
-      cancelAnimationFrame(raf); el.removeEventListener("play", onPlay); el.removeEventListener("pause", onPause); el.removeEventListener("ended", onPause);
-      el.removeEventListener("timeupdate", move); el.removeEventListener("seeked", move); unreg(); t.destroy(); overlay.stop(); clicks.stop();
+      off(); clock.destroy(); if (transport.clock === clock) transport.clock = null;
+      el.removeEventListener("play", onPlay); el.removeEventListener("pause", onPause); el.removeEventListener("ended", onPause);
+      unreg(); t.destroy(); overlay.stop(); clicks.stop();
       if (player.el === el) { player.el = null; player.loopSection = null; player.loopRange = null; player.overlayOnly = null; player.overlayRestart = null; }
     };
   });
@@ -88,12 +110,31 @@
   const parts = $derived(Object.entries(overlay.parts as Record<string, boolean>).filter(([, on]) => on).map(([k]) => k));
   function setParts(v: string[]) { const p = overlay.parts as any; for (const k of Object.keys(p)) p[k] = v.includes(k); }
 
+  // A click on the arrangement takes the editor (and, with the audio, the playhead) to the bar that was clicked; the keyboard goes to the
+  // section's first bar. The pointer position is remembered at press, since the section control only reports which section was chosen.
+  let lastPtr: { t: number; at: number } | null = null;
+  function pressMap(e: PointerEvent) { const r = mapEl.getBoundingClientRect(); lastPtr = { t: dur * Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), at: performance.now() }; }
   function pick(i: number) {
-    teardown.selected = i; const s = a.sections[i]; if (!s || !playable) return;
-    if (tools && tools.loopSel !== "" && tools.loopSel !== "here") tools.setLoop(String(i)); else player.seek(s.start);
+    teardown.selected = i; const s = a.sections[i]; if (!s) return;
+    let target = s.start;
+    if (lastPtr && performance.now() - lastPtr.at < 600) { const t = Math.min(Math.max(lastPtr.t, s.start), s.end - 0.01), b = Math.max(0, G.barOf(t)); target = Math.min(Math.max(G.barStart(b), s.start), Math.max(s.start, s.end - 0.05)); }
+    lastPtr = null;
+    view.reveal(target, 0.1);
+    if (!playable) return;
+    if (tools && tools.loopSel !== "" && tools.loopSel !== "here") tools.setLoop(String(i)); else player.seek(target);
   }
   function togglePlay() { const el = audioEl; if (!el) return; if (el.paused) el.play().catch(() => {}); else el.pause(); }
-  function scrub(v: number) { scrubbing = true; now = v; if (audioEl) audioEl.currentTime = Math.min(dur - 0.05, v); }
+  function stop() { const el = audioEl; if (!el) return; el.pause(); el.currentTime = 0; view.follow = true; view.reveal(Math.max(0, G.barStart(0)), 0.05); }
+  function seekTo(t: number) { const el = audioEl; if (!el) return; el.currentTime = Math.min(Math.max(0, t), dur - 0.05); if (view.follow) view.reveal(el.currentTime, 0.06); }
+  // Space plays and pauses, except where it already does something (typing, a button, a menu, a dialog).
+  function onKey(e: KeyboardEvent) {
+    if (e.key !== " " || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || !audioEl) return;
+    const t = e.target as HTMLElement | null; if (!t) return;
+    if (t.closest("input[type=text], input[type=number], textarea, select, [contenteditable], [role=dialog], [role=menu], summary, a")) return;
+    if (t.closest("button, [role=tab], [role=radio], [role=switch], input[type=checkbox]") && !t.closest(".map, .lanes")) return;
+    e.preventDefault(); togglePlay();
+  }
+  const pos = $derived(barBeat(G, a, now));
   const volume = $derived(Math.round(audio.vol.song * 100));
 
   // hover readout over the map: bar, section, time and the bar's loudness
@@ -104,6 +145,8 @@
     hover = { x: pct(t), text: [`Bar ${bar + 1}`, s ? sectionName(s.label, a) : "", fmtT(t), L ? `${L.db.toFixed(0).replace("-", "−")} dB` : ""].filter(Boolean).join("  ") };
   }
 </script>
+
+<svelte:document onkeydown={onKey} />
 
 {#snippet byear()}
   <div class="byear">
@@ -127,7 +170,9 @@
             {#if paused}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" /></svg>
             {:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" /></svg>{/if}
           </button>
-          <span class="clock"><b>{fmtT(now)}</b> / {fmtT(dur)}</span>
+          <button type="button" class="iconbtn stop" aria-label="Stop (back to the start)" title="Stop: back to the start" onclick={stop}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="1.5" /></svg></button>
+          <span class="clock"><b>{fmtT(now)}</b><span class="total"> / {fmtT(dur)}</span></span>
+          <span class="posn" title="Bar and beat from the tracked beats"><span class="plabel">Bar </span><b>{pos ? `${pos.bar}.${Math.floor(pos.beat)}` : "–"}</b></span>
           <span class="vol">
             <button type="button" class="iconbtn" id="mute" aria-pressed={audio.vol.muted} aria-label="Mute" onclick={() => audio.toggleMute()}>
               {#if audio.vol.muted}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" /><path d="m16 9 5 6m0-6-5 6" class="stroke" /></svg>
@@ -138,15 +183,17 @@
           </span>
           {#if !workspace.wide}
             <button type="button" class="morebtn" aria-expanded={workspace.more} aria-controls="transport-more" onclick={() => (workspace.more = !workspace.more)}>
-              {workspace.more ? "Close" : "Speed, loop"}
+              {workspace.more ? "Close" : "More"}
             </button>
           {/if}
         </div>
         {#if tools}
           <div class="secondary" id="transport-more" hidden={!workspace.wide && !workspace.more}>
-            <div class="tgroup"><span class="tlabel">Speed</span><Segmented label="Speed" items={RATES} value={String(tools.rate)} onchange={v => tools?.setRate(+v)} /></div>
-            <div class="tgroup"><span class="tlabel">Loop</span><Segmented label="Loop" items={LOOPS} value={loopMode} onchange={setLoop} /></div>
+            <div class="tgroup"><span class="tlabel" aria-hidden="true">Speed</span><Segmented label="Speed" items={RATES} value={String(tools.rate)} onchange={v => tools?.setRate(+v)} /></div>
+            <div class="tgroup"><span class="tlabel" aria-hidden="true">Loop</span><Segmented label="Loop" items={LOOPS} value={loopMode} onchange={setLoop} /></div>
             <Toggle pressed={clicks.on} disabled={!teardown.buffer} onchange={() => clicks.toggle(a, audioEl, teardown.buffer)}>Beat clicks</Toggle>
+            <Toggle pressed={view.follow} title="The editor pages along with playback. Scrolling or zooming it yourself turns this off; Stop or this button turns it back on."
+              onchange={on => { view.follow = on; if (on) view.reveal(now, 0.06); }}>Follow</Toggle>
           </div>
         {/if}
       </div>
@@ -156,9 +203,19 @@
       <p class="small notice info" role="status" data-drumless>No kick or snare was found in this track, so the drum tools are hidden. It may be drumless, or its drums may be too quiet or too washed out to detect. Tempo, beat clicks, the arrangement, chords and notes still apply. <button class="btn" type="button" onclick={() => drums.showAnyway()}>Show the drum tools anyway</button></p>
     {/if}
 
+    {#if !playable}
+      <div class="attach">
+        <input type="file" id="attach" class="sr-only" tabindex="-1" accept="audio/*,.mp3,.wav,.m4a,.flac,.ogg,.aac" bind:this={attachEl}
+          onchange={e => { const f = e.currentTarget.files?.[0]; void teardown.attachAudio(f); e.currentTarget.value = ""; }}>
+        <button type="button" class="btn primary" id="attach-btn" onclick={() => attachEl?.click()}>Attach audio</button>
+        <span class="small" id="no-audio">Playback is unavailable: a saved teardown doesn't keep the audio. Attach the track it was made from to play it. It stays in this browser.</span>
+        {#if teardown.attachNote.text}<span class={"small " + (teardown.attachNote.ok ? "ok" : "bad")} id="attach-note" role="status">{teardown.attachNote.text}</span>{/if}
+      </div>
+    {/if}
+
     <div class="songmap" class:quiet={!loud}>
       <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="map" bind:this={mapEl} onpointermove={onHover} onpointerleave={() => (hover = null)}>
+      <div class="map" bind:this={mapEl} onpointermove={onHover} onpointerleave={() => (hover = null)} onpointerdowncapture={pressMap}>
         <div class="timeline" data-grid={G.kind}>
           {#each bands as b, bi (bi)}
             {#if b.kind === "gap"}<span class="seggap" style:left={pct(b.from)} style:width={`calc(${pct(b.to)} - ${pct(b.from)})`} title="Before bar 1 / after the last bar"></span>{/if}
@@ -182,16 +239,12 @@
             </svg>
           {/if}
         </div>
-        {#if playable}<div class="playhead" style:left={pct(now)} aria-hidden="true"></div>{/if}
+        {#if view.span < dur - 0.05}<div class="vpwin" style:left={pct(view.start)} style:width={`calc(${pct(view.end)} - ${pct(view.start)})`} aria-hidden="true" data-viewport></div>{/if}
+        {#if playable}<Playhead clock={transport.clock} viewport={transport.overview} label="arrangement" />{/if}
         {#if hover}<div class="readout" style:left={hover.x} aria-hidden="true">{hover.text}</div>{/if}
       </div>
-      <div class="barruler" aria-hidden="true" title={G.label} data-grid={G.kind}>
-        {#each ticks as t (t.b)}<span style:left={t.left} class={[t.ext ? "ext" : "", t.end ? "end" : ""].join(" ").trim()} data-bar={String(t.b)}>{String(t.b + 1)}</span>{/each}
-      </div>
-      {#if playable}
-        <Slider class="scrub" label="Position in the song" value={now} min={0} max={Math.max(0.1, dur)} step={0.1} largeStep={5}
-          valueText={v => `${fmtT(v)} of ${fmtT(dur)}`} onchange={scrub} oncommit={() => (scrubbing = false)} />
-      {/if}
+      <TimeRuler class="barruler" viewport={transport.overview} {ticks} height={18} title={G.label} attrs={{ "data-grid": G.kind }} onseek={playable ? (t => { seekTo(t); }) : undefined}
+        slider={{ label: "Position in the song", value: now, max: dur, text: `${fmtT(now)} of ${fmtT(dur)}` }} />
       <div class="key">
         <span class="keyhead">Sections <Basis kind="estimated" note="Sections are guessed from changes in loudness and tone. Their names (Intro, Build, Drop…) are labels the analyzer gives by rule, not facts about the song." /></span>
         {#each labels as k (k)}<span><i style:background={sectionColor(k)}></i>{k === "Intro" && a.sections.some((s: any) => s.label === "Outro") ? "Intro / Outro" : sectionName(k, a)}</span>{/each}
@@ -245,7 +298,14 @@
   :global(.explorer .bands .seg) { container-type: inline-size; }
   @container (max-width: 64px) { :global(.explorer .bands .seg .seglabel) { display: none; } }
 
-  .playhead { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--tt-lcd); border-radius: 1px; pointer-events: none; box-shadow: 0 0 0 1px rgb(0 0 0 / 0.6); }
+  .map { --tl-playhead: var(--tt-lcd); }
+  .vpwin { position: absolute; top: 0; bottom: 0; border: 1.5px solid rgb(255 255 255 / .6); background: rgb(255 255 255 / .06); border-radius: 4px; pointer-events: none; z-index: 3; transition: left 120ms cubic-bezier(0.23, 1, 0.32, 1), width 120ms cubic-bezier(0.23, 1, 0.32, 1); }
+  .posn { font: 500 .9rem var(--tt-font-body); color: var(--tt-ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .posn b { color: var(--tt-ink); font-weight: 600; }
+  .posn .plabel { margin-right: 4px; }
+  .clock .total { margin-left: 4px; }
+  .attach { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+  .attach .ok { color: var(--tt-good); } .attach .bad { color: #ff8f7a; }
   .readout {
     position: absolute; top: calc(100% + 2px); translate: -50% 0; padding: 4px 8px; border-radius: 6px; white-space: pre; pointer-events: none;
     background: var(--tt-ink); color: var(--tt-bg); font: 600 0.74rem/1.3 var(--tt-font-body); font-variant-numeric: tabular-nums;
@@ -260,8 +320,6 @@
   .keyloud { display: inline-flex; align-items: center; gap: 6px; }
   .keyloud svg { width: 12px; height: 12px; fill: var(--tt-ink-2); }
 
-  :global(.explorer .scrub) { min-width: 0; }
-  :global(.explorer .scrub .tt-slider-control) { height: 28px; }
 
   .transport { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
   .primary { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -269,6 +327,12 @@
   .secondary[hidden] { display: none; }
   .tgroup { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .tlabel { font-size: var(--tt-fs-xs); color: var(--tt-ink-3); }
+  @media (min-width: 1180px) and (max-width: 1500px) {
+    .tlabel { display: none; } .volslider { width: 72px; }
+    .transport { gap: 6px 12px; } .secondary { gap: 6px 10px; } .primary { gap: 6px; }
+    .transport :global(.tt-seg .tt-seg-item) { height: 32px; min-width: 38px; padding: 0 8px; font-size: .78rem; }
+    .transport :global(.tt-toggle) { height: 34px; padding: 0 10px; font-size: .8rem; }
+  }
   .play {
     width: 44px; height: 44px; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer; flex: none;
     background: var(--tt-accent); color: var(--tt-accent-ink); transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1), filter var(--tt-ease);
@@ -310,12 +374,15 @@
     :global(.explorer .bands .seg .seglabel) { top: 6px; font-size: 0.74rem; }
     .key { gap: 4px 12px; font-size: .7rem; }
   }
+  @media (max-width: 480px) {
+    .clock .total, .posn .plabel { display: none; }
+    .posn b::before { content: "♩ "; color: var(--tt-ink-3); font-weight: 500; }
+  }
   @media (min-width: 1180px) and (max-height: 820px) {
     .top { gap: 6px; }
     .timeline { height: 84px; } .quiet .timeline { height: 56px; }
     .loud { inset: 22px 0 0 0; height: calc(100% - 22px); }
     :global(.explorer .bands .seg .seglabel) { top: 5px; }
-    :global(.explorer .scrub .tt-slider-control) { height: 22px; }
   }
   @media (prefers-reduced-motion: reduce) { .play { transition: none; } }
 </style>

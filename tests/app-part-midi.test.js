@@ -26,6 +26,8 @@ fs.mkdirSync(OUT, { recursive: true });
     const si = td.sections.findIndex(s => td.hook.bar === s.startBar + 1); check(si >= 0, `${f}: the section the notes come from is #${si}`);
     await p.locator("#explorer .seg").nth(si).click(); await p.waitForTimeout(200);
     await tabBtn(p, "Notes").click(); await p.waitForSelector('#explorer .detail [data-part="notes"]'); await p.waitForTimeout(150);
+    // whole-track notes are the default view now: the 4-bar phrase checks below are about the representative pattern, one toggle away
+    if (await p.locator('.notesed [role="radio"]:has-text("Representative pattern")').count()) { await p.click('.notesed [role="radio"]:has-text("Representative pattern")'); await p.waitForTimeout(150); }
     check(await midiBtns(p).count() === 2, `${f}: a MIDI button sits beside Top line and beside Bass (found ${JSON.stringify(await p.evaluate(() => [...document.querySelectorAll("#explorer .detail button")].map(x => x.textContent.trim())))})`);
     check(await midiBtns(p).first().isDisabled() && await midiBtns(p).nth(1).isDisabled() && /MIDI is locked/.test(await p.locator("#explorer .detail").innerText()), `${f}: both are locked, with the reason, until the bar lines are confirmed`);
     await p.locator('#exports input[type=checkbox]').nth(0).check(); await p.locator('#exports input[type=checkbox]').nth(1).check(); await p.locator('#exports button:has-text("Confirm and unlock")').click(); await p.waitForTimeout(200);
@@ -39,6 +41,16 @@ fs.mkdirSync(OUT, { recursive: true });
     };
     same(await grab(midiBtns(p).first(), /Top line \(rough, 4-bar phrase\)\.mid$/, "topline"), td.hook.notes, "Top line");
     same(await grab(midiBtns(p).nth(1), /(808|Bass) \(rough, 4-bar phrase\)\.mid$/, "bass"), td.bass.notes, "Bass");
+    // with whole-track notes, each roll's MIDI menu writes the transcribed notes of a range (here: the selected section)
+    if (await p.evaluate(() => !!window.__td.transcription)) {
+      await p.click('.notesed [role="radio"]:has-text("Full track")'); await p.waitForTimeout(200);
+      await p.locator('.notesed button:has-text("MIDI")').first().click(); await p.waitForTimeout(250);
+      const sec = td.sections[si], item = p.locator('.midi-pop button:has-text("Selected section")');
+      check(await item.count() === 1 && await p.locator('.midi-pop button:has-text("Visible range")').count() === 1 && await p.locator('.midi-pop button:has-text("Entire track")').count() === 1, `${f}: the Top line MIDI menu offers the selected section, the visible range and the entire track`);
+      const rd = await grab(item, /\.mid$/, "topline_section"), lenTicks = sec.bars * 16 * 24;
+      const want = await p.evaluate(([b0, b1]) => window.__td.transcription.lead.filter(n => n.bar >= b0 && n.bar < b1).length, [sec.startBar, sec.startBar + sec.bars]);
+      check(rd.notes.length > 0 && rd.notes.length <= want + 1 && rd.notes.every(x => x.onTick >= 0 && x.onTick < lenTicks + 24), `${f}: the section range holds the transcribed notes of bars ${sec.startBar + 1}-${sec.startBar + sec.bars} from its first bar (${rd.notes.length} notes, ${want} transcribed there)`);
+    }
     await tabBtn(p, "Harmony").click(); await p.waitForTimeout(150);
     const sec = td.sections[si], cbtn = p.locator('#explorer .detail button:has-text("Chords MIDI")');
     check(await cbtn.isEnabled(), `${f}: the chord button is unlocked by the same confirmation`);

@@ -62,7 +62,7 @@
 .tt-slider .tt-slider-thumb:has(:focus-visible) { outline: 2px solid var(--tt-focus); outline-offset: 2px; }
 
 .tt-seg { position: relative; display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--tt-inset); box-shadow: inset 0 0 0 1px #000; }
-.tt-seg .tt-seg-item { position: relative; z-index: 1; height: 36px; min-width: 44px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent; color: var(--tt-ink-2); font: 600 .82rem var(--tt-font-body); cursor: pointer; transition: color var(--tt-ease); }
+.tt-seg .tt-seg-item { flex: 0 0 auto; white-space: nowrap; position: relative; z-index: 1; height: 36px; min-width: 44px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent; color: var(--tt-ink-2); font: 600 .82rem var(--tt-font-body); cursor: pointer; transition: color var(--tt-ease); }
 .tt-seg .tt-seg-item:hover { color: var(--tt-ink); }
 .tt-seg .tt-seg-item[data-checked] { color: var(--tt-accent-ink); }
 .tt-seg .tt-seg-item:focus-visible { outline: 2px solid var(--tt-focus); outline-offset: 1px; }

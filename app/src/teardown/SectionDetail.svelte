@@ -10,7 +10,7 @@
   import Tabs from "../lib/ui/Tabs.svelte";
   import Basis from "../lib/ui/Basis.svelte";
   import Rack from "../lib/ui/music/Rack.svelte";
-  import PianoRoll from "../lib/ui/music/PianoRoll.svelte";
+  import NotesEditor from "./NotesEditor.svelte";
   import { exportState } from "../lib/state/exportState.svelte";
   import { drums } from "../lib/state/drums.svelte";
   import { sectionName } from "../lib/timeline/sections";
@@ -70,16 +70,8 @@
   function setChord(name: string, mark: string) { const b = cur; if (b == null) return; teardown.replace(x => { const y: any = x; recordCorrection(y, { type: "chord", bar: b, from: y.chords.bars[b], to: name }); y.chords.bars[b] = name; y.chordChecks = { ...(y.chordChecks || {}), [b]: mark }; recomputeLoop(y); }); player.overlayRestart?.(); }
   function sounds() { const b = cur; if (b == null) return; teardown.replace(x => { const y: any = x; y.chordChecks = { ...(y.chordChecks || {}), [b]: "ok" }; }); }
 
-  // ---- notes (transcribed from one section only)
-  const hook = $derived(a.hook && a.hook.notes && a.hook.notes.length >= 3 ? a.hook : null);
-  const bass = $derived(a.bassline && a.bassline.notes && a.bassline.notes.length >= 2 ? a.bassline : null);
-  const mine = (t: any) => t && t.bar === s.startBar + 1;
-  const sourceIdx = $derived(a.sections.findIndex((x: any) => (hook && hook.bar === x.startBar + 1) || (!hook && bass && bass.bar === x.startBar + 1)));
 </script>
 
-{#snippet midiBtn(part: "hook" | "bass")}
-  <button class="btn" type="button" disabled={!exportState.gate.canExport} title={exportState.lockedWhy || "Download this phrase as a .mid file"} onclick={() => downloadPart(part)}>⬇ MIDI</button>
-{/snippet}
 
 {#snippet bar()}
   {#if tools}{@render tools()}{/if}
@@ -145,20 +137,7 @@
           {/if}
         </div>
       {:else}
-        <div class="dpanel" data-part="notes">
-          <div class="row"><b>Notes</b><Basis kind="estimated" note="A rough transcription from the full mix, from one section only, folded into a 4-bar loop. Expect wrong and missing notes." /></div>
-          {#if !hook && !bass}
-            <p>No top line or bass notes could be read reliably. <Basis kind="unknown" /></p>
-          {:else if !mine(hook) && !(!hook && mine(bass))}
-            <p class="small">Notes are transcribed from one section only, to keep the guesswork small{sourceIdx >= 0 ? `: ${sectionName(a.sections[sourceIdx].label, a)}, bars ${a.sections[sourceIdx].startBar + 1}–${a.sections[sourceIdx].startBar + a.sections[sourceIdx].bars}` : ""}. {#if sourceIdx >= 0}<button class="btn" type="button" onclick={() => { teardown.selected = sourceIdx; }}>Go to that section</button>{/if}</p>
-          {:else}
-            <details class="more"><summary>About these notes</summary><p class="small">Read from this section and folded into a 4-bar loop. Rough: dense mixes make the top line and bass hard to hear, and this has not been checked against real recordings. Use "Check by ear" above to hear it over the song.</p></details>
-            {#if hook}<div class="layer"><div class="row lh"><h3>Top line</h3>{@render midiBtn("hook")}</div><PianoRoll notes={hook.notes} total={64} aria="Piano roll of the top line" /></div>{/if}
-            {#if bass}<div class="layer"><div class="row lh"><h3>Bass (one note per 8th)</h3>{@render midiBtn("bass")}</div><PianoRoll notes={bass.notes} total={64} aria="Piano roll of the bass" /></div>{/if}
-            {#if exportState.lockedWhy}<p class="small">MIDI is locked: {exportState.lockedWhy} <a href="#exports">Go to Export</a></p>{/if}
-            {#if midiNote}<p class="small" role="status">{midiNote}</p>{/if}
-          {/if}
-        </div>
+        <div class="dpanel" data-part="notes"><NotesEditor {index} /></div>
       {/if}
     {/snippet}
   </Tabs>
