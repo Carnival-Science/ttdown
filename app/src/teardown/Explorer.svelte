@@ -230,7 +230,7 @@
     {/if}
 
     {#if drums.hidden}
-      <p class="small notice info" role="status" data-drumless>No kick or snare was found in this track, so the drum tools are hidden. It may be drumless, or its drums may be too quiet or too washed out to detect. Tempo, beat clicks, the arrangement, chords and notes still apply. <button class="btn" type="button" onclick={() => drums.showAnyway()}>Show the drum tools anyway</button></p>
+      <p class="small notice info" role="status" data-drumless>No kick or snare was found in this track, so the drum tools are hidden. It may be drumless, or its drums may be too quiet or too washed out to detect. <button class="btn" type="button" onclick={() => drums.showAnyway()}>Show the drum tools anyway</button></p>
     {/if}
 
     {#if !playable}
@@ -285,7 +285,6 @@
       <div class="key">
         <span class="keyhead">Sections <Basis kind="estimated" note="Sections are guessed from changes in loudness and tone. Their names (Intro, Build, Drop…) are labels the analyzer gives by rule, not facts about the song." /></span>
         {#each labels as k (k)}<span><i style:background={sectionColor(k)}></i>{k === "Intro" && a.sections.some((s: any) => s.label === "Outro") ? "Intro / Outro" : sectionName(k, a)}</span>{/each}
-        {#if !playable}<span class="xnote">Saved teardowns don't keep the audio. Upload the track again to listen.</span>{/if}
         {#if loud}<span class="keyloud"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="1" y="6" width="2" height="5" /><rect x="5" y="3" width="2" height="8" /><rect x="9" y="1" width="2" height="10" /></svg>Loudness per bar <Basis kind="measured" note="RMS level of each bar, computed from the audio you uploaded." /></span>{/if}
       </div>
     </div>
@@ -299,7 +298,6 @@
   .top { display: grid; gap: 10px; min-width: 0; flex: none; }
   .editor { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
   .keyhead { display: inline-flex; align-items: center; gap: 8px; color: var(--tt-ink-3); }
-  .xnote { margin-left: auto; color: var(--tt-ink-3); }
 
   .songmap { display: grid; gap: 6px; min-width: 0; }
   .map { position: relative; touch-action: pan-y; }
@@ -420,7 +418,6 @@
   }
   @media (max-width: 480px) {
     .clock .total, .posn .plabel { display: none; }
-    .posn b::before { content: "♩ "; color: var(--tt-ink-3); font-weight: 500; }
   }
   @media (min-width: 1180px) and (max-height: 820px) {
     .top { gap: 6px; }

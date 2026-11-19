@@ -94,7 +94,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
     await q.click('.detail [role="tab"]:has-text("Rhythm")'); const rh = await q.locator('.detail [data-part="rhythm"]').innerText();
     check(/No melody, bass or chords could be read reliably/.test(nn) && await q.locator('.detail [data-part="roll"] .basis-unknown').count() === 1 && await q.locator('.detail [data-part="roll"] .mroll').count() === 0, "no chords, melody or bass found: the Piano roll says unknown instead of inventing some");
     check(/Swing: unknown/.test(rh), "swing that could not be measured is reported as unknown");
-    check(/Saved teardowns don't keep the audio/.test(await q.locator("#explorer").innerText()), "a saved teardown says it has no audio to play");
+    check(/a saved teardown doesn't keep the audio/.test(await q.locator("#explorer").innerText()), "a saved teardown says it has no audio to play");
     check(await q.locator("#explorer svg.loud").count() === 0 && await q.locator("#explorer .transport").count() === 0 && await q.locator("#explorer .timeline .seg").count() >= 1, "and shows its sections without a loudness shape or a player (nothing measured is invented)");
     await q.close(); }
 

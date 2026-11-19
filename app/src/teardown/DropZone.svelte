@@ -11,7 +11,7 @@
     <h2 id="drop-h">Drop a track here</h2>
     <p class="lede">or <button type="button" class="btn primary" onclick={open}>Open track</button></p>
     <p class="small">MP3, WAV, M4A or FLAC, up to 8 minutes. It is analysed in this browser and never uploaded.</p>
-    <p class="small gets">You'll get: tempo and whether it is steady · key · the arrangement on a bar-numbered timeline · drums, chords and rough notes for each section · what can be measured in the sound. Each says how it is known.</p>
+    <p class="small gets">You'll get the tempo, the key, the arrangement on a bar-numbered timeline, and drums, chords and rough notes for each section, and what can be measured in the sound, each marked by how it is known.</p>
     {#if teardown.history.length}
       <div class="recents">
         <p class="small">Recent</p>

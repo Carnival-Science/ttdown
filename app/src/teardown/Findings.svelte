@@ -116,7 +116,6 @@
           <div class="bar"><span>{BANDS[i]}</span><div class="track"><div class="fill" style:width={Math.min(100, v * 2.2) + "%"}></div></div><span class="num">{v + "%"}</span></div>
         {/each}
       </div>
-      <p class="small">Share of the loudest parts' energy in each band.</p>
     </div>
   </details>
 </div>

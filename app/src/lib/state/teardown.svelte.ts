@@ -25,7 +25,7 @@ class Teardown {
   audioURL = $state<string | null>(null);
   /** The decoded audio of the teardown on screen (a reference, never copied or persisted, never a production global). Reactive, so what is drawn from it appears when audio is attached. */
   buffer = $state.raw<AudioBuffer | null>(null);
-  status = $state({ text: "Choose an audio file to take apart. It is analysed in this browser and never uploaded.", err: false });
+  status = $state({ text: "Choose an audio file to take apart.", err: false });
   progress = $state(0);
   running = $state(false);
   history = $state.raw<AnalysisResult[]>([]);
