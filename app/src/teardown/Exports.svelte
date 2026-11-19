@@ -79,11 +79,11 @@
   :global(.inspector-body.sheet) .dock h2 { display: none; } /* the sheet's own title says it */
   .dock :global(.btn) { width: 100%; justify-content: center; text-align: center; }
   .dockhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .dock .dockhead :global(.btn) { width: auto; min-height: 30px; padding: 0 10px; font-size: .76rem; }
+  .dock .dockhead :global(.btn) { width: auto; min-height: 30px; padding: 0 8px; font-size: .76rem; }
   .downloads { display: grid; gap: 6px; }
   .dock p { margin: 0; }
   .ok { color: var(--tt-good); }
-  .dock :global(.notice) { padding: 8px 10px; font-size: var(--tt-fs-sm); gap: 6px; }
+  .dock :global(.notice) { padding: 8px 8px; font-size: var(--tt-fs-sm); gap: 6px; }
   .confirm { gap: 6px; font-size: var(--tt-fs-sm); }
   .confirm p { font-size: var(--tt-fs-sm); }
   @media (min-width: 1180px) and (max-height: 820px) {

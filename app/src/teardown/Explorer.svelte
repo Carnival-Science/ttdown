@@ -295,7 +295,7 @@
 
 <style>
   .explorer { display: flex; flex-direction: column; min-height: 0; min-width: 0; flex: 1; gap: 12px; }
-  .top { display: grid; gap: 10px; min-width: 0; flex: none; }
+  .top { display: grid; gap: 8px; min-width: 0; flex: none; }
   .editor { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
   .keyhead { display: inline-flex; align-items: center; gap: 8px; color: var(--tt-ink-3); }
 
@@ -364,16 +364,16 @@
 
 
   .transport { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
-  .primary { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .primary { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .secondary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
   .secondary[hidden] { display: none; }
   .tgroup { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .tlabel { font-size: var(--tt-fs-xs); color: var(--tt-ink-3); }
   @media (min-width: 1180px) and (max-width: 1500px) {
     .tlabel { display: none; } .volslider { width: 72px; }
-    .transport { gap: 6px 12px; } .secondary { gap: 6px 10px; } .primary { gap: 6px; }
+    .transport { gap: 6px 12px; } .secondary { gap: 6px 8px; } .primary { gap: 6px; }
     .transport :global(.tt-seg .tt-seg-item) { height: 32px; min-width: 38px; padding: 0 8px; font-size: .78rem; }
-    .transport :global(.tt-toggle) { height: 34px; padding: 0 10px; font-size: .8rem; }
+    .transport :global(.tt-toggle) { height: 34px; padding: 0 8px; font-size: .8rem; }
   }
   .play {
     width: 44px; height: 44px; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer; flex: none;
@@ -392,7 +392,7 @@
   .iconbtn[aria-pressed="true"] { color: var(--tt-warn); }
   .iconbtn svg { width: 22px; height: 22px; fill: currentColor; }
   .iconbtn svg :global(.stroke) { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
-  .morebtn { margin-left: auto; height: var(--tt-tap); padding: 0 14px; border-radius: 10px; border: 1px solid var(--tt-line); background: var(--tt-chassis); color: var(--tt-ink-2); font: 600 .84rem var(--tt-font-body); cursor: pointer; }
+  .morebtn { margin-left: auto; height: var(--tt-tap); padding: 0 12px; border-radius: 10px; border: 1px solid var(--tt-line); background: var(--tt-chassis); color: var(--tt-ink-2); font: 600 .84rem var(--tt-font-body); cursor: pointer; }
   .morebtn[aria-expanded="true"] { color: var(--tt-ink); border-color: #3a3d46; }
 
   .byear { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

@@ -56,11 +56,11 @@
       </dl>
     </details>
   </Popover>
-  {#if teardown.running}<div class="progress" aria-hidden="true"><div id="prog" style:width={teardown.progress + "%"}></div></div>{:else}<div class="progress" aria-hidden="true"><div id="prog" style:width="0%"></div></div>{/if}
+  {#if teardown.running}<div class="progress" aria-hidden="true"><div id="prog" style:transform={`scaleX(${teardown.progress / 100})`}></div></div>{:else}<div class="progress" aria-hidden="true"><div id="prog" style:transform="scaleX(0)"></div></div>{/if}
 </header>
 
 <style>
-  .toolbar { position: relative; display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: var(--tt-chassis); border-bottom: 1px solid var(--tt-line); min-width: 0; }
+  .toolbar { position: relative; display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--tt-chassis); border-bottom: 1px solid var(--tt-line); min-width: 0; }
   .brand { font: 800 1.15rem var(--tt-font-display); letter-spacing: .02em; margin: 0 6px 0 0; }
   .toolbar :global(.btn) { min-height: 38px; }
   .name { width: 220px; flex: none; min-height: 38px; }
@@ -70,8 +70,8 @@
   .status.err { color: #ff8f7a; }
   .toolbar :global(.help) { width: 38px; padding: 0; font-weight: 700; flex: none; }
   .toolbar .progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; background: transparent; border: 0; border-radius: 0; margin: 0; }
-  .toolbar .progress :global(#prog) { height: 100%; background: var(--tt-accent); transition: width 160ms linear; }
-  :global(.help-pop) { width: min(380px, calc(100vw - 24px)); padding: 14px 16px; font-size: var(--tt-fs-sm); }
+  .toolbar .progress :global(#prog) { width: 100%; height: 100%; background: var(--tt-accent); transform-origin: left center; transition: transform 160ms linear; }
+  :global(.help-pop) { width: min(380px, calc(100vw - 24px)); padding: 12px 16px; font-size: var(--tt-fs-sm); }
   :global(.help-pop p) { margin: 0 0 8px; }
   :global(.help-pop .help-title) { font-size: 1rem; margin: 0 0 8px; }
   :global(.recent-pop) { width: min(420px, calc(100vw - 24px)); padding: 12px; }
@@ -90,6 +90,6 @@
   }
   @media (max-width: 480px) {
     .brand { font-size: .95rem; margin: 0; }
-    .toolbar :global(.btn) { padding: 0 10px; }
+    .toolbar :global(.btn) { padding: 0 8px; }
   }
 </style>

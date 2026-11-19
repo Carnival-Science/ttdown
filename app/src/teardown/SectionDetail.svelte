@@ -80,7 +80,7 @@
 </div>
 
 <style>
-  .detail { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--tt-line); padding-top: 10px; min-width: 0; }
+  .detail { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--tt-line); padding-top: 8px; min-width: 0; }
   .dsec { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-left: auto; }
   .dtitle { font-size: 1rem; }
   .more { font-size: var(--tt-fs-sm); }

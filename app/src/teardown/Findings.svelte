@@ -122,9 +122,9 @@
 
 <style>
   .findings { display: grid; gap: 0; min-width: 0; }
-  .finding { padding: 10px 0; gap: 6px; }
+  .finding { padding: 8px 0; gap: 6px; }
   .finding:first-child { padding-top: 0; }
-  .bigline { margin: 0; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .bigline { margin: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
   .big { font-size: 1.45rem; }
   .findings :global(.btn) { min-height: 36px; padding: 0 12px; font-size: .84rem; }
   .findings :global(.isel) { min-height: 36px; }

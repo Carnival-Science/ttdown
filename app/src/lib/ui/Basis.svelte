@@ -36,7 +36,7 @@
   :global(.basis-corrected) { color: var(--tt-accent); border-color: color-mix(in srgb, var(--tt-accent) 60%, transparent); }
   :global(.basis-stale) { color: var(--tt-warn); border-color: color-mix(in srgb, var(--tt-warn) 60%, transparent); border-style: dashed; }
   :global(.basis:focus-visible) { outline: 2px solid var(--tt-focus); outline-offset: 2px; }
-  :global(.basis-pop) { max-width: 260px; padding: 10px 12px; font-size: var(--tt-fs-sm); }
+  :global(.basis-pop) { max-width: 260px; padding: 8px 12px; font-size: var(--tt-fs-sm); }
   :global(.basis-pop p) { margin: 0 0 4px; }
   :global(.basis-pop .basis-pop-sub) { color: var(--tt-ink-3); }
 </style>

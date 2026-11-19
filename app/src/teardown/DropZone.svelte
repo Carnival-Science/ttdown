@@ -26,7 +26,7 @@
   :global(.app.dragging) .dropzone { border-color: var(--tt-accent); background: color-mix(in srgb, var(--tt-accent) 8%, var(--tt-panel)); }
   .inner { display: grid; gap: 12px; justify-items: center; text-align: center; max-width: 60ch; }
   h2 { font-size: clamp(1.4rem, 3vw, 2rem); }
-  .lede { margin: 0; display: flex; align-items: center; gap: 10px; color: var(--tt-ink-2); }
+  .lede { margin: 0; display: flex; align-items: center; gap: 8px; color: var(--tt-ink-2); }
   .small { margin: 0; }
   .gets { color: var(--tt-ink-3); }
   .recents { display: grid; gap: 8px; justify-items: center; margin-top: 8px; width: 100%; }
