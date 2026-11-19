@@ -50,11 +50,15 @@ Accuracy first, explainability second, workflow third, UI polish last. An unmeas
 ## Commands (mirror `.github/workflows/ci.yml`)
 ```
 npm ci && npm --prefix app ci
+npm run ci:local              # the whole pipeline below, in CI's order (-- --fast: stage 1 only)
+npm run app:check && npm run app:unit && npm run test:unit && npm --prefix app run build && npm run smoke:fast   # stage 1
 npm run songs && npm run songs:time && npm run songs:melody   # generated test audio, not committed
 npm test                      # feature and unit tests
 npm run benchmark             # G0 gates
 npm run bench:synthetic && npm run bench:parity && npm run bench:crosscheck && npm run bench:integrity
 npm run app:check && npm run app:build && npm run app:smoke && npm run app:parity && npm run app:product-tests
+npm run e2e:journey           # TT_BROWSER=firefox|webkit for the other engines
+npm run smoke:live            # read-only check of the deployed site; run by hand only
 ```
 On Windows, check out with LF line endings (`git config core.autocrlf false`, `git config core.eol lf`) until PR #38 is merged.
 
