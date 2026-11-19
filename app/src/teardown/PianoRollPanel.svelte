@@ -1,4 +1,4 @@
-<!-- The piano roll: the transcribed melody (orange), the transcribed bass (blue) and SUGGESTED chord voicings (purple, outlined and dashed,
+<!-- The piano roll: the transcribed melody (orange), the transcribed bass (blue) and SUGGESTED chord voicings (purple, hollow outlines,
      because they are built from the detected chord names, not heard in the audio) on ONE keyboard, pitch axis and time axis, sharing the
      arrangement's viewport and its one playhead. A chord strip above the notes names each bar's chord, marks the one under the playhead
      and opens the chord correction when clicked. Parts can be shown, hidden or soloed (Alt/Option-click). "↓ MIDI ▾" writes a part, or all
@@ -69,7 +69,7 @@
     show = solo ? { hook: true, bass: true, chords: true } : { hook: p === "hook", bass: p === "bass", chords: p === "chords" };
   }
   const layers = $derived<RollLayer[]>([
-    { id: "chords", label: "Suggested chord voicings", notes: chordNotesAll, hidden: !show.chords, fill: "#a78bfa", fillOpacity: 0.14, stroke: "#b9a2ff", strokeWidth: 1.2, dash: "3 2" },
+    { id: "chords", label: "Suggested chord voicings", notes: chordNotesAll, hidden: !show.chords, fill: "#a78bfa", fillOpacity: 0, stroke: "#b9a2ff", strokeWidth: 1.2 },
     { id: "bass", label: "Bass", notes: bassNotes, hidden: !show.bass, fill: "#5b9dff" },
     { id: "hook", label: "Melody", notes: leadNotes, hidden: !show.hook, fill: "#ff7a1a" },
   ]);
@@ -273,7 +273,7 @@
   .zoom { display: inline-flex; gap: 4px; }
   .sw { display: inline-block; width: 12px; height: 8px; border-radius: 2px; vertical-align: 0; }
   .sw-mel { background: #ff7a1a; } .sw-bass { background: #5b9dff; }
-  .sw-ch { background: rgb(167 139 250 / .14); border: 1.2px dashed #b9a2ff; box-sizing: border-box; }
+  .sw-ch { background: transparent; border: 1.2px solid #b9a2ff; box-sizing: border-box; }
   .sw-pat { background: repeating-linear-gradient(45deg, #ff7a1a 0 2px, transparent 2px 4px); }
   .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; color: var(--tt-ink-3); }
   .legend :global(.srcseg) { margin-left: auto; }
