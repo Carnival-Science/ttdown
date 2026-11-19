@@ -81,13 +81,16 @@
   <button class="btn" type="button" disabled={!exportState.gate.canExport} title={exportState.lockedWhy || "Download this phrase as a .mid file"} onclick={() => downloadPart(part)}>⬇ MIDI</button>
 {/snippet}
 
-<div class="detail" data-section={index}>
-  <div class="dhead">
-    <h3>{sectionName(s.label, a)} <span class="small mono">bars {s.startBar + 1}–{s.startBar + s.bars} · {fmtT(s.start)}–{fmtT(s.end)}</span></h3>
-    {#if playable}<div class="row" style="gap:6px"><button class="btn cool" type="button" onclick={() => player.seek(s.start)}>▶ Play from here</button><button class="btn" type="button" onclick={() => player.loopSection?.(index, 1)}>Loop this section</button></div>{/if}
+{#snippet bar()}
+  {#if tools}{@render tools()}{/if}
+  <div class="dsec">
+    <h3 class="dtitle" title={`${fmtT(s.start)}–${fmtT(s.end)}`}>{sectionName(s.label, a)} <span class="small mono">bars {s.startBar + 1}–{s.startBar + s.bars}</span></h3>
+    {#if playable}<div class="row" style="gap:6px"><button class="btn cool" type="button" onclick={() => player.seek(s.start)}>▶ Play from here</button><button class="btn" type="button" onclick={() => player.loopSection?.(index, 1)}>Loop section</button></div>{/if}
   </div>
+{/snippet}
 
-  <Tabs items={TABS} label="Parts of this section" listClass="dtabs" bind:value={tab} trailing={tools}>
+<div class="detail" data-section={index}>
+  <Tabs items={TABS} label="Parts of this section" listClass="dtabs" bind:value={tab} trailing={bar}>
     {#snippet panel(item)}
       {#if stale.length}
         <div class="dpanel" data-part={item.value} data-stale="1">
@@ -105,7 +108,7 @@
             <p class="small">This section's drums differ from the main groove:</p>
             <Rack rows={[{ name: "Kick", steps: part.kick }, { name: "Snare / clap", steps: part.snare }, { name: "Hi-hats", steps: part.hats }]} />
           {/if}
-          <p class="small">Main groove: one bar, four squares per beat. Orange hits appear in most bars; dim ones are ghost notes. {a.pattern.tracked ? `Found by following the beat through ${a.pattern.bars} bars. ` : ""}Click a square to correct it; the change applies to the whole track.</p>
+          <details class="more"><summary>About this pattern</summary><p class="small">Main groove: one bar, four squares per beat. Orange hits appear in most bars; dim ones are ghost notes. {a.pattern.tracked ? `Found by following the beat through ${a.pattern.bars} bars. ` : ""}Click a square to correct it; the change applies to the whole track.</p></details>
           <Rack rows={[{ name: "Kick", steps: a.pattern.kick, onEdit: edited("kick") }, { name: "Snare / clap", steps: a.pattern.snare, ghost: gh.snare, onEdit: edited("snare") }, { name: "Hi-hats", steps: a.pattern.hats, ghost: gh.hats, onEdit: edited("hats") }]} />
           <div class="row"><button class="btn cool" onclick={() => patternPlayer.toggle(a)}>{patternPlayer.on ? "■ Stop" : "▶ Hear this pattern at " + a.bpm + " BPM"}</button></div>
           <p class="small">{#if a.swing}Swing: the in-between 16th notes land about {Math.round(a.swing.late * 100)}% of a step late (0% is straight).{:else}Swing: unknown, there were not enough in-between notes to measure it.{/if}</p>
@@ -123,7 +126,7 @@
             </div>
             {#if exportState.lockedWhy}<p class="small">MIDI is locked: {exportState.lockedWhy} <a href="#exports">Go to Export</a></p>{/if}
             {#if midiNote}<p class="small" role="status">{midiNote}</p>{/if}
-            <p class="small">One square per bar. Click a bar to hear it with the detected chord played over the song. <span class="sw shaky"></span>? marks a shaky guess (rare, or outside {a.key}); <span class="sw none"></span>· means no clear chord (unknown).</p>
+            <details class="more"><summary>How to read the squares</summary><p class="small">One square per bar. Click a bar to hear it with the detected chord played over the song. <span class="sw shaky"></span>? marks a shaky guess (rare, or outside {a.key}); <span class="sw none"></span>· means no clear chord (unknown).</p></details>
             <div class="chrow wide">
               {#each barList as b (b)}
                 {@const c = bars[b]!}{@const nochord = !c || c === "–"}{@const sh = shaky(c)}
@@ -149,7 +152,7 @@
           {:else if !mine(hook) && !(!hook && mine(bass))}
             <p class="small">Notes are transcribed from one section only, to keep the guesswork small{sourceIdx >= 0 ? `: ${sectionName(a.sections[sourceIdx].label, a)}, bars ${a.sections[sourceIdx].startBar + 1}–${a.sections[sourceIdx].startBar + a.sections[sourceIdx].bars}` : ""}. {#if sourceIdx >= 0}<button class="btn" type="button" onclick={() => { teardown.selected = sourceIdx; }}>Go to that section</button>{/if}</p>
           {:else}
-            <p class="small">Read from this section and folded into a 4-bar loop. Rough: dense mixes make the top line and bass hard to hear, and this has not been checked against real recordings. Use "Check by ear" above to hear it over the song.</p>
+            <details class="more"><summary>About these notes</summary><p class="small">Read from this section and folded into a 4-bar loop. Rough: dense mixes make the top line and bass hard to hear, and this has not been checked against real recordings. Use "Check by ear" above to hear it over the song.</p></details>
             {#if hook}<div class="layer"><div class="row lh"><h3>Top line</h3>{@render midiBtn("hook")}</div><PianoRoll notes={hook.notes} total={64} aria="Piano roll of the top line" /></div>{/if}
             {#if bass}<div class="layer"><div class="row lh"><h3>Bass (one note per 8th)</h3>{@render midiBtn("bass")}</div><PianoRoll notes={bass.notes} total={64} aria="Piano roll of the bass" /></div>{/if}
             {#if exportState.lockedWhy}<p class="small">MIDI is locked: {exportState.lockedWhy} <a href="#exports">Go to Export</a></p>{/if}
@@ -162,8 +165,13 @@
 </div>
 
 <style>
-  .detail { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--tt-line); padding-top: 12px; min-width: 0; }
-  .dhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; flex: none; }
-  .dhead h3 { font-size: 1.05rem; }
-  @media (max-width: 1179px) { .detail { display: block; } .detail :global(.tt-tabs) { margin-top: 10px; } .dhead :global(.btn) { min-height: 40px; padding: 0 12px; } }
+  .detail { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--tt-line); padding-top: 10px; min-width: 0; }
+  .dsec { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-left: auto; }
+  .dtitle { font-size: 1rem; }
+  .more { font-size: var(--tt-fs-sm); }
+  .more > summary { cursor: pointer; color: var(--tt-ink-3); min-height: 24px; }
+  .more > summary:hover { color: var(--tt-ink); }
+  .more[open] > summary { margin-bottom: 4px; }
+  .dsec :global(.btn) { min-height: 36px; padding: 0 12px; }
+  @media (max-width: 1179px) { .detail { display: block; } .detail :global(.tt-tabs) { margin-top: 4px; } .dsec { margin-left: 0; width: 100%; } .dsec :global(.btn) { min-height: 40px; } }
 </style>

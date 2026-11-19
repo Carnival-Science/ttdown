@@ -142,4 +142,11 @@
   .more p { margin: 6px 0 0; }
   .more.sound { border-top: 1px solid var(--tt-line); padding-top: 8px; }
   .more.sound .finding { padding: 8px 0 4px; border-top: 0; }
+  @media (min-width: 1180px) and (max-height: 820px) {
+    .finding { padding: 6px 0; gap: 4px; }
+    .big { font-size: 1.2rem; }
+    .fhead h3 { font-size: .92rem; }
+    .findings :global(.btn), .findings :global(.isel) { min-height: 32px; }
+    .more > summary { min-height: 22px; }
+  }
 </style>

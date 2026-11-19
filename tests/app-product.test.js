@@ -22,13 +22,14 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   // empty state
   let p = await open();
   check(await p.locator("#out .stat, #out .basis, #out [data-finding]").count() === 0 && await p.evaluate(() => window.__td === undefined), "before a track is analysed no numbers are shown (no example teardown)");
-  check(/what you'll get/i.test(await p.locator("#empty").innerText()) && /never uploaded/.test(await p.locator("#drop").innerText()), "the empty state says what to expect and that audio stays in the browser");
+  check(/you'll get/i.test(await p.locator("#empty").innerText()) && /never uploaded/.test(await p.locator("#empty").innerText()) && /drop a track here/i.test(await p.locator("#empty").innerText()), "the empty state is a drop zone that says what to expect and that audio stays in the browser");
 
   // a real analysis
   await analyse(p, path.join(SONGS, "sections120.mp3"));
   const kinds = await p.evaluate(() => Object.fromEntries([...document.querySelectorAll("[data-finding]")].map(f => [f.dataset.finding, [...f.querySelectorAll(".basis")].map(x => (x.className.match(/basis-(\w+)/) || [])[1])])));
   check(JSON.stringify(kinds.tempo) === '["estimated"]' && JSON.stringify(kinds.key) === '["estimated"]' && kinds.meter[0] === "assumed" && JSON.stringify(kinds.level) === '["measured"]' && JSON.stringify(kinds.bands) === '["measured"]', `every finding carries how it is known: ${JSON.stringify(kinds)}`);
-  const legend = await p.locator("#howto").innerText();
+  await p.click('button[aria-label^="Help"]'); await p.waitForTimeout(250);
+  const legend = await p.locator("#howto").innerText(); await p.keyboard.press("Escape"); await p.waitForTimeout(150);
   check(/Measured/i.test(legend) && /Estimated/i.test(legend) && /Assumed/i.test(legend) && /Unknown/i.test(legend) && /not been measured on real recordings/.test(legend), "the page explains the labels and says accuracy on real recordings has not been measured");
   await p.click('[data-finding="meter"] summary'); await p.waitForTimeout(100);
   const meter = await p.locator('[data-finding="meter"]').innerText();
@@ -86,7 +87,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   // unknown is shown as unknown
   const seed = await (async () => { const q = await open(); await analyse(q, path.join(SONGS, "pop127_Amaj.wav")); const r = await q.evaluate(() => JSON.parse(localStorage.getItem("teardown_history_v1"))[0]); await q.close(); return r; })();
   { const q = await open(); const rec = JSON.parse(JSON.stringify(seed)); delete rec.chords; rec.hook = null; rec.bassline = null; rec.swing = null;
-    await q.evaluate(r => localStorage.setItem("teardown_history_v1", JSON.stringify([r])), rec); await q.reload(); await q.waitForTimeout(400); await q.click("#hist button"); await q.waitForTimeout(400);
+    await q.evaluate(r => localStorage.setItem("teardown_history_v1", JSON.stringify([r])), rec); await q.reload(); await q.waitForTimeout(400); await q.click("#recent-btn"); await q.click("#hist button"); await q.waitForTimeout(400);
     await q.click('.detail [role="tab"]:has-text("Harmony")'); const h = await q.locator('.detail [data-part="harmony"]').innerText();
     await q.click('.detail [role="tab"]:has-text("Notes")'); const nn = await q.locator('.detail [data-part="notes"]').innerText();
     await q.click('.detail [role="tab"]:has-text("Rhythm")'); const rh = await q.locator('.detail [data-part="rhythm"]').innerText();

@@ -56,11 +56,11 @@ const ROOT = path.resolve(__dirname, '..'), SONGS = path.join(ROOT, 'test-songs'
 
     // 4. opening the saved teardown: its tracked beats were saved with it, so the ruler is tracked and identical; an OLDER save (no timing) is the labelled fallback
     await load(p, path.join(SONGS, 'pop127_Amaj.wav'), 'pop127_Amaj');
-    await p.locator('#hist button').nth(1).click(); await p.waitForTimeout(400);
+    await p.click("#recent-btn"); await p.locator('#hist button').nth(1).click(); await p.waitForTimeout(400);
     const s = await analysis(p), sm = await rulerMeta(p), st = await ticks(p);
     check(s.grid !== null && sm.grid === 'tracked' && sameTicks(st, got), `4: a saved teardown keeps its tracked beats, so reopened it has the same tracked ruler (${sm.grid}, ${st.length} ticks)`);
     await p.evaluate(() => { const k = 'teardown_history_v1', h = JSON.parse(localStorage.getItem(k)); h.forEach(x => delete x.timing); localStorage.setItem(k, JSON.stringify(h)); });
-    await p.reload(); await p.waitForTimeout(400); await p.locator('#hist button').nth(1).click(); await p.waitForTimeout(400);
+    await p.reload(); await p.waitForTimeout(400); await p.click("#recent-btn"); await p.locator('#hist button').nth(1).click(); await p.waitForTimeout(400);
     const s0 = await analysis(p), sm0 = await rulerMeta(p), st0 = await ticks(p);
     check(s0.grid === null && sm0.grid === 'fallback-grid' && /constant tempo/.test(sm0.title), `4: an older save without timing gets the labelled fallback (${sm0.grid}; "${sm0.title}")`);
     const legacyTicks = []; { const every = s0.nBars > 96 ? 16 : s0.nBars > 40 ? 8 : 4; for (let bb = 0; bb <= s0.nBars; bb += every) { const t = s0.firstDown + bb * s0.barSec; if (t < -0.05 || t > s0.duration) continue; legacyTicks.push({ bar: bb, left: +(100 * Math.max(0, t) / s0.duration).toFixed(3) }); } }
@@ -74,7 +74,7 @@ const ROOT = path.resolve(__dirname, '..'), SONGS = path.join(ROOT, 'test-songs'
     await p.locator('input[aria-label="Type the BPM"]').fill('63.5'); await p.locator('button:has-text("Set BPM")').click(); await p.waitForFunction(() => /Analysed again/.test(document.querySelector('#status').textContent), null, { timeout: 120000 }); await p.waitForTimeout(300);
     { const a = await analysis(p), meta = await rulerMeta(p), G = TM.forAnalysis(a), got = await ticks(p);
       check(meta.grid === 'tracked' && G.kind === 'tracked' && Math.abs(a.bpm - 63.5) <= 3 && sameTicks(got, expectTicks(a, G)), `5: with the audio, "Set BPM 63.5" analyses again at it: a fresh tracked grid (${meta.grid}, ${a.bpm} BPM, ${got.length} ticks on the new bars)`); }
-    await p.reload(); await p.waitForTimeout(400); await p.locator('#hist button').first().click(); await p.waitForTimeout(400);
+    await p.reload(); await p.waitForTimeout(400); await p.click("#recent-btn"); await p.locator('#hist button').first().click(); await p.waitForTimeout(400);
     await p.locator('input[aria-label="Type the BPM"]').fill('100'); await p.locator('button:has-text("Set BPM")').click(); await p.waitForTimeout(500);
     { const a = await analysis(p), meta = await rulerMeta(p), G = TM.forAnalysis(a), got = await ticks(p);
       check(meta.grid === 'fallback-grid' && G.reason === 'bpm-corrected-by-user' && sameTicks(got, expectTicks(a, G)), `5: without the audio, "Set BPM 100" uses the corrected tempo as a labelled fallback (${meta.grid}, ${got.length} ticks at the new bar length ${a.barSec}s)`); }

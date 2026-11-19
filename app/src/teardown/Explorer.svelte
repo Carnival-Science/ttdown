@@ -117,11 +117,7 @@
 
 <div class="explorer" id="explorer">
   <div class="top">
-    <header class="xhead">
-      <h2 id="explore-h">Arrangement</h2>
-      <Basis kind="estimated" note="Sections are guessed from changes in loudness and tone. Their names (Intro, Build, Drop…) are labels the analyzer gives by rule, not facts about the song." />
-      {#if !playable}<span class="small xnote">Saved teardowns don't keep the audio. Upload the track again to listen.</span>{/if}
-    </header>
+    <h2 id="explore-h" class="sr-only">Arrangement</h2>
 
     {#if playable}
       <audio src={teardown.audioURL} bind:this={audioEl} preload="auto"></audio>
@@ -197,7 +193,9 @@
           valueText={v => `${fmtT(v)} of ${fmtT(dur)}`} onchange={scrub} oncommit={() => (scrubbing = false)} />
       {/if}
       <div class="key">
+        <span class="keyhead">Sections <Basis kind="estimated" note="Sections are guessed from changes in loudness and tone. Their names (Intro, Build, Drop…) are labels the analyzer gives by rule, not facts about the song." /></span>
         {#each labels as k (k)}<span><i style:background={sectionColor(k)}></i>{k === "Intro" && a.sections.some((s: any) => s.label === "Outro") ? "Intro / Outro" : sectionName(k, a)}</span>{/each}
+        {#if !playable}<span class="xnote">Saved teardowns don't keep the audio. Upload the track again to listen.</span>{/if}
         {#if loud}<span class="keyloud"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="1" y="6" width="2" height="5" /><rect x="5" y="3" width="2" height="8" /><rect x="9" y="1" width="2" height="10" /></svg>Loudness per bar <Basis kind="measured" note="RMS level of each bar, computed from the audio you uploaded." /></span>{/if}
       </div>
     </div>
@@ -210,9 +208,8 @@
   .explorer { display: flex; flex-direction: column; min-height: 0; min-width: 0; flex: 1; gap: 12px; }
   .top { display: grid; gap: 10px; min-width: 0; flex: none; }
   .editor { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
-  .xhead { display: flex; align-items: center; gap: 10px; }
-  .xhead h2 { font-size: 1rem; }
-  .xnote { margin-left: auto; }
+  .keyhead { display: inline-flex; align-items: center; gap: 8px; color: var(--tt-ink-3); }
+  .xnote { margin-left: auto; color: var(--tt-ink-3); }
 
   .songmap { display: grid; gap: 6px; min-width: 0; }
   .map { position: relative; touch-action: pan-y; }
@@ -301,7 +298,6 @@
       position: sticky; top: 0; z-index: 6; margin: -2px -2px 0; padding: 6px 2px 8px; background: var(--tt-panel);
       border-bottom: 1px solid var(--tt-line); gap: 6px;
     }
-    .xhead { display: none; }
     .transport { gap: 0; }
     .primary { width: 100%; gap: 6px; }
     .volslider { display: none; }
@@ -312,7 +308,14 @@
     .timeline { height: 84px; } .quiet .timeline { height: 56px; }
     .loud { inset: 24px 0 0 0; height: calc(100% - 24px); }
     :global(.explorer .bands .seg .seglabel) { top: 6px; font-size: 0.74rem; }
-    .key { flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+    .key { gap: 4px 12px; font-size: .7rem; }
+  }
+  @media (min-width: 1180px) and (max-height: 820px) {
+    .top { gap: 6px; }
+    .timeline { height: 84px; } .quiet .timeline { height: 56px; }
+    .loud { inset: 22px 0 0 0; height: calc(100% - 22px); }
+    :global(.explorer .bands .seg .seglabel) { top: 5px; }
+    :global(.explorer .scrub .tt-slider-control) { height: 22px; }
   }
   @media (prefers-reduced-motion: reduce) { .play { transition: none; } }
 </style>

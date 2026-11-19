@@ -16,7 +16,7 @@ const ROOT = path.resolve(__dirname, '..'), ARR = path.join(ROOT, 'test-songs', 
   const store = p => p.evaluate(k => JSON.parse(localStorage.getItem(k) || '[]'), HK);
   const view = p => p.evaluate(() => { const a = window.__td; return { title: a.title, bpm: a.bpm, barSec: a.barSec, firstDown: a.firstDown, bpmConf: a.bpmConf, duration: a.duration, hasGrid: !!a.grid, sections: a.sections.map(s => [s.label, s.startBar, s.bars, s.start, s.end]),
     ruler: document.querySelector('#out .barruler').dataset.grid, ticks: [...document.querySelectorAll('#out .barruler span')].map(s => [+s.dataset.bar, parseFloat(s.style.left)]), keys: Object.keys(a) }; });
-  const openHist = async (p, text) => { await p.locator('#hist button', { hasText: text }).first().click(); await p.waitForTimeout(400); };
+  const openHist = async (p, text) => { await p.click("#recent-btn"); await p.locator('#hist button', { hasText: text }).first().click(); await p.waitForTimeout(400); };
 
   // 1. save, reload the whole browser page, reopen: everything is consistent with the live analysis
   let live, p = await open();
@@ -33,7 +33,7 @@ const ROOT = path.resolve(__dirname, '..'), ARR = path.join(ROOT, 'test-songs', 
   const G = TM.forAnalysis(rec);
   check(G.kind === 'tracked' && re.sections.slice(1).every(s => Math.abs(s[3] - G.barStart(s[1])) < 0.006), '1: every section starts on the TimeMap bar line for its bar (page and TimeMap agree)');
   check(re.keys.includes('timing') && !re.keys.includes('grid'), '1: the grid is attached non-enumerably, the saved `timing` stays the persisted form');
-  const hist0 = await store(p); await p.locator('#hist button', { hasText: 'arrangement_drift' }).first().click(); const hist1 = await store(p);
+  const hist0 = await store(p); await p.click("#recent-btn"); await p.locator('#hist button', { hasText: 'arrangement_drift' }).first().click(); const hist1 = await store(p);
   check(JSON.stringify(hist0) === JSON.stringify(hist1), '1: opening a record does not rewrite storage');
 
   // 2. an older record (saved before timing existed) stays readable and uses the labelled fallback

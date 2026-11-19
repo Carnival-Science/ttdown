@@ -6,6 +6,7 @@
      corrected  you changed it; what depends on it was recomputed, or is marked out of date
      stale      worked out before a correction and not recomputed: hidden, never shown as valid -->
 <script lang="ts">
+  import Popover from "./Popover.svelte";
   type Kind = "measured" | "estimated" | "assumed" | "unknown" | "corrected" | "stale";
   const TEXT: Record<Kind, [string, string]> = {
     measured: ["Measured", "Computed directly from the audio."],
@@ -18,14 +19,24 @@
   let { kind, note = "" }: { kind: Kind; note?: string } = $props();
 </script>
 
-<span class={"basis basis-" + kind} title={note || TEXT[kind][1]}>{TEXT[kind][0]}</span>
+<!-- The badge is a button: pressing, focusing or hovering it says what the label means and why. -->
+<Popover openOnHover triggerClass={"basis basis-" + kind} side="bottom" align="start" class="basis-pop">
+  {#snippet trigger()}{TEXT[kind][0]}{/snippet}
+  <p class="basis-pop-head"><b>{TEXT[kind][0]}</b></p>
+  <p>{note || TEXT[kind][1]}</p>
+  {#if note && note !== TEXT[kind][1]}<p class="basis-pop-sub">{TEXT[kind][1]}</p>{/if}
+</Popover>
 
 <style>
-  .basis { display: inline-block; font: 600 0.68rem var(--tt-font-mono); letter-spacing: .04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; vertical-align: middle; }
-  .basis-measured { color: var(--tt-good); border-color: color-mix(in srgb, var(--tt-good) 55%, transparent); }
-  .basis-estimated { color: var(--tt-lcd); border-color: color-mix(in srgb, var(--tt-lcd) 55%, transparent); }
-  .basis-assumed { color: var(--tt-cool); border-color: color-mix(in srgb, var(--tt-cool) 55%, transparent); }
-  .basis-unknown { color: var(--tt-ink-3); border-color: var(--tt-line); border-style: dashed; }
-  .basis-corrected { color: var(--tt-accent); border-color: color-mix(in srgb, var(--tt-accent) 60%, transparent); }
-  .basis-stale { color: var(--tt-warn); border-color: color-mix(in srgb, var(--tt-warn) 60%, transparent); border-style: dashed; }
+  :global(.basis) { display: inline-block; cursor: help; background: transparent;  font: 600 0.68rem var(--tt-font-mono); letter-spacing: .04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; vertical-align: middle; }
+  :global(.basis-measured) { color: var(--tt-good); border-color: color-mix(in srgb, var(--tt-good) 55%, transparent); }
+  :global(.basis-estimated) { color: var(--tt-lcd); border-color: color-mix(in srgb, var(--tt-lcd) 55%, transparent); }
+  :global(.basis-assumed) { color: var(--tt-cool); border-color: color-mix(in srgb, var(--tt-cool) 55%, transparent); }
+  :global(.basis-unknown) { color: var(--tt-ink-3); border-color: var(--tt-line); border-style: dashed; }
+  :global(.basis-corrected) { color: var(--tt-accent); border-color: color-mix(in srgb, var(--tt-accent) 60%, transparent); }
+  :global(.basis-stale) { color: var(--tt-warn); border-color: color-mix(in srgb, var(--tt-warn) 60%, transparent); border-style: dashed; }
+  :global(.basis:focus-visible) { outline: 2px solid var(--tt-focus); outline-offset: 2px; }
+  :global(.basis-pop) { max-width: 260px; padding: 10px 12px; font-size: var(--tt-fs-sm); }
+  :global(.basis-pop p) { margin: 0 0 4px; }
+  :global(.basis-pop .basis-pop-sub) { color: var(--tt-ink-3); }
 </style>

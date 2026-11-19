@@ -26,7 +26,7 @@ const NULLED = ["chords", "hook", "bassline", "swing", "drumParts"];
     const p = await ctx.newPage(), errs = []; p.on("pageerror", e => errs.push(String(e).slice(0, 120)));
     await p.goto(url); await p.evaluate(r => localStorage.setItem("teardown_history_v1", JSON.stringify([r])), rec); await p.reload(); await p.waitForTimeout(500);
     let shown = false;
-    try { await p.click("#hist button", { timeout: 4000 }); await p.waitForTimeout(500);
+    try { await p.click("#recent-btn", { timeout: 4000 }); await p.click("#hist button", { timeout: 4000 }); await p.waitForTimeout(500);
       if (/^http/.test(url) && url.includes("/app/dist/")) { // the v1 app: findings, then the section detail tabs
         await p.waitForSelector('[data-finding="tempo"]', { timeout: 3000 });
         for (const tab of ["Harmony", "Notes", "Rhythm"]) { await p.click(`[role=tab]:has-text("${tab}")`, { timeout: 3000 }); await p.waitForTimeout(120); }

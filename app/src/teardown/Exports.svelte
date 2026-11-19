@@ -46,15 +46,14 @@
 </script>
 
 <section class="dock" id="exports" aria-labelledby="export-h">
-  <h2 id="export-h">Export</h2>
-  <button class="btn" type="button" onclick={data}>Analysis data (.json)</button>
+  <div class="dockhead"><h2 id="export-h">Export</h2><button class="btn quiet" type="button" title="Everything found, with the tracked beat times. Always available." onclick={data}>Analysis data (.json)</button></div>
   {#if stale}
     <p class="notice">Blocked: {staleWhy.includes("tempo") ? "you corrected the tempo and the audio isn't here to analyse again, so bars, chords and drum positions no longer match it. Upload the track again to export." : "you said this track isn't in 4/4, and the exports only support four beats per bar."}</p>
   {:else if elig.state === "refused"}
     <p class="notice">Blocked: {(elig.reasons as string[]).map(r => REASONS[r] || r).join(" ")} Files written on one fixed grid would drift away from the song.</p>
   {:else if !canExport}
     <div class="notice confirm">
-      <p><b>Check the bar lines before exporting.</b> A wrong grid puts every exported note in the wrong place. Press Beat clicks: the higher click should land on each downbeat.</p>
+      <p><b>Check the bar lines before exporting.</b> Press Beat clicks: the higher click should land on each downbeat.</p>
       <label><input type="checkbox" bind:checked={downbeatOk}> The higher click lands on every downbeat</label>
       <label><input type="checkbox" bind:checked={meterOk}> The track is in 4/4</label>
       <button class="btn primary" type="button" disabled={!(downbeatOk && meterOk)} onclick={() => exportState.confirm()}>Confirm and unlock these exports</button>
@@ -76,10 +75,17 @@
   .dock h2 { font-size: 1rem; }
   :global(.inspector-body.sheet) .dock h2 { display: none; } /* the sheet's own title says it */
   .dock :global(.btn) { width: 100%; justify-content: center; text-align: center; }
+  .dockhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .dock .dockhead :global(.btn) { width: auto; min-height: 30px; padding: 0 10px; font-size: .76rem; }
   .downloads { display: grid; gap: 6px; }
   .dock p { margin: 0; }
   .ok { color: var(--tt-good); }
   .dock :global(.notice) { padding: 8px 10px; font-size: var(--tt-fs-sm); gap: 6px; }
   .confirm { gap: 6px; font-size: var(--tt-fs-sm); }
   .confirm p { font-size: var(--tt-fs-sm); }
+  @media (min-width: 1180px) and (max-height: 820px) {
+    .dock { gap: 6px; }
+    .dock :global(.btn) { min-height: 32px; font-size: .82rem; }
+    .confirm label { font-size: var(--tt-fs-xs); }
+  }
 </style>

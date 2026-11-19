@@ -14,6 +14,8 @@ class Workspace {
   section = $state<"findings" | "export">("findings");
   /** The compact transport's secondary controls are open (narrow screens). */
   more = $state(false);
+  /** The help popover (how to read the labels, accuracy, build) is open: the toolbar's ? and the inspector's accuracy line both open it. */
+  helpOpen = $state(false);
   /** The bar grid the person confirmed for export, as tdId|fingerprint. */
   confirmedFor = $state("");
   get wide() { return wideQuery.current; }

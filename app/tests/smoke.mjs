@@ -58,7 +58,7 @@ async function pageChecks(browser, name, baseUrl, expect) {
     const p = await ctx.newPage(), errors = [];
     p.on("pageerror", e => errors.push(String(e)));
     p.on("console", m => { if (m.type() === "error") errors.push("console: " + m.text()); });
-    await p.goto(baseUrl); await p.waitForSelector("main.wrap");
+    await p.goto(baseUrl); await p.waitForSelector("main.app");
     const over = async () => p.evaluate(() => ({ over: document.documentElement.scrollWidth - innerWidth, wide: [...document.querySelectorAll("main *")].filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.right > innerWidth + 1 || r.left < -1) && getComputedStyle(e).position !== "fixed" && !e.closest(".scroll,.timeline,.barruler"); }).slice(0, 3).map(e => e.tagName + "." + e.className) }));
 
     check((await p.textContent("h1")).includes("Teardown"), `${name}/${label}: heading`);
@@ -66,7 +66,7 @@ async function pageChecks(browser, name, baseUrl, expect) {
     let o = await over(); check(o.over <= 0 && o.wide.length === 0, `${name}/${label}: empty state fits the screen (${o.over}px, ${o.wide})`);
 
     // the canonical TimeMap, same result as Node
-    const tm = await p.$eval("main.wrap", e => ({ schema: e.dataset.timemapSchema, fp: e.dataset.timemapFingerprint }));
+    const tm = await p.$eval("main.app", e => ({ schema: e.dataset.timemapSchema, fp: e.dataset.timemapFingerprint }));
     check(tm.schema === TM.SCHEMA && tm.fp === NODE_FP, `${name}/${label}: TimeMap ${tm.schema} ${tm.fp}, Node ${TM.SCHEMA} ${NODE_FP}`);
 
     // build identity and test hooks
@@ -76,6 +76,7 @@ async function pageChecks(browser, name, baseUrl, expect) {
     const hooks = await p.evaluate(() => ({ tm: typeof window.TimeMap, td: "__td" in window, sn: typeof window.__sn, stats: typeof window.__analysisStats, buf: Object.keys(window).filter(k => /buf/i.test(k)) }));
     check((hooks.tm === "object") === expect.hooks && hooks.td === expect.hooks && (hooks.sn === "function") === expect.hooks && (hooks.stats === "object") === expect.hooks, `${name}/${label}: hooks ${JSON.stringify(hooks)}`);
     check(hooks.buf.length === 0, `${name}/${label}: no audio buffer globals`);
+    await p.click('button[aria-label^="Help"]'); await p.waitForTimeout(250);
     await p.locator("details summary", { hasText: "About this build" }).click();
     check((await p.locator('[data-testid="build-info"]').innerText()).includes(NODE_FP), `${name}/${label}: About this build shows the TimeMap fingerprint`);
 

@@ -29,7 +29,10 @@ class Teardown {
   running = $state(false);
   history = $state.raw<AnalysisResult[]>([]);
   histNote = $state({ text: "", bad: false });
+  /** The name in the toolbar: the optional name for the next analysis, and the name of the teardown on screen. */
   title = $state("");
+  /** The person typed a name for the next analysis (used once; otherwise the file name is). */
+  titleTyped = false;
   private job = 0;
   private ctl: AbortController | null = null;
 
@@ -60,9 +63,10 @@ class Teardown {
     try {
       const a = await engine.analyze(file, (p, msg) => { if (!current()) return; this.progress = p; this.status = { text: msg, err: false }; }, false, ctl.signal);
       if (!current()) return;
-      a.title = this.title.trim() || file.name.replace(/\.[^.]+$/, "");
+      a.title = (this.titleTyped && this.title.trim()) || file.name.replace(/\.[^.]+$/, "");
+      this.title = a.title; this.titleTyped = false;
       this.buffer = bufferOf(a) || null;
-      this.status = { text: `Teardown ready for “${a.title}”. Scroll down.`, err: false };
+      this.status = { text: `Teardown ready for “${a.title}”.`, err: false };
       const oldURL = this.audioURL; this.audioURL = newURL; adopted = true;
       this.selected = 0; this.show(a); this.mountId++; this.save(a); this.ctl = null; this.running = false;
       if (oldURL) URL.revokeObjectURL(oldURL);
@@ -81,6 +85,7 @@ class Teardown {
     this.supersede("Opened a saved teardown, so the analysis in progress was stopped.");
     if (this.audioURL) URL.revokeObjectURL(this.audioURL);
     this.audioURL = null; this.buffer = null; this.selected = 0;
+    this.title = saved.title || ""; this.titleTyped = false;
     this.show(saved); this.mountId++;
   }
   /* ---- corrections (Phase 2d). A tempo or first-downbeat correction re-runs the analysis from the SAME audio with that value fixed, so
@@ -122,6 +127,15 @@ class Teardown {
   async moveBar1(delta: number) { return this.canRecompute ? this.reanalyze({ type: "downbeat", shift: delta }) : false; }
   /** "This isn't in 4/4": everything built on the analyzer's bars is then marked unreliable (it cannot read other meters). */
   setNotFourFour(on: boolean) { return this.replace(n => applyMeter(n, on)); }
+  /** The name field was edited: before a track it names the next analysis, after one it renames the teardown on screen. */
+  nameEdited() { this.titleTyped = true; }
+  rename() {
+    const t = this.title.trim();
+    if (!this.result || this.running) return false;
+    if (!t || t === this.result.title) { this.title = this.result.title; this.titleTyped = false; return false; }
+    this.titleTyped = false;
+    return this.replace(n => { n.title = t; });
+  }
   /** Apply a user correction by replacement (never in place), then save. `edit` returns false to refuse the change. */
   replace(edit: (next: AnalysisResult) => boolean | void) {
     if (!this.result) return false;

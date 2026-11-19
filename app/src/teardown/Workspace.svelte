@@ -12,17 +12,10 @@
 
   const a = $derived(teardown.result as any); // eslint-disable-line @typescript-eslint/no-explicit-any
   const folded = $derived(workspace.wide && workspace.collapsed);
-  let root = $state<HTMLDivElement | null>(null);
-  // A new result brings the workspace into view, so there is no scrolling down to find it (and none needed afterwards).
-  $effect(() => {
-    const el = root; if (!el) return;
-    const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    requestAnimationFrame(() => el.scrollIntoView({ block: "start", behavior: calm ? "auto" : "smooth" }));
-  });
 </script>
 
 <Notices />
-<div class="workspace" class:wide={workspace.wide} class:folded bind:this={root}>
+<div class="workspace" class:wide={workspace.wide} class:folded>
   <section class="main panel" aria-label="Arrangement and section editor"><Explorer /></section>
 
   {#if workspace.wide}
@@ -50,9 +43,9 @@
   .workspace { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
   .main.panel { display: flex; flex-direction: column; padding: 12px; gap: 10px; min-width: 0; min-height: 0; }
 
-  .workspace.wide { grid-template-columns: minmax(0, 1fr) 320px; height: max(640px, calc(100dvh - 24px)); transition: grid-template-columns 200ms cubic-bezier(0.23, 1, 0.32, 1); }
+  .workspace.wide { grid-template-columns: minmax(0, 1fr) 320px; flex: 1; min-height: 0; transition: grid-template-columns 200ms cubic-bezier(0.23, 1, 0.32, 1); }
   .workspace.wide.folded { grid-template-columns: minmax(0, 1fr) 52px; }
-  .workspace.wide .main.panel { padding: 16px; }
+  .workspace.wide .main.panel { padding: 12px 14px; }
   .inspector.panel { display: flex; flex-direction: column; gap: 10px; padding: 14px; min-height: 0; min-width: 0; overflow: hidden; }
   .folded .inspector.panel { padding: 10px 6px; align-items: center; }
   .ihead { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: none; width: 100%; }
