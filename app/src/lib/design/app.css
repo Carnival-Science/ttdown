@@ -30,7 +30,7 @@
 @media (max-width: 720px) { .tdtabs { flex-wrap: wrap; overflow-x: visible; } .tdtabs [role="tab"] { flex: 1 1 auto; } }
 
 /* ---- v1 layout: one view, findings, the explorer, exports ---- */
-.findings { gap: 18px; }
+.findings { gap: 16px; }
 .findings > h2 { margin-bottom: -4px; }
 .finding { display: grid; gap: 8px; padding: 14px 0 4px; border-top: 1px solid var(--tt-line); min-width: 0; }
 .finding:first-of-type { border-top: 0; padding-top: 0; }
@@ -86,7 +86,7 @@
 .app { display: flex; flex-direction: column; min-height: 100dvh; min-width: 0; }
 .stage { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 12px var(--tt-gutter) 24px; }
 .dropveil { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgb(8 8 10 / .72); pointer-events: none; }
-.dropveil p { margin: 0; padding: 18px 28px; border-radius: 16px; border: 2px dashed var(--tt-accent); background: var(--tt-panel); font: 700 1.3rem var(--tt-font-display); }
+.dropveil p { margin: 0; padding: 16px 28px; border-radius: 16px; border: 2px dashed var(--tt-accent); background: var(--tt-panel); font: 700 1.3rem var(--tt-font-display); }
 /* Wide: the window never scrolls. Only the inspector and an editor do. (Below 560px of height it falls back to scrolling.) */
 @media (min-width: 1180px) {
   .app { height: 100dvh; min-height: 560px; }

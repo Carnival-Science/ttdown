@@ -128,7 +128,7 @@
   .ruler-row { flex: none; border-bottom: 1px solid #2a2d35; background: #111216; }
   .corner { background: #111216; }
   .ann-row { flex: none; height: 24px; border-bottom: 1px solid #2a2d35; background: #111216; }
-  .alabel { font: 600 .6rem/24px var(--tt-font-body, sans-serif); color: #8a8983; padding-left: 6px; text-transform: uppercase; letter-spacing: .04em; overflow: hidden; }
+  .alabel { font: 600 .72rem/24px var(--tt-font-body, sans-serif); color: #8a8983; padding-left: 8px; overflow: hidden; }
   .ann { position: relative; min-width: 0; overflow: hidden; }
   .ann-item {
     position: absolute; top: 2px; bottom: 2px; min-width: 0; padding: 0 4px; margin: 0; border: 0; border-left: 1px solid #2f323b; border-radius: 3px;

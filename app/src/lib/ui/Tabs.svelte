@@ -33,7 +33,7 @@
   }
   :global(.tt-tabpanel) { min-height: 0; overflow-y: auto; overscroll-behavior: contain; flex: 1; }
   :global(.tt-tabpanel[hidden]) { display: none; }
-  @media (max-width: 1179px) { :global(.tt-tabpanel) { overflow: visible; flex: none; } :global(.tt-tab) { padding: 0 11px; } .tt-tabbar { gap: 6px 8px; } }
+  @media (max-width: 1179px) { :global(.tt-tabpanel) { overflow: visible; flex: none; } :global(.tt-tab) { padding: 0 12px; } .tt-tabbar { gap: 6px 8px; } }
   :global(.tt-tab) {
     flex: 0 0 auto; min-height: 36px; padding: 0 14px; border-radius: var(--tt-radius-sm); border: 0; background: transparent;
     color: var(--tt-ink-2); font: 600 var(--tt-fs-sm) var(--tt-font-body); cursor: pointer; transition: background var(--tt-ease);

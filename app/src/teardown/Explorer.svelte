@@ -363,7 +363,7 @@
   .keyloud svg { width: 12px; height: 12px; fill: var(--tt-ink-2); }
 
 
-  .transport { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
+  .transport { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
   .primary { display: flex; align-items: center; gap: 10px; min-width: 0; }
   .secondary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
   .secondary[hidden] { display: none; }
