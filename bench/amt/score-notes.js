@@ -4,22 +4,18 @@
  *   node bench/amt/score-notes.js --ref ref.mid --offset SECONDS [--bar1 SEC --bpm N --split 18,25] est1.mid [est2.mid ...]
  *
  * --offset = audio time minus reference-MIDI time (bench/paired-renders.js prints it as alignment.offsetSec); the estimates are read
- * as AUDIO time (Basic Pitch writes audio time). Matching is one-to-one, EXACT pitch, onset within 50 ms (closest pairs first), the
- * same as bench/paired-renders.js. "+offset" additionally needs the end within max(50 ms, 20% of the reference duration) (the
+ * as AUDIO time (Basic Pitch writes audio time). Matching is MAXIMUM-cardinality one-to-one (tests/metrics.js `match`), EXACT pitch, onset within 50 ms. "+offset" additionally needs the end within max(50 ms, 20% of the reference duration) (the
  * mir_eval convention). The shift column is the best constant shift within +-80 ms, reported only to show systematic latency.
  * With --bar1 (audio time of bar 1), --bpm (4/4) and --split a,b (1-based bars) it also reports recall/precision per region:
  * pickup, bars 1..a-1, a..b-1, b..end. The comparison is MIDI-vs-MIDI: the reference is the file that was rendered to audio. */
 "use strict";
 const fs = require("node:fs"), path = require("node:path");
 const { decodeMidi, tickToSec } = require("../../tests/lib/smf");
+const { match } = require("./note-matching");
 const args = process.argv.slice(2), opt = n => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : undefined; };
 const flags = new Set(["--ref", "--offset", "--bar1", "--bpm", "--split"]), files = args.filter((a, i) => !a.startsWith("--") && !flags.has(args[i - 1]));
 if (!opt("--ref") || opt("--offset") == null || !files.length) { console.error("usage: node bench/amt/score-notes.js --ref ref.mid --offset SEC [--bar1 SEC --bpm N --split A,B] est.mid ..."); process.exit(2); }
 const load = f => { const d = decodeMidi(fs.readFileSync(f)); return d.notes.map(n => ({ on: tickToSec(d, n.onTick), off: tickToSec(d, n.offTick), midi: n.pitch })); };
-function match(ref, est, tol = 0.05, dur = false) {
-  const pairs = []; ref.forEach((r, i) => est.forEach((e, j) => { const d = Math.abs(e.on - r.on); if (e.midi !== r.midi || d > tol) return; if (dur && Math.abs(e.off - r.off) > Math.max(0.05, 0.2 * (r.off - r.on))) return; pairs.push([d, i, j]); }));
-  pairs.sort((p, q) => p[0] - q[0]); const ur = new Set(), ue = new Set(); for (const [, i, j] of pairs) if (!ur.has(i) && !ue.has(j)) { ur.add(i); ue.add(j); } return { n: ur.size, ur, ue };
-}
 const f1 = (n, nr, ne) => { const p = ne ? n / ne : 0, r = nr ? n / nr : 0; return { P: +(100 * p).toFixed(1), R: +(100 * r).toFixed(1), F: +(100 * (p + r ? 2 * p * r / (p + r) : 0)).toFixed(1) }; };
 const OFF = +opt("--offset"), ref = load(opt("--ref")).map(n => ({ ...n, on: n.on + OFF, off: n.off + OFF }));
 console.log(`reference ${path.basename(opt("--ref"))}: ${ref.length} notes, offset ${OFF} s`);

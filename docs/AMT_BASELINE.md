@@ -8,7 +8,7 @@ On the paired render *more please* (a drumless chiptune-style piece written as M
 
 ## What was measured
 
-Same alignment as `bench/paired-renders.js` (first original note at the first sound, offset −8.571 s). One-to-one matching, **exact pitch**, onset within **50 ms**; "+offset" also needs the end within max(50 ms, 20% of the reference duration). The original MIDI is the answer key; the audio is the render of that MIDI.
+Same alignment as `bench/paired-renders.js` (first original note at the first sound, offset −8.571 s). Maximum-cardinality one-to-one matching (`tests/metrics.js`, as fixed in #21; an earlier greedy version of the scorer gave the same numbers on this track), **exact pitch**, onset within **50 ms**; "+offset" also needs the end within max(50 ms, 20% of the reference duration). The original MIDI is the answer key; the audio is the render of that MIDI.
 
 | Output | Notes | Onset P | Onset R | Onset F1 | Onset+offset F1 |
 |---|---|---|---|---|---|
