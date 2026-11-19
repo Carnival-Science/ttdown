@@ -29,7 +29,7 @@ const ROOT = path.resolve(__dirname, ".."), SONG = path.join(ROOT, "test-songs",
   // 2. the app opens the legacy teardown, with its tracked beats, and corrects the key
   const S = await page(app);
   ok((await S.textContent("#hist")).includes("pop127_Amaj"), "the app lists the teardown the legacy page saved");
-  await S.click("#recent-btn"); await S.click("#hist button"); await S.waitForTimeout(400);
+  await S.click("#recent-btn"); await S.click("#hist .h-open"); await S.waitForTimeout(400);
   ok(await S.evaluate(() => !!window.__td.grid && window.__td.grid.beats.length > 16), "its saved tracked beats come back as the grid");
   ok(await S.locator('[data-finding="tempo"] .small').first().innerText().then(t => /Steady/.test(t)), "and the tempo finding is computed from them (steady), not from a fallback");
   await S.locator('select[aria-label="Set the key yourself"]').selectOption("C minor"); await S.waitForTimeout(300);

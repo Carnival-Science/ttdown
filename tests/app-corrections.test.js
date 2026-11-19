@@ -45,7 +45,7 @@ const F = (pred, ref, tol = 0.07) => { const used = new Set(); let tp = 0; for (
     check(/Check the bar lines/.test(await p.locator("#exports").innerText()), "and the bar lines must be checked again before the bar-aligned files unlock (the grid changed)");
     check(await p.locator("#out .notice.info").count() === 1 && /detected: 87 BPM/.test(await p.locator("#out .notice.info").innerText()), "the page says it analysed again at the user's tempo and names the detected one");
     // 7. survives a reload
-    await p.reload(); await p.waitForTimeout(400); await p.click("#recent-btn"); await p.locator("#hist button").first().click(); await p.waitForTimeout(400);
+    await p.reload(); await p.waitForTimeout(400); await p.click("#recent-btn"); await p.locator("#hist .h-open").first().click(); await p.waitForTimeout(400);
     const r = await full(p); check(Math.abs(r.bpm - 174) <= 1 && r.timingCorrections.length === 1 && F(r.__grid.beats, refB) >= 0.95 && await p.locator('[data-finding="tempo"] .basis-corrected').count() === 1, "after a reload the corrected analysis, its tracked beats and its record are all back");
     await p.close(); }
 
@@ -65,7 +65,7 @@ const F = (pred, ref, tol = 0.07) => { const used = new Set(); let tp = 0; for (
 
   // 3. no audio: a tempo correction invalidates
   let saved;
-  { const p = await open(); await analyse(p, path.join(SONGS, "pop127_Amaj.wav")); saved = await full(p); await p.reload(); await p.waitForTimeout(400); await p.click("#recent-btn"); await p.locator("#hist button").first().click(); await p.waitForTimeout(400);
+  { const p = await open(); await analyse(p, path.join(SONGS, "pop127_Amaj.wav")); saved = await full(p); await p.reload(); await p.waitForTimeout(400); await p.click("#recent-btn"); await p.locator("#hist .h-open").first().click(); await p.waitForTimeout(400);
     check(await p.locator('button:has-text("One beat later")').isDisabled() && /needs the audio/.test(await p.locator('[data-finding="meter"]').innerText()), "without the audio bar 1 cannot be moved, and it says why");
     check(/audio isn't here, so a corrected tempo can't be analysed again/.test(await p.locator('[data-finding="tempo"]').innerText()), "and the tempo control says what a correction will do");
     await p.locator('input[aria-label="Type the BPM"]').fill("100"); await p.locator('button:has-text("Set BPM")').click(); await p.waitForTimeout(500);

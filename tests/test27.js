@@ -56,7 +56,7 @@ fs.mkdirSync(OUT, { recursive: true });
     await p.setInputFiles('#file', path.join(SONGS, 'house124_Cmin.wav')); await ready(p, 'house124_Cmin'); const b2 = await playerSrc(p);
     check(a !== b2 && !(await alive(p, a)) && await alive(p, b2) && await live(p) === 1, `4: the replaced teardown's URL was revoked, the new one is valid (${await live(p)} live)`);
     // 5. Opening a saved teardown releases the audio URL (saved teardowns carry no audio)
-    if (await p.locator('#recent-btn').count()) await p.click('#recent-btn'); await p.locator('#hist button').nth(1).click(); await p.waitForTimeout(300);
+    if (await p.locator('#recent-btn').count()) await p.click('#recent-btn'); await p.locator('#hist button:not([data-delete])').nth(1).click(); await p.waitForTimeout(300);
     check(await live(p) === 0 && !(await alive(p, b2)) && await playerSrc(p) === null, `5: opening a saved teardown releases the audio URL and shows no stale player (${await live(p)} live)`);
     await p.close(); }
 

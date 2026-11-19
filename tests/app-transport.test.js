@@ -115,7 +115,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
 
   // ---- 5. a saved teardown: no audio, attach it
   { const p = await open(); await analyse(p, path.join(SONGS, "pop127_Amaj.wav")); await p.reload(); await p.waitForTimeout(400);
-    await p.click("#recent-btn"); await p.click("#hist button"); await p.waitForTimeout(500);
+    await p.click("#recent-btn"); await p.click("#hist .h-open"); await p.waitForTimeout(500);
     check(await p.locator("#attach-btn").isVisible() && /Playback is unavailable/.test(await p.locator("#no-audio").innerText()) && await p.locator('button[aria-label="Play"]').count() === 0, "5: a saved teardown says playback is unavailable and offers Attach audio");
     check(await p.locator("#explorer .timeline .seg").count() >= 1, "5: and the arrangement and notes stay navigable");
     await p.setInputFiles("#attach", path.join(SONGS, "sections120.mp3")); await p.waitForFunction(() => document.querySelector("#attach-note") && !/Comparing/.test(document.querySelector("#attach-note").textContent), null, { timeout: 20000 });

@@ -38,7 +38,7 @@ const truth = fs.readFileSync(path.join(ARR, 'truth', 'arrangement_drift.section
   // 4. a saved teardown keeps its tracked beats AND its tracked section times, so they still agree after reopening
   await p.setInputFiles('#file', path.join(ROOT, 'test-songs', 'pop127_Amaj.wav'));
   await p.waitForFunction(() => /Teardown ready for “pop127_Amaj”/.test(document.querySelector('#status').textContent), null, { timeout: 120000 });
-  await p.click("#recent-btn"); await p.locator('#hist button').nth(1).click(); await p.waitForTimeout(400);
+  await p.click("#recent-btn"); await p.locator('#hist .h-open').nth(1).click(); await p.waitForTimeout(400);
   const saved = await p.evaluate(() => ({ grid: window.__td.grid || null, sections: window.__td.sections }));
   check(saved.grid !== null && saved.sections.every((s, k) => s.timing === 'tracked' && s.start === a.sections[k].start), `4: reopened from history it has its tracked grid back and its sections keep their tracked times (${saved.sections.map(s => s.start).join(', ')})`);
   // 5. an old saved teardown (no "timing") is still recomputed from firstDown, exactly as before
@@ -46,7 +46,7 @@ const truth = fs.readFileSync(path.join(ARR, 'truth', 'arrangement_drift.section
   const fd = legacy.firstDown, bs = legacy.barSec, expected = legacy.sections.map(s => +Math.max(0, fd + s.startBar * bs).toFixed(2));
   await p.evaluate(x => { const k = Object.keys(localStorage).find(k => { try { const v = JSON.parse(localStorage.getItem(k)); return Array.isArray(v) && v[0] && v[0].sections; } catch (e) { return false; } }); const h = JSON.parse(localStorage.getItem(k)); h.unshift(Object.assign(x, { title: 'legacy save' })); localStorage.setItem(k, JSON.stringify(h)); }, legacy);
   await p.reload(); await p.waitForTimeout(500);
-  await p.click("#recent-btn"); await p.locator('#hist button', { hasText: 'legacy save' }).first().click(); await p.waitForTimeout(400);
+  await p.click("#recent-btn"); await p.locator('#hist .h-open', { hasText: 'legacy save' }).first().click(); await p.waitForTimeout(400);
   const rec = await p.evaluate(() => window.__td.sections.map(s => s.start));
   check(JSON.stringify(rec) === JSON.stringify(expected), `5: an old save without "timing" is recomputed from firstDown as before (${rec.join(', ')})`);
   await p.close();

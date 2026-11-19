@@ -20,3 +20,11 @@ export function saveHist(a: AnalysisResult): { note: string; bad: boolean } {
   if (!ok) { note = "Couldn't save this teardown: this browser's storage is full. Your earlier saved teardowns were not changed. Delete some and try again."; bad = true; }
   return { note, bad };
 }
+
+/** Delete one saved teardown (same identity as a save: title and duration). Returns false when storage could not be written. */
+export function deleteHist(a: AnalysisResult): boolean {
+  const rest = lsGet<AnalysisResult[]>(KEYS.history, []).filter(x => x.title !== a.title || x.duration !== a.duration);
+  return rest.length ? lsTrySet(KEYS.history, rest) : clearHist();
+}
+/** Delete every saved teardown. Saved teardowns hold no audio (it is never persisted), so removing the key removes everything. */
+export function clearHist(): boolean { try { localStorage.removeItem(KEYS.history); return true; } catch { return false; } }

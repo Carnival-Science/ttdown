@@ -2,7 +2,7 @@
      once a track is analysed this becomes the arrangement workspace. A file can also be dropped anywhere on the window (App.svelte). -->
 <script lang="ts">
   import { teardown } from "../lib/state/teardown.svelte";
-  const recents = $derived(teardown.history.slice(0, 6));
+  import RecentList from "./RecentList.svelte";
   const open = () => document.getElementById("file")?.click();
 </script>
 
@@ -12,12 +12,10 @@
     <p class="lede">or <button type="button" class="btn primary" onclick={open}>Open track</button></p>
     <p class="small">MP3, WAV, M4A or FLAC, up to 8 minutes. It is analysed in this browser and never uploaded.</p>
     <p class="small gets">You'll get: tempo and whether it is steady · key · the arrangement on a bar-numbered timeline · drums, chords and rough notes for each section · what can be measured in the sound. Each says how it is known.</p>
-    {#if recents.length}
+    {#if teardown.history.length}
       <div class="recents">
         <p class="small">Recent</p>
-        <div class="list">
-          {#each recents as h, i (i)}<button type="button" class="btn" onclick={() => teardown.open(h)}>{`${h.title || "Untitled"} · ${h.bpm} BPM · ${h.key}`}</button>{/each}
-        </div>
+        <div class="list"><RecentList limit={6} /></div>
       </div>
     {/if}
   </div>
@@ -32,5 +30,5 @@
   .small { margin: 0; }
   .gets { color: var(--tt-ink-3); }
   .recents { display: grid; gap: 8px; justify-items: center; margin-top: 8px; width: 100%; }
-  .list { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .list { width: min(520px, 100%); }
 </style>

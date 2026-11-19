@@ -56,7 +56,7 @@ fs.mkdirSync(OUT, { recursive: true });
     const t = await p.locator("#exports").innerText();
     check(!/Blocked/.test(t) && /Check the bar lines/.test(t) && await midi(p).isDisabled(), "with the audio a tempo correction analyses again, so the results are fresh: not blocked, but the bar lines must be checked again");
     check(/Analysed again at your tempo/.test(await p.locator("#out .notice").first().innerText()) && await p.locator('[data-finding="tempo"] .basis-corrected').count() === 1, "the tempo finding is labelled as corrected, with the detected tempo named");
-    await p.reload(); await p.waitForTimeout(400); await p.click("#recent-btn"); await p.locator("#hist button").first().click(); await p.waitForTimeout(400);
+    await p.reload(); await p.waitForTimeout(400); await p.click("#recent-btn"); await p.locator("#hist .h-open").first().click(); await p.waitForTimeout(400);
     await p.locator('input[aria-label="Type the BPM"]').fill("100"); await p.locator('button:has-text("Set BPM")').click(); await p.waitForTimeout(500);
     const t2 = await p.locator("#exports").innerText();
     check(await midi(p).isDisabled() && /Blocked/.test(t2) && /audio isn't here/.test(t2), "without the audio (a saved teardown) a corrected tempo cannot be analysed again: the results are out of date, bar-aligned exports are blocked, and it says why");

@@ -6,6 +6,7 @@
   import { BUILD } from "../lib/build/identity";
   import { timeMapSelfCheck } from "../lib/timemap";
   import Popover from "../lib/ui/Popover.svelte";
+  import RecentList from "./RecentList.svelte";
 
   let fileEl: HTMLInputElement;
   let recentOpen = $state(false);
@@ -27,9 +28,7 @@
     id="hist-wrap" class="recent-pop" align="start">
     {#snippet trigger()}Recent{#if teardown.history.length} <span class="count">{teardown.history.length}</span>{/if}{/snippet}
     <p class="small recent-head">Saved in this browser</p>
-    <div class="hist" id="hist">
-      {#each teardown.history as h, i (i)}<button type="button" class="btn" onclick={() => { teardown.open(h); recentOpen = false; }}>{`${h.title || "Untitled"} · ${h.bpm} BPM · ${h.key}`}</button>{/each}
-    </div>
+    <div class="hist"><RecentList clearAll onopen={() => (recentOpen = false)} /></div>
   </Popover>
 
   <div class="statusbar">
@@ -77,7 +76,7 @@
   :global(.help-pop .help-title) { font-size: 1rem; margin: 0 0 8px; }
   :global(.recent-pop) { width: min(420px, calc(100vw - 24px)); padding: 12px; }
   :global(.recent-pop .hist) { display: grid; gap: 6px; max-height: 50dvh; overflow-y: auto; }
-  :global(.recent-pop .hist .btn) { justify-content: flex-start; text-align: left; white-space: normal; }
+  
   .about { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 8px 0 0; font-size: var(--tt-fs-xs); }
   .about dt { color: var(--tt-ink-3); } .about dd { margin: 0; overflow-wrap: anywhere; }
   .about-build summary { cursor: pointer; color: var(--tt-ink-3); }

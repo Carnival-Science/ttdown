@@ -51,7 +51,7 @@ const ROOT = path.resolve(__dirname, '..'), SONGS = path.join(ROOT, 'test-songs'
     const bpm0 = await p.evaluate(() => window.__td.bpm);
     await onStart(p, "document.querySelector('#cancel').click()");
     await p.setInputFiles('#file', path.join(SONGS, 'sections120.mp3')); await cancelled(p); await settle(p);
-    const t = await p.evaluate(() => ({ title: window.__td.title, bpm: window.__td.bpm, hist: [...document.querySelectorAll('#hist button')].map(x => x.textContent), h2: document.querySelector('#out h2') && document.querySelector('#out h2').textContent }));
+    const t = await p.evaluate(() => ({ title: window.__td.title, bpm: window.__td.bpm, hist: [...document.querySelectorAll('#hist button:not([data-delete])')].map(x => x.textContent), h2: document.querySelector('#out h2') && document.querySelector('#out h2').textContent }));
     check(t.title === 'pop127_Amaj' && t.bpm === bpm0 && t.hist.length === 1, `3: the previous teardown is still on screen and the only one in history (${t.title}, ${t.hist.length} saved)`);
     await p.close(); }
 

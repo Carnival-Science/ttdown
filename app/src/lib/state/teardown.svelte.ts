@@ -7,7 +7,7 @@
 // is shown, so the page never presents numbers that were not measured from the user's audio.
 import { engine, bufferOf, withHidden, type AnalysisResult } from "../engine";
 import { domain } from "../domain";
-import { loadHist, saveHist } from "../storage/data";
+import { loadHist, saveHist, deleteHist, clearHist } from "../storage/data";
 
 declare const __TEST_HOOKS__: boolean;
 const { fixSectionTimes, applyTempo, applyMeter, forcedOf, recordCorrection } = domain;
@@ -43,6 +43,18 @@ class Teardown {
     if (__TEST_HOOKS__) (window as unknown as { __tdReplace: unknown }).__tdReplace = (fn: (r: AnalysisResult) => void) => this.replace(fn); // bench build only: tests build a variant (say, a track without drums) of what is shown
   }
   refreshHistory() { this.history = loadHist(); }
+  /** Delete a saved teardown from this browser's storage (the one on screen, if it is that one, stays open but is no longer saved). */
+  forget(h: AnalysisResult) {
+    const ok = deleteHist(h), shown = this.result && this.result.title === h.title && this.result.duration === h.duration;
+    this.refreshHistory();
+    this.histNote = ok ? { text: shown ? `“${h.title || "Untitled"}” is deleted from this browser. It is still open here, but it is no longer saved.` : `Deleted “${h.title || "Untitled"}” from this browser.`, bad: false }
+      : { text: "Couldn't delete it: this browser blocked access to its storage.", bad: true };
+  }
+  forgetAll() {
+    const ok = clearHist(), shown = !!this.result; this.refreshHistory();
+    this.histNote = ok ? { text: shown ? "All saved teardowns are deleted from this browser. The one open here stays open, but it is no longer saved." : "All saved teardowns are deleted from this browser.", bad: false }
+      : { text: "Couldn't delete them: this browser blocked access to its storage.", bad: true };
+  }
   private save(a: AnalysisResult) { const r = saveHist(a); this.histNote = { text: r.note, bad: r.bad }; this.refreshHistory(); }
 
   supersede(msg?: string) {

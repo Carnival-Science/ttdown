@@ -65,7 +65,7 @@ function repeatedSong(file, srcWav, times, decimate) { // channel 0 of a synthet
   { const p = await open(); await p.setInputFiles('#file', path.join(SONGS, 'pop127_Amaj.wav'));
     await p.waitForFunction(() => /Teardown ready for “pop127_Amaj”/.test(document.querySelector('#status').textContent), null, { timeout: 120000 });
     const src = await p.evaluate(() => document.querySelector('#out audio').src); const o = await outcome(p, tooLong);
-    const after = await p.evaluate(async u => ({ same: document.querySelector('#out audio') && document.querySelector('#out audio').src === u, ok: await fetch(u).then(r => r.ok).catch(() => false), title: window.__td.title, hist: document.querySelectorAll('#hist button').length }), src);
+    const after = await p.evaluate(async u => ({ same: document.querySelector('#out audio') && document.querySelector('#out audio').src === u, ok: await fetch(u).then(r => r.ok).catch(() => false), title: window.__td.title, hist: document.querySelectorAll('#hist .h-open').length }), src);
     check(o.err && after.same && after.ok && after.title === 'pop127_Amaj' && after.hist === 1, `refused file: previous teardown, audio and history untouched (${JSON.stringify(after)})`); await p.close(); }
 
   // 8. the limit equals the analysis coverage: a 7:00 track is accepted and tracked to its end; 8:10 is refused, not partly analysed

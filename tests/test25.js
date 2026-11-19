@@ -27,7 +27,7 @@ fs.mkdirSync(OUT, { recursive: true });
     await p.setInputFiles('#file', path.join(SONGS, 'pop127_Amaj.wav'));
     await ready(p, 'pop127_Amaj'); await p.waitForTimeout(6000); // long enough for the superseded upload to finish if it is going to
     const s = await p.evaluate(() => ({ log: window.__log.td, title: window.__td.title, dur: window.__td.__buf && window.__td.__buf.duration, status: document.querySelector('#status').textContent,
-      hist: [...document.querySelectorAll('#hist button')].map(x => x.textContent), ready: window.__log.status.filter(t => /Teardown ready/.test(t)) }));
+      hist: [...document.querySelectorAll('#hist button:not([data-delete])')].map(x => x.textContent), ready: window.__log.status.filter(t => /Teardown ready/.test(t)) }));
     check(JSON.stringify(s.log) === JSON.stringify(['pop127_Amaj']), `1: only the newer upload was rendered (rendered: ${JSON.stringify(s.log)})`);
     check(s.title === 'pop127_Amaj' && Math.abs(s.dur - 70) < 1, `1: teardown and its audio buffer belong to the same, newer file (title ${s.title}, buffer ${s.dur && s.dur.toFixed(1)} s)`);
     check(s.hist.length === 1 && /^pop127_Amaj/.test(s.hist[0]), `1: only the newer upload was saved to history (${JSON.stringify(s.hist)})`);
@@ -56,11 +56,11 @@ fs.mkdirSync(OUT, { recursive: true });
     // to be stable, which needs animation frames the page cannot give while it is busy analysing, so it used to land after the
     // upload had finished and the test then opened the wrong history entry (intermittent failure on a loaded machine).
     await p.evaluate(() => { const st = document.querySelector('#status'); const mo = new MutationObserver(() => { if (/Finding the tempo/.test(st.textContent)) { mo.disconnect();
-      [...document.querySelectorAll('#hist button')].find(b => /^pop127_Amaj/.test(b.textContent)).click(); } }); mo.observe(st, { childList: true, characterData: true, subtree: true }); });
+      [...document.querySelectorAll('#hist button:not([data-delete])')].find(b => /^pop127_Amaj/.test(b.textContent)).click(); } }); mo.observe(st, { childList: true, characterData: true, subtree: true }); });
     await p.setInputFiles('#file', path.join(SONGS, 'sections120.mp3'));
     await p.waitForFunction(() => /stopped/.test(document.querySelector('#status').textContent), null, { timeout: 60000 });
     await p.waitForTimeout(6000);
-    const s = await p.evaluate(() => ({ log: window.__log.td, status: document.querySelector('#status').textContent, hist: [...document.querySelectorAll('#hist button')].map(x => x.textContent) }));
+    const s = await p.evaluate(() => ({ log: window.__log.td, status: document.querySelector('#status').textContent, hist: [...document.querySelectorAll('#hist button:not([data-delete])')].map(x => x.textContent) }));
     check(s.log.length === 1 && s.log[0] === 'pop127_Amaj', `3: the saved teardown the user opened is what remains (rendered: ${JSON.stringify(s.log)})`);
     check(/stopped/.test(s.status), `3: the user is told the in-progress analysis was stopped (${s.status})`);
     check(s.hist.length === 1, `3: the dropped upload was not saved (${s.hist.length} history item)`);
