@@ -49,18 +49,31 @@ describe("saveHist", () => {
     expect(titles).not.toContain("Song 0");
   });
 
-  it("when storage is nearly full, saves the new teardown without its beats and says so; the earlier save is untouched", () => {
+  it("when storage is nearly full, saves the new teardown without its beats or chord regions and says so; the earlier save is untouched", () => {
     saveHist(analysis("Earlier", { duration: 30 }));
-    const earlier = raw()!, next = analysis("Next", { duration: 30 });
-    const leanLen = JSON.stringify({ ...JSON.parse(JSON.stringify(next)), timing: undefined }).length;
-    ls.limit = earlier.length + leanLen + 50; // room for the new record without its beats, not with them
-    const r = saveHist(next);
+    const earlier = raw()!, next = analysis("Next", { duration: 30, extra: { chordRegions: [{ t: 0, end: 4, name: "Am" }, { t: 4, end: 8, name: "F" }] } });
+    const leanLen = JSON.stringify({ ...JSON.parse(JSON.stringify(next)), timing: undefined, chordRegions: undefined }).length;
+    ls.limit = earlier.length + leanLen + 50; // room for the new record without its beats and chord regions, not with them
+    const attempts = ls.attempts, r = saveHist(next);
     expect(r.bad).toBe(false);
     expect(r.note).toMatch(/without its tracked beats/);
+    expect(ls.attempts - attempts).toBe(2); // the full record, then the lean one
     const list = stored();
     expect(list.map((x: { title: string }) => x.title)).toEqual(["Next", "Earlier"]);
     expect(list[0]).not.toHaveProperty("timing");
+    expect(list[0]).not.toHaveProperty("chordRegions");
     expect(JSON.stringify(list[1])).toBe(JSON.stringify(JSON.parse(earlier)[0]));
+  });
+
+  it("a teardown with chord regions but no tracked beats is also retried without them", () => {
+    saveHist(analysis("Earlier", { duration: 30, beats: null }));
+    const earlier = raw()!, next = analysis("Next", { duration: 30, beats: null, extra: { chordRegions: Array.from({ length: 40 }, (_, i) => ({ t: i, end: i + 1, name: "C" })) } });
+    const leanLen = JSON.stringify({ ...JSON.parse(JSON.stringify(next)), chordRegions: undefined }).length;
+    ls.limit = earlier.length + leanLen + 50;
+    const attempts = ls.attempts, r = saveHist(next);
+    expect(r.bad).toBe(false);
+    expect(ls.attempts - attempts).toBe(2);
+    expect(stored()[0]).not.toHaveProperty("chordRegions");
   });
 
   it("when nothing fits, reports an error and leaves storage byte-for-byte unchanged", () => {
@@ -73,11 +86,12 @@ describe("saveHist", () => {
     expect(raw()).toBe(before);
   });
 
-  it("a teardown with no tracked beats is not retried without them: it fails with the error instead", () => {
+  it("a teardown with neither tracked beats nor chord regions gets exactly one attempt, then the error", () => {
     ls.limit = 10;
-    const writesBefore = ls.writes, r = saveHist(analysis("No grid", { beats: null }));
+    const attempts = ls.attempts, writes = ls.writes, r = saveHist(analysis("No grid", { beats: null }));
     expect(r.bad).toBe(true);
-    expect(ls.writes).toBe(writesBefore);
+    expect(ls.attempts - attempts).toBe(1); // nothing to leave out, so no lean retry (counts refused writes too)
+    expect(ls.writes).toBe(writes);
   });
 });
 

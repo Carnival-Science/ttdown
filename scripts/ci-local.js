@@ -4,6 +4,8 @@
 //   npm run ci:local -- --fast                stage 1 only: type check, unit tests, production build, fast smoke
 //   npm run ci:local -- --browsers=firefox    which extra browsers run the end-to-end journey (default firefox,webkit; "none" to skip)
 // Install first: npm ci && npm ci --prefix app && npx playwright install chromium firefox webkit
+// On Windows the default leaves WebKit out: Playwright's Windows WebKit build has no Web Audio (OfflineAudioContext), so it
+// cannot analyse a track there. CI runs WebKit on Linux. Pass --browsers=firefox,webkit to try it anyway.
 // Keep this list in step with ci.yml when either changes.
 "use strict";
 const { spawnSync } = require("node:child_process");
@@ -11,8 +13,10 @@ const path = require("node:path");
 
 const ROOT = path.resolve(__dirname, "..");
 const args = process.argv.slice(2), fast = args.includes("--fast");
-const browsersArg = (args.find(a => a.startsWith("--browsers=")) || "--browsers=firefox,webkit").split("=")[1];
+const explicit = args.find(a => a.startsWith("--browsers="));
+const browsersArg = (explicit || (process.platform === "win32" ? "--browsers=firefox" : "--browsers=firefox,webkit")).split("=")[1];
 const browsers = browsersArg === "none" ? [] : browsersArg.split(",").filter(Boolean);
+const skipped = !explicit && process.platform === "win32" ? ["End-to-end journey (webkit): Playwright's Windows WebKit has no Web Audio; CI runs it on Linux"] : [];
 
 const STAGES = [
   ["1. fast (ci.yml: fast)", [
@@ -69,6 +73,7 @@ for (const [stage, steps] of fast ? STAGES.slice(0, 1) : STAGES) {
 
 console.log("\n######## summary");
 for (const r of results) console.log(`${r.ok ? "PASS" : "FAIL"}  ${r.secs.toFixed(1).padStart(7)} s  ${r.name}`);
+if (!fast) for (const s of skipped) console.log(`SKIPPED           ${s}`);
 const total = ((Date.now() - started) / 1000).toFixed(0);
 if (failedAt) { console.log(`\nci:local FAILED at "${failedAt}" after ${total} s (later steps not run).`); process.exit(1); }
 console.log(`\nci:local passed: ${results.length} steps in ${total} s${fast ? " (stage 1 only)" : ""}.`);

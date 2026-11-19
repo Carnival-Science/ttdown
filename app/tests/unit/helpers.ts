@@ -2,15 +2,17 @@
 // the engine's (enumerable fields plus the non-enumerable tracked `grid` and decoded `__buf`).
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-/** A localStorage stand-in. `limit` caps the length of any single stored value, like the browser tests' fake quota. */
+/** A localStorage stand-in. `limit` caps the length of any single stored value, like the browser tests' fake quota.
+ *  `attempts` counts every setItem call (including refused ones), `writes` only the ones that succeeded. */
 export class FakeStorage {
   private m = new Map<string, string>();
   limit = Infinity;
+  attempts = 0;
   writes = 0;
   failRemove = false;
   getItem(k: string): string | null { return this.m.has(k) ? (this.m.get(k) as string) : null; }
   setItem(k: string, v: string): void {
-    const s = String(v);
+    const s = String(v); this.attempts++;
     if (s.length > this.limit) { const e = new Error("quota"); e.name = "QuotaExceededError"; throw e; }
     this.m.set(k, s); this.writes++;
   }
