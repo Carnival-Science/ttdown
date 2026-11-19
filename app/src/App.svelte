@@ -1,4 +1,5 @@
-<!-- Teardown: upload a track and see how it is constructed. One view: findings, an arrangement timeline to explore, and exports.
+<!-- Teardown: upload a track and see how it is constructed. One workspace: the arrangement and the section editor in the main area, the
+     findings and the export beside them (a sheet on a phone).
      Everything shown says how it is known (measured, estimated, assumed or unknown). -->
 <script lang="ts">
   import { installTestHooks } from "./lib/testing/hooks";
@@ -7,9 +8,7 @@
   import { timeMapSelfCheck } from "./lib/timemap";
   import Basis from "./lib/ui/Basis.svelte";
   import Upload from "./teardown/Upload.svelte";
-  import Findings from "./teardown/Findings.svelte";
-  import Explorer from "./teardown/Explorer.svelte";
-  import Exports from "./teardown/Exports.svelte";
+  import Workspace from "./teardown/Workspace.svelte";
 
   installTestHooks();
   $effect(() => { teardown.refreshHistory(); });
@@ -26,12 +25,10 @@
 
   <Upload />
 
-  <div id="out" style="display:grid;gap:18px">
+  <div id="out" class:has-result={!!teardown.result}>
     {#if teardown.result}
       {#key teardown.mountId}
-        <Findings />
-        <Explorer />
-        <Exports />
+        <Workspace />
       {/key}
     {:else}
       <section class="panel" id="empty">

@@ -5,6 +5,7 @@
 <script lang="ts">
   /* eslint-disable @typescript-eslint/no-explicit-any */
   import { teardown } from "../lib/state/teardown.svelte";
+  import { workspace } from "../lib/state/workspace.svelte";
   import { domain } from "../lib/domain";
   import { gridOf } from "../lib/timeline/grid";
   import { bufferOf } from "../lib/engine";
@@ -14,9 +15,9 @@
   const { zipStore, songMidiFiles, alignedWav, tdId, exportGate } = domain as any;
   const a = $derived(teardown.result as any);
   const map = $derived((gridOf(a) as any).map);
-  let confirmedFor = $state(""), downbeatOk = $state(false), meterOk = $state(false), note = $state("");
+  let downbeatOk = $state(false), meterOk = $state(false), note = $state("");
   const id = $derived(tdId(a) + "|" + (map ? map.fingerprint() : ""));
-  const confirmed = $derived(confirmedFor === id);
+  const confirmed = $derived(workspace.confirmedFor === id);
   $effect(() => { void id; downbeatOk = false; meterOk = false; note = ""; });
   // one decision for the page and for the download: stale results, refused grids and unconfirmed assumptions are all settled in domain.exportGate
   const elig = $derived(exportGate(a, map, confirmed) as { canExport: boolean; state: string; stale: string[]; reasons: string[]; needs: string[]; caveats: string[]; tempo: number | null });
@@ -47,30 +48,41 @@
   });
 </script>
 
-<section class="panel" id="exports" aria-labelledby="export-h">
+<section class="dock" id="exports" aria-labelledby="export-h">
   <h2 id="export-h">Export</h2>
-  <div class="row"><button class="btn" type="button" onclick={data}>Analysis data (.json)</button><span class="small">Everything found, with the tracked beat times. Always available.</span></div>
-
-  <h3>Bar-aligned files</h3>
+  <button class="btn" type="button" onclick={data}>Analysis data (.json)</button>
   {#if stale}
     <p class="notice">Blocked: {staleWhy.includes("tempo") ? "you corrected the tempo and the audio isn't here to analyse again, so bars, chords and drum positions no longer match it. Upload the track again to export." : "you said this track isn't in 4/4, and the exports only support four beats per bar."}</p>
   {:else if elig.state === "refused"}
     <p class="notice">Blocked: {(elig.reasons as string[]).map(r => REASONS[r] || r).join(" ")} Files written on one fixed grid would drift away from the song.</p>
   {:else if !canExport}
     <div class="notice confirm">
-      <p><b>Check the bar lines before exporting.</b> The analyzer assumes the first downbeat it chose is bar 1 and that the track is in 4/4. It can be wrong about either, and a wrong grid puts every exported note in the wrong place. Use “Play with beat clicks” in the player: the first, higher click of each bar should land on a downbeat.</p>
-      <label><input type="checkbox" bind:checked={downbeatOk}> The higher click lands on bar 1 and on every following downbeat</label>
+      <p><b>Check the bar lines before exporting.</b> A wrong grid puts every exported note in the wrong place. Press Beat clicks: the higher click should land on each downbeat.</p>
+      <label><input type="checkbox" bind:checked={downbeatOk}> The higher click lands on every downbeat</label>
       <label><input type="checkbox" bind:checked={meterOk}> The track is in 4/4</label>
-      <button class="btn primary" type="button" disabled={!(downbeatOk && meterOk)} onclick={() => { confirmedFor = id; }}>Confirm and unlock these exports</button>
+      <button class="btn primary" type="button" disabled={!(downbeatOk && meterOk)} onclick={() => { workspace.confirmedFor = id; }}>Confirm and unlock these exports</button>
     </div>
   {:else}
-    <p class="small">Bar lines confirmed by you for this session.</p>
+    <p class="small ok">Bar lines confirmed by you for this session.</p>
   {/if}
   {#each elig.caveats as c (c)}<p class="small">{c}</p>{/each}
-  <div class="row">
+  <div class="downloads">
     <button class="btn primary" type="button" disabled={!canExport} onclick={midi}>Download the song as MIDI (.zip)</button>
     <button class="btn" type="button" disabled={!canExport || !buffer} onclick={wav}>Download the song lined up to bar 1 (.wav)</button>
   </div>
   {#if canExport && !buffer}<p class="small">The lined-up audio needs the track itself: upload it again (saved teardowns don't keep the audio).</p>{/if}
   <p class="small" role="status">{note}</p>
 </section>
+
+<style>
+  .dock { display: grid; gap: 8px; min-width: 0; }
+  .dock h2 { font-size: 1rem; }
+  :global(.inspector-body.sheet) .dock h2 { display: none; } /* the sheet's own title says it */
+  .dock :global(.btn) { width: 100%; justify-content: center; text-align: center; }
+  .downloads { display: grid; gap: 6px; }
+  .dock p { margin: 0; }
+  .ok { color: var(--tt-good); }
+  .dock :global(.notice) { padding: 8px 10px; font-size: var(--tt-fs-sm); gap: 6px; }
+  .confirm { gap: 6px; font-size: var(--tt-fs-sm); }
+  .confirm p { font-size: var(--tt-fs-sm); }
+</style>

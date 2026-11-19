@@ -44,15 +44,13 @@
 .notice { margin: 0; padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--tt-warn) 50%, transparent); border-radius: var(--tt-radius-sm); background: color-mix(in srgb, var(--tt-warn) 8%, transparent); color: var(--tt-ink); display: grid; gap: 8px; }
 .notice label { display: flex; gap: 8px; align-items: flex-start; }
 .notice .btn { justify-self: start; }
-.detail { display: grid; gap: 12px; border-top: 1px solid var(--tt-line); padding-top: 14px; min-width: 0; }
-.dhead h3 { font-size: 1.1rem; }
 .dpanel { display: grid; gap: 12px; padding-top: 6px; min-width: 0; }
 .chrow.wide { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
 .chcell.cur { outline: 2px solid var(--tt-focus); }
 .chcell.ok { border-color: var(--tt-good); } .chcell.fixed { border-color: var(--tt-cool); }
 .dtabs { position: static; }
 .notice.info { border-color: color-mix(in srgb, var(--tt-cool) 50%, transparent); background: color-mix(in srgb, var(--tt-cool) 8%, transparent); }
-.check { display: flex; gap: 8px; align-items: center; }
+.tick { display: flex; gap: 8px; align-items: center; } /* not .check: the legacy stylesheet has a 24px badge by that name */
 
 /* ---- ui-sdk parts in TTdown's look (lib/ui wrappers) ---- */
 .tt-slider { min-width: 0; }
@@ -82,3 +80,18 @@
 .tt-tgroup .tt-toggle[data-pressed] { background: var(--tt-accent); border-color: var(--tt-accent); color: var(--tt-accent-ink); }
 @media (pointer: coarse) { .tt-seg .tt-seg-item, .tt-toggle { height: var(--tt-tap); } }
 .tt-seg .tt-seg-item, .tt-toggle { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+
+/* ---- workspace ---- */
+#out { display: grid; gap: 18px; }
+/* Once there is a result the workspace uses the width of the window (up to 1480px), not the 1060px reading column. */
+#out.has-result { --ww: min(1480px, calc(100vw - 2 * var(--tt-gutter))); width: var(--ww); margin-left: calc((100% - var(--ww)) / 2); max-width: none; }
+@media (max-width: 1060px) { #out.has-result { width: auto; margin-left: 0; } }
+
+/* ---- sheet (narrow screens) ---- */
+.tt-sheet-backdrop { background: rgb(0 0 0 / 0.6); }
+.tt-sheet { background: var(--tt-panel); color: var(--tt-ink); border-color: #3a3d46; max-width: 40rem; height: auto; max-height: min(86dvh, 720px); gap: 10px; padding: 8px 16px 16px; }
+.tt-sheet .tt-sheet-grip { width: 40px; height: 4px; border-radius: 2px; background: #3a3d46; margin: 4px auto 0; flex: none; }
+.tt-sheet .tt-sheet-head { display: flex; align-items: center; justify-content: space-between; flex: none; }
+.tt-sheet .tt-sheet-title { font: 700 1.05rem var(--tt-font-display); }
+.tt-sheet .tt-sheet-close { min-height: var(--tt-tap); padding: 0 14px; border-radius: 10px; border: 1px solid var(--tt-line); background: var(--tt-chassis); color: var(--tt-ink); font: 600 .86rem var(--tt-font-body); cursor: pointer; }
+.tt-sheet .tt-sheet-body { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; }

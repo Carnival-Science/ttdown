@@ -1,13 +1,15 @@
-<!-- The explorer: the song map is the central object. Each band is a section (estimated); the columns inside are the loudness of
-     each bar (measured from the audio). Choosing a band selects the section, shows its detail below and plays it. The transport
-     under the map plays, scrubs, slows down, loops, clicks the tracked beats and plays the detected parts over the song.
-     Bar lines, beat clicks and loops use the TimeMap grid (gridOf). -->
+<!-- The working area: a compact transport, the song map and the editor for the selected section. The map is the central object: each
+     band is a section (estimated), the columns inside are the loudness of each bar (measured from the audio). Choosing a band selects
+     the section, shows its detail in the editor below and plays it. The transport plays, scrubs, slows down, loops and clicks the
+     tracked beats; "Check by ear" (in the editor header) plays the detected parts over the song. On narrow screens only play, time and
+     mute stay in the transport and the rest opens on demand. Bar lines, beat clicks and loops use the TimeMap grid (gridOf). -->
 <script lang="ts">
   /* eslint-disable @typescript-eslint/no-explicit-any */
   import { untrack } from "svelte";
   import { teardown } from "../lib/state/teardown.svelte";
   import { player } from "../lib/state/player.svelte";
   import { audio } from "../lib/audio/service.svelte";
+  import { workspace } from "../lib/state/workspace.svelte";
   import { domain } from "../lib/domain";
   import { gridOf } from "../lib/timeline/grid";
   import { barLoudness } from "../lib/timeline/loudness";
@@ -100,111 +102,120 @@
   }
 </script>
 
-<section class="panel explorer" id="explorer" aria-labelledby="explore-h">
-  <header class="xhead">
-    <h2 id="explore-h">Arrangement</h2>
-    <Basis kind="estimated" note="Sections are guessed from changes in loudness and tone. Their names (Intro, Build, Drop…) are labels the analyzer gives by rule, not facts about the song." />
-  </header>
-  <p class="small xhelp">{playable ? "Choose a section to hear it and see what's in it." : "Choose a section to see what's in it. Saved teardowns don't keep the audio: upload the track again to listen."}</p>
+{#snippet byear()}
+  <div class="byear">
+    <Toggle class="cool" pressed={overlay.on} disabled={stale} title={stale ? "The detected parts are out of date after your correction" : "Plays the detected parts over the song. Beeps on the hits mean the detection is right."}
+      onchange={on => { if (!audioEl) return; if (on) { overlay.start(a, audioEl); if (audioEl.paused) audioEl.play().catch(() => {}); } else overlay.stop(); }}>Check by ear</Toggle>
+    {#if overlay.on}
+      <ToggleGroup label="Detected parts to play" items={PARTS} value={parts} onchange={v => { setParts(v); if (audioEl) overlay.restart(a, audioEl); }} />
+    {/if}
+  </div>
+{/snippet}
 
-  <div class="songmap" class:quiet={!loud}>
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="map" bind:this={mapEl} onpointermove={onHover} onpointerleave={() => (hover = null)}>
-      <div class="timeline" data-grid={G.kind}>
-        {#each bands as b, bi (bi)}
-          {#if b.kind === "gap"}<span class="seggap" style:left={pct(b.from)} style:width={`calc(${pct(b.to)} - ${pct(b.from)})`} title="Before bar 1 / after the last bar"></span>{/if}
-        {/each}
-        <Segmented class="bands" label="Sections" {items} value={String(sel)} onchange={v => pick(+v)} indicator={false}
-          itemProps={(it: any) => ({ class: "seg", title: `${it.s.label}: bars ${it.s.startBar + 1}–${it.s.startBar + it.s.bars} (starts ${fmtT(it.s.start)})`,
-            style: `left:${pct(Math.max(0, it.s.start))};width:calc(${pct(it.s.end)} - ${pct(Math.max(0, it.s.start))});--c:${sectionColor(it.s.label)}`, "data-label": it.s.label })}>
-          {#snippet item(it: any)}<span class="seglabel">{it.label}</span>{/snippet}
-        </Segmented>
-        {#if loud}
-          <svg class="loud" viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true">
-            {#each loud as l (l.bar)}
-              {@const s = sectionAt((l.start + l.end) / 2)}
-              {@const x = 1000 * l.start / dur + 0.6}
-              {@const w = Math.max(0.6, 1000 * (l.end - l.start) / dur - 1.2)}
-              {@const y = 100 - 100 * l.level}
-              <g fill={s ? sectionColor(s.label) : "#5a5f6e"} class:on={!!s && a.sections.indexOf(s) === sel}>
-                <rect class="body" {x} width={w} {y} height={100 * l.level} /><rect class="cap" {x} width={w} {y} height="2.5" />
-              </g>
-            {/each}
-          </svg>
+<div class="explorer" id="explorer">
+  <div class="top">
+    <header class="xhead">
+      <h2 id="explore-h">Arrangement</h2>
+      <Basis kind="estimated" note="Sections are guessed from changes in loudness and tone. Their names (Intro, Build, Drop…) are labels the analyzer gives by rule, not facts about the song." />
+      {#if !playable}<span class="small xnote">Saved teardowns don't keep the audio. Upload the track again to listen.</span>{/if}
+    </header>
+
+    {#if playable}
+      <audio src={teardown.audioURL} bind:this={audioEl} preload="auto"></audio>
+      <div class="transport playerbar" class:wide={workspace.wide}>
+        <div class="primary">
+          <button type="button" class="play" aria-label={paused ? "Play" : "Pause"} onclick={togglePlay}>
+            {#if paused}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" /></svg>
+            {:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" /></svg>{/if}
+          </button>
+          <span class="clock"><b>{fmtT(now)}</b> / {fmtT(dur)}</span>
+          <span class="vol">
+            <button type="button" class="iconbtn" id="mute" aria-pressed={audio.vol.muted} aria-label="Mute" onclick={() => audio.toggleMute()}>
+              {#if audio.vol.muted}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" /><path d="m16 9 5 6m0-6-5 6" class="stroke" /></svg>
+              {:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" /><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" class="stroke" /></svg>{/if}
+            </button>
+            <span id="volume" class="volslider"><Slider label="Volume of the song and of the parts played over it" value={volume} min={0} max={100} step={1} largeStep={10}
+              valueText={v => `${v}%`} onchange={v => audio.setAll(v / 100)} /></span>
+          </span>
+          {#if !workspace.wide}
+            <button type="button" class="morebtn" aria-expanded={workspace.more} aria-controls="transport-more" onclick={() => (workspace.more = !workspace.more)}>
+              {workspace.more ? "Close" : "Speed, loop"}
+            </button>
+          {/if}
+        </div>
+        {#if tools}
+          <div class="secondary" id="transport-more" hidden={!workspace.wide && !workspace.more}>
+            <div class="tgroup"><span class="tlabel">Speed</span><Segmented label="Speed" items={RATES} value={String(tools.rate)} onchange={v => tools?.setRate(+v)} /></div>
+            <div class="tgroup"><span class="tlabel">Loop</span><Segmented label="Loop" items={LOOPS} value={loopMode} onchange={setLoop} /></div>
+            <Toggle pressed={clicks.on} disabled={!teardown.buffer} onchange={() => clicks.toggle(a, audioEl, teardown.buffer)}>Beat clicks</Toggle>
+          </div>
         {/if}
       </div>
-      {#if playable}<div class="playhead" style:left={pct(now)} aria-hidden="true"></div>{/if}
-      {#if hover}<div class="readout" style:left={hover.x} aria-hidden="true">{hover.text}</div>{/if}
-    </div>
-    <div class="barruler" aria-hidden="true" title={G.label} data-grid={G.kind}>
-      {#each ticks as t (t.b)}<span style:left={t.left} class={[t.ext ? "ext" : "", t.end ? "end" : ""].join(" ").trim()} data-bar={String(t.b)}>{String(t.b + 1)}</span>{/each}
-    </div>
-    {#if playable}
-      <Slider class="scrub" label="Position in the song" value={now} min={0} max={Math.max(0.1, dur)} step={0.1} largeStep={5}
-        valueText={v => `${fmtT(v)} of ${fmtT(dur)}`} onchange={scrub} oncommit={() => (scrubbing = false)} />
     {/if}
-    <div class="key">
-      {#each labels as k (k)}<span><i style:background={sectionColor(k)}></i>{k === "Intro" && a.sections.some((s: any) => s.label === "Outro") ? "Intro / Outro" : k}</span>{/each}
-      {#if loud}<span class="keyloud"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="1" y="6" width="2" height="5" /><rect x="5" y="3" width="2" height="8" /><rect x="9" y="1" width="2" height="10" /></svg>Loudness per bar <Basis kind="measured" note="RMS level of each bar, computed from the audio you uploaded." /></span>{/if}
+
+    <div class="songmap" class:quiet={!loud}>
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="map" bind:this={mapEl} onpointermove={onHover} onpointerleave={() => (hover = null)}>
+        <div class="timeline" data-grid={G.kind}>
+          {#each bands as b, bi (bi)}
+            {#if b.kind === "gap"}<span class="seggap" style:left={pct(b.from)} style:width={`calc(${pct(b.to)} - ${pct(b.from)})`} title="Before bar 1 / after the last bar"></span>{/if}
+          {/each}
+          <Segmented class="bands" label="Sections" {items} value={String(sel)} onchange={v => pick(+v)} indicator={false}
+            itemProps={(it: any) => ({ class: "seg", title: `${it.s.label}: bars ${it.s.startBar + 1}–${it.s.startBar + it.s.bars} (starts ${fmtT(it.s.start)})`,
+              style: `left:${pct(Math.max(0, it.s.start))};width:calc(${pct(it.s.end)} - ${pct(Math.max(0, it.s.start))});--c:${sectionColor(it.s.label)}`, "data-label": it.s.label })}>
+            {#snippet item(it: any)}<span class="seglabel">{it.label}</span>{/snippet}
+          </Segmented>
+          {#if loud}
+            <svg class="loud" viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true">
+              {#each loud as l (l.bar)}
+                {@const s = sectionAt((l.start + l.end) / 2)}
+                {@const x = 1000 * l.start / dur + 0.6}
+                {@const w = Math.max(0.6, 1000 * (l.end - l.start) / dur - 1.2)}
+                {@const y = 100 - 100 * l.level}
+                <g fill={s ? sectionColor(s.label) : "#5a5f6e"} class:on={!!s && a.sections.indexOf(s) === sel}>
+                  <rect class="body" {x} width={w} {y} height={100 * l.level} /><rect class="cap" {x} width={w} {y} height="2.5" />
+                </g>
+              {/each}
+            </svg>
+          {/if}
+        </div>
+        {#if playable}<div class="playhead" style:left={pct(now)} aria-hidden="true"></div>{/if}
+        {#if hover}<div class="readout" style:left={hover.x} aria-hidden="true">{hover.text}</div>{/if}
+      </div>
+      <div class="barruler" aria-hidden="true" title={G.label} data-grid={G.kind}>
+        {#each ticks as t (t.b)}<span style:left={t.left} class={[t.ext ? "ext" : "", t.end ? "end" : ""].join(" ").trim()} data-bar={String(t.b)}>{String(t.b + 1)}</span>{/each}
+      </div>
+      {#if playable}
+        <Slider class="scrub" label="Position in the song" value={now} min={0} max={Math.max(0.1, dur)} step={0.1} largeStep={5}
+          valueText={v => `${fmtT(v)} of ${fmtT(dur)}`} onchange={scrub} oncommit={() => (scrubbing = false)} />
+      {/if}
+      <div class="key">
+        {#each labels as k (k)}<span><i style:background={sectionColor(k)}></i>{k === "Intro" && a.sections.some((s: any) => s.label === "Outro") ? "Intro / Outro" : k}</span>{/each}
+        {#if loud}<span class="keyloud"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="1" y="6" width="2" height="5" /><rect x="5" y="3" width="2" height="8" /><rect x="9" y="1" width="2" height="10" /></svg>Loudness per bar <Basis kind="measured" note="RMS level of each bar, computed from the audio you uploaded." /></span>{/if}
+      </div>
     </div>
   </div>
 
-  {#if playable}
-    <audio src={teardown.audioURL} bind:this={audioEl} preload="auto"></audio>
-    <div class="transport playerbar">
-      <div class="tgroup main">
-        <button type="button" class="play" aria-label={paused ? "Play" : "Pause"} onclick={togglePlay}>
-          {#if paused}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" /></svg>
-          {:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" /></svg>{/if}
-        </button>
-        <span class="clock"><b>{fmtT(now)}</b> / {fmtT(dur)}</span>
-        <span class="vol">
-          <button type="button" class="iconbtn" id="mute" aria-pressed={audio.vol.muted} aria-label="Mute" onclick={() => audio.toggleMute()}>
-            {#if audio.vol.muted}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" /><path d="m16 9 5 6m0-6-5 6" class="stroke" /></svg>
-            {:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" /><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" class="stroke" /></svg>{/if}
-          </button>
-          <span id="volume" class="volslider"><Slider label="Volume of the song and of the parts played over it" value={volume} min={0} max={100} step={1} largeStep={10}
-            valueText={v => `${v}%`} onchange={v => audio.setAll(v / 100)} /></span>
-        </span>
-      </div>
-      {#if tools}
-        <div class="tgroup">
-          <span class="tlabel" id="speed-l">Speed</span>
-          <Segmented label="Speed" items={RATES} value={String(tools.rate)} onchange={v => tools?.setRate(+v)} />
-        </div>
-        <div class="tgroup">
-          <span class="tlabel">Loop</span>
-          <Segmented label="Loop" items={LOOPS} value={loopMode} onchange={setLoop} />
-        </div>
-        <Toggle pressed={clicks.on} disabled={!teardown.buffer} onchange={() => clicks.toggle(a, audioEl, teardown.buffer)}>Beat clicks</Toggle>
-      {/if}
-    </div>
-    {#if tools}
-      <div class="byear" class:live={overlay.on}>
-        <Toggle class="cool" pressed={overlay.on} disabled={stale} title={stale ? "The detected parts are out of date after your correction" : undefined}
-          onchange={on => { if (!audioEl) return; if (on) { overlay.start(a, audioEl); if (audioEl.paused) audioEl.play().catch(() => {}); } else overlay.stop(); }}>Check by ear</Toggle>
-        <ToggleGroup label="Detected parts to play" items={PARTS} value={parts} onchange={v => { setParts(v); if (audioEl) overlay.restart(a, audioEl); }} />
-        <p class="small">Plays the detected parts over the song. Beeps on the hits mean the detection is right.</p>
-      </div>
-    {/if}
-  {/if}
-
-  {#if a.sections[sel]}<SectionDetail index={sel} />{/if}
-</section>
+  <div class="editor">{#if a.sections[sel]}<SectionDetail index={sel} tools={playable && tools ? byear : undefined} />{/if}</div>
+</div>
 
 <style>
-  .xhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .xhelp { margin: -6px 0 2px; }
+  .explorer { display: flex; flex-direction: column; min-height: 0; min-width: 0; flex: 1; gap: 12px; }
+  .top { display: grid; gap: 10px; min-width: 0; flex: none; }
+  .editor { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+  .xhead { display: flex; align-items: center; gap: 10px; }
+  .xhead h2 { font-size: 1rem; }
+  .xnote { margin-left: auto; }
 
   .songmap { display: grid; gap: 6px; min-width: 0; }
   .map { position: relative; touch-action: pan-y; }
   .timeline {
-    position: relative; height: 136px; border-radius: 12px; overflow: hidden; background: var(--tt-inset);
+    position: relative; height: 112px; border-radius: 12px; overflow: hidden; background: var(--tt-inset);
     box-shadow: inset 0 0 0 1px #000, inset 0 1px 0 rgb(255 255 255 / 0.03);
   }
-  .quiet .timeline { height: 76px; }
+  .quiet .timeline { height: 64px; }
   .seggap { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, #121318 0 5px, #17181d 5px 10px); }
-  .loud { position: absolute; inset: 30px 0 0 0; width: 100%; height: calc(100% - 30px); pointer-events: none; }
+  .loud { position: absolute; inset: 28px 0 0 0; width: 100%; height: calc(100% - 28px); pointer-events: none; }
   .loud g { opacity: 0.55; transition: opacity var(--tt-ease); }
   .loud g.on { opacity: 1; }
   .loud .body { opacity: 0.42; }
@@ -248,39 +259,53 @@
   :global(.explorer .scrub) { min-width: 0; }
   :global(.explorer .scrub .tt-slider-control) { height: 28px; }
 
-  .transport { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 12px; border-radius: 14px; background: var(--tt-chassis); border: 1px solid var(--tt-line); }
+  .transport { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
+  .primary { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .secondary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+  .secondary[hidden] { display: none; }
   .tgroup { display: flex; align-items: center; gap: 8px; min-width: 0; }
-  .tgroup.main { gap: 12px; margin-right: auto; }
   .tlabel { font-size: var(--tt-fs-xs); color: var(--tt-ink-3); }
   .play {
-    width: 48px; height: 48px; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer; flex: none;
+    width: 44px; height: 44px; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer; flex: none;
     background: var(--tt-accent); color: var(--tt-accent-ink); transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1), filter var(--tt-ease);
   }
   .play:hover { filter: brightness(1.08); }
   .play:active { transform: scale(0.96); }
-  .play:focus-visible, .iconbtn:focus-visible { outline: 2px solid var(--tt-focus); outline-offset: 3px; }
-  .play svg { width: 22px; height: 22px; fill: currentColor; }
-  .clock { font: 500 0.95rem var(--tt-font-body); font-variant-numeric: tabular-nums; color: var(--tt-ink-3); white-space: nowrap; }
+  .play:focus-visible, .iconbtn:focus-visible, .morebtn:focus-visible { outline: 2px solid var(--tt-focus); outline-offset: 3px; }
+  .play svg { width: 20px; height: 20px; fill: currentColor; }
+  .clock { font: 500 0.92rem var(--tt-font-body); font-variant-numeric: tabular-nums; color: var(--tt-ink-3); white-space: nowrap; }
   .clock b { color: var(--tt-ink); font-weight: 600; }
-  .vol { display: inline-flex; align-items: center; gap: 6px; }
-  .volslider { display: block; width: 112px; }
+  .vol { display: inline-flex; align-items: center; gap: 2px; }
+  .volslider { display: block; width: 88px; }
   .iconbtn { width: var(--tt-tap); height: var(--tt-tap); display: grid; place-items: center; border: 0; border-radius: 10px; background: transparent; color: var(--tt-ink-2); cursor: pointer; }
   .iconbtn:hover { color: var(--tt-ink); background: var(--tt-panel); }
   .iconbtn[aria-pressed="true"] { color: var(--tt-warn); }
   .iconbtn svg { width: 22px; height: 22px; fill: currentColor; }
   .iconbtn svg :global(.stroke) { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+  .morebtn { margin-left: auto; height: var(--tt-tap); padding: 0 14px; border-radius: 10px; border: 1px solid var(--tt-line); background: var(--tt-chassis); color: var(--tt-ink-2); font: 600 .84rem var(--tt-font-body); cursor: pointer; }
+  .morebtn[aria-expanded="true"] { color: var(--tt-ink); border-color: #3a3d46; }
 
-  .byear { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-  .byear p { margin: 0; flex: 1 1 240px; }
-  .byear:not(.live) :global(.tt-tgroup .tt-toggle[data-pressed]) { background: transparent; color: var(--tt-accent); border-color: color-mix(in srgb, var(--tt-accent) 70%, transparent); }
+  .byear { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 
-  @media (max-width: 720px) {
-    .timeline { height: 112px; } .quiet .timeline { height: 64px; }
-    .transport { gap: 10px 14px; padding: 10px; }
-    .tgroup.main { width: 100%; }
-    .vol { margin-left: auto; }
-    .volslider { width: 88px; }
-    .byear p { flex-basis: 100%; }
+  @media (max-width: 1179px) {
+    .explorer { flex: none; }
+    .editor { display: block; }
+    .top {
+      position: sticky; top: 0; z-index: 6; margin: -2px -2px 0; padding: 6px 2px 8px; background: var(--tt-panel);
+      border-bottom: 1px solid var(--tt-line); gap: 6px;
+    }
+    .xhead { display: none; }
+    .transport { gap: 0; }
+    .primary { width: 100%; gap: 6px; }
+    .volslider { display: none; }
+    .secondary {
+      position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 7; padding: 12px; border-radius: 12px; gap: 12px;
+      background: var(--tt-chassis); border: 1px solid var(--tt-line); box-shadow: 0 12px 28px rgb(0 0 0 / 0.5);
+    }
+    .timeline { height: 84px; } .quiet .timeline { height: 56px; }
+    .loud { inset: 24px 0 0 0; height: calc(100% - 24px); }
+    :global(.explorer .bands .seg .seglabel) { top: 6px; font-size: 0.74rem; }
+    .key { flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
   }
   @media (prefers-reduced-motion: reduce) { .play { transition: none; } }
 </style>

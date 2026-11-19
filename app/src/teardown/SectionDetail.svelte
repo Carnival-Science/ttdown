@@ -2,6 +2,7 @@
      found nothing, instead of filling the space. -->
 <script lang="ts">
   /* eslint-disable @typescript-eslint/no-explicit-any */
+  import type { Snippet } from "svelte";
   import { teardown } from "../lib/state/teardown.svelte";
   import { player } from "../lib/state/player.svelte";
   import { patternPlayer } from "../lib/audio/pattern.svelte";
@@ -11,7 +12,7 @@
   import Rack from "../lib/ui/music/Rack.svelte";
   import PianoRoll from "../lib/ui/music/PianoRoll.svelte";
 
-  let { index }: { index: number } = $props();
+  let { index, tools }: { index: number; tools?: Snippet } = $props();
   const { fmtT, keyChords, chordNotes, keyInfo, chordFromDegree, recomputeLoop, recordCorrection, staleReasons } = domain as any;
   const a = $derived(teardown.result as any);
   const s = $derived(a.sections[index] as any);
@@ -53,12 +54,12 @@
 </script>
 
 <div class="detail" data-section={index}>
-  <div class="row dhead" style="justify-content:space-between">
+  <div class="dhead">
     <h3>{s.label} <span class="small mono">bars {s.startBar + 1}–{s.startBar + s.bars} · {fmtT(s.start)}–{fmtT(s.end)}</span></h3>
     {#if playable}<div class="row" style="gap:6px"><button class="btn cool" type="button" onclick={() => player.seek(s.start)}>▶ Play from here</button><button class="btn" type="button" onclick={() => player.loopSection?.(index, 1)}>Loop this section</button></div>{/if}
   </div>
 
-  <Tabs items={TABS} label="Parts of this section" listClass="dtabs" bind:value={tab}>
+  <Tabs items={TABS} label="Parts of this section" listClass="dtabs" bind:value={tab} trailing={tools}>
     {#snippet panel(item)}
       {#if stale.length}
         <div class="dpanel" data-part={item.value} data-stale="1">
@@ -123,3 +124,10 @@
     {/snippet}
   </Tabs>
 </div>
+
+<style>
+  .detail { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--tt-line); padding-top: 12px; min-width: 0; }
+  .dhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; flex: none; }
+  .dhead h3 { font-size: 1.05rem; }
+  @media (max-width: 1179px) { .detail { display: block; } .detail :global(.tt-tabs) { margin-top: 10px; } .dhead :global(.btn) { min-height: 40px; padding: 0 12px; } }
+</style>

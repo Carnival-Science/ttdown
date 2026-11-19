@@ -30,6 +30,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   check(JSON.stringify(kinds.tempo) === '["estimated"]' && JSON.stringify(kinds.key) === '["estimated"]' && kinds.meter[0] === "assumed" && JSON.stringify(kinds.level) === '["measured"]' && JSON.stringify(kinds.bands) === '["measured"]', `every finding carries how it is known: ${JSON.stringify(kinds)}`);
   const legend = await p.locator("#howto").innerText();
   check(/Measured/i.test(legend) && /Estimated/i.test(legend) && /Assumed/i.test(legend) && /Unknown/i.test(legend) && /not been measured on real recordings/.test(legend), "the page explains the labels and says accuracy on real recordings has not been measured");
+  await p.click('[data-finding="meter"] summary'); await p.waitForTimeout(100);
   const meter = await p.locator('[data-finding="meter"]').innerText();
   check(/does not detect meter/.test(meter) && /4\/4/.test(meter), "meter is shown as an assumption, not a detection");
 
