@@ -433,7 +433,7 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
     lowPulse: +LA(beat).toFixed(2),
     busy: +(eAll.reduce((p, q) => p + q, 0) / eAll.length).toFixed(1)
   };
-  if (pat && pat.trackedBpm) { const r1 = Math.round(pat.trackedBpm), r10 = Math.round(pat.trackedBpm * 10) / 10; bpm = Math.abs(pat.trackedBpm - r1) < 0.25 ? r1 : r10; }
+  if (pat && pat.trackedBpm && !(forced && forced.bpm > 0)) { const r1 = Math.round(pat.trackedBpm), r10 = Math.round(pat.trackedBpm * 10) / 10; bpm = Math.abs(pat.trackedBpm - r1) < 0.25 ? r1 : r10; }
   await gate(); onProg(45, "Mapping the arrangement and frequency balance…");
 
   // ---- sections + spectral bands over whole track ----

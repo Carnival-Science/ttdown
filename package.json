@@ -13,7 +13,7 @@
     "app:parity": "node bench/target-parity.js test-songs/manifest.json && node bench/target-parity.js test-songs/time-fixtures/manifest.json && node bench/target-parity.js test-songs/arrangement-fixtures/manifest.json",
     "songs": "python test-songs/make_test_songs.py",
     "benchmark": "node tests/benchmark.js",
-    "test": "node tests/metrics.test.js && node tests/timemap.test.js && node tests/timemap-sync.test.js && node tests/timing-store.test.js && node tests/timing-consumers.test.js && node tests/midi-export.test.js && node tests/midi-timing.test.js && node tests/bench-metrics.test.js && node tests/bench-integrity.test.js && node tests/bench-holdout.test.js && node tests/bench-regions.test.js && node tests/transcription.test.js && node tests/bench-target.test.js && node tests/dev-server.test.js && node tests/run-tests.js",
+    "test": "node tests/metrics.test.js && node tests/timemap.test.js && node tests/timemap-sync.test.js && node tests/timing-store.test.js && node tests/timing-consumers.test.js && node tests/midi-export.test.js && node tests/midi-timing.test.js && node tests/forced-tempo.test.js && node tests/bench-metrics.test.js && node tests/bench-integrity.test.js && node tests/bench-holdout.test.js && node tests/bench-regions.test.js && node tests/transcription.test.js && node tests/bench-target.test.js && node tests/dev-server.test.js && node tests/run-tests.js",
     "bench:run": "node bench/run.js",
     "bench:score": "node bench/score.js",
     "bench:synthetic": "node bench/run.js test-songs/manifest.json --out bench/out/synthetic && node bench/score.js bench/out/synthetic/predictions.json",
