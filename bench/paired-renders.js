@@ -22,7 +22,7 @@
 "use strict";
 const fs = require("node:fs"), path = require("node:path"), os = require("node:os"), { execFileSync } = require("node:child_process");
 const { decodeMidi, tickToSec } = require("../tests/lib/smf");
-const TM = require("../src/timemap"), eng = require("../src/engine")({ TimeMap: TM });
+const TM = require("../src/timemap"), TS = require("../src/timing-store"), eng = require("../src/engine")({ TimeMap: TM }), D = require("../src/domain")({ TimingStore: TS, engine: eng });
 
 const args = process.argv.slice(2), opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
 const manifestArg = args.find((a, i) => !a.startsWith("--") && !["--out", "--only"].includes(args[i - 1]));
@@ -56,9 +56,10 @@ function reference(midiFile) {
   if (!notes.length) return { refused: "the MIDI has no notes" };
   const bpm = tempos.length ? tempos[0].bpm : 120, beat = 60 / bpm, end = Math.max(...notes.map(n => n.off));
   const firstBeat = Math.floor(notes[0].tick / d.division), beats = [];
-  for (let k = firstBeat; k * beat <= end; k++) beats.push({ t: k * beat, down: k % 4 === 0 });
+  for (let k = firstBeat; k * beat <= end + 600; k++) // the constant tempo goes on after the last note (renders have a tail); the caller keeps what is inside the audio
+    beats.push({ t: k * beat, down: k % 4 === 0 });
   const firstDown = beats.find(b => b.down && b.t >= notes[0].on - 1e-6);
-  return { bpm, beat, notes, beats, firstDown: firstDown ? firstDown.t : null, division: d.division };
+  return { bpm, beat, notes, beats, firstDown: firstDown ? firstDown.t : null, firstDownBeat: firstDown ? Math.round(firstDown.t / beat) : 0, division: d.division };
 }
 // one-to-one matching of sorted times within tol: greedy on the closest pairs (exact for well-separated events)
 function matchTimes(ref, est, tol) {
@@ -109,7 +110,35 @@ function matchNotes(ref, est) {
       pickup: { refNotes: pick.length, found: pickFound, transcribedBeforeBar1: pickBefore, transcribedInPickupTime: pickEst.length },
       notes: { ref: R.notes.length, est: est.length, matched: mn.n, ...fm(mn.n, R.notes.length, est.length) }
     };
+    // ---- the grid accuracy targets (research targets, not performance claims; fixed-tempo renders) ----
+    const near1 = (arr, t) => arr.length ? arr.reduce((p, q) => Math.abs(q - t) < Math.abs(p - t) ? q : p) : null;
+    const errs = R.beats.map(b => { const e = near1(g.beats, b.t); return e == null ? null : e - b.t; }).filter(e => e != null && Math.abs(e) <= TOL_BEAT);
+    const within20 = errs.filter(e => Math.abs(e) <= 0.02).length / (R.beats.length || 1);
+    // cumulative drift: how far the error moves from the first fifth of the track to the last fifth (a constant offset is not drift)
+    const fifth = Math.max(1, Math.floor(errs.length / 5)), mean = A => A.reduce((p, q) => p + q, 0) / (A.length || 1), drift = errs.length >= 10 ? Math.abs(mean(errs.slice(-fifth)) - mean(errs.slice(0, fifth))) : null;
+    const wrongBeats = g.beats.filter(t => Math.abs(near1(R.beats.map(b => b.t), t) - t) > TOL_BEAT).length, wrongDowns = g.downbeats.filter(t => Math.abs(near1(rd, t) - t) > TOL_BEAT).length;
+    const constant = G.map.tempo().isConstant && !G.map.exportEligibility().reasons.length;
+    // the exported MIDI, decoded independently, against the reference: every exported note is put back on the audio timeline and on the song's bars
+    let exp = null;
+    try {
+      const f = D.allPartsMidi(a, { timing: "tempo-map", grid: G }), dm = decodeMidi(f.data), t0 = G.map.beatToTime((G.barOf(Math.min(...[...tr.lead, ...tr.bass].map(n => n.on))) + G.barOffset) * 4), sb = G.barOf(Math.min(...[...tr.lead, ...tr.bass].map(n => n.on)));
+      const refBeat = n => n.tick / ref.division - ref.firstDownBeat, got = dm.notes.filter(n => n.track >= 1 && n.track <= 2).map(n => ({ midi: n.pitch, on: t0 + tickToSec(dm, n.onTick), beat: n.onTick / dm.division + 4 * Math.min(sb, 0) }));
+      const pairs = []; R.notes.forEach((r, i) => got.forEach((e, j) => { if (e.midi === r.midi && Math.abs(e.on - r.on) <= TOL_NOTE) pairs.push([Math.abs(e.on - r.on), i, j]); }));
+      pairs.sort((x, y) => x[0] - y[0]); const ur = new Set(), ue = new Set(), bd = []; for (const [, i, j] of pairs) if (!ur.has(i) && !ue.has(j)) { ur.add(i); ue.add(j); bd.push(Math.abs(got[j].beat - refBeat(R.notes[i]))); }
+      exp = { notes: got.length, matched: bd.length, onSongBars: bd.length ? +(bd.filter(v => v * ref.beat <= TOL_BEAT).length / bd.length).toFixed(3) : null, worstMs: bd.length ? +(1000 * ref.beat * Math.max(...bd)).toFixed(1) : null, pickupInFile: got.filter(e => e.beat < 0).length };
+    } catch (e) { exp = { error: e.message }; }
+    const T = [
+      ["first downbeat error <= 20 ms", bar1Err != null && Math.abs(bar1Err) <= 0.02, bar1Err == null ? "none" : (bar1Err * 1000).toFixed(1) + " ms"],
+      ["beats within 20 ms >= 99%", within20 >= 0.99, (100 * within20).toFixed(1) + "%"],
+      ["cumulative drift <= 20 ms", drift != null && drift <= 0.02, drift == null ? "n/a" : (drift * 1000).toFixed(1) + " ms"],
+      ["wrong beat or bar shifts = 0", wrongBeats === 0 && wrongDowns === 0, `${wrongBeats} beats, ${wrongDowns} downbeats`],
+      ["pickup preserved 100%", pick.length === 0 || (pickFound === pick.length && pickBefore >= pick.length), `${pickFound}/${pick.length} found`],
+      ["not called variable", constant, constant ? "constant" : "called variable or refused"],
+      ["exported MIDI on the song's bars (tempo map, every matched note within 70 ms of its song position)", !!exp && exp.onSongBars === 1, exp && exp.onSongBars != null ? `${(100 * exp.onSongBars).toFixed(1)}% of ${exp.matched} notes, worst ${exp.worstMs} ms` : "no matched notes"],
+    ];
+    row.targets = T.map(([name, ok, value]) => ({ name, ok, value })); row.exportCheck = exp;
     rows.push(row);
+    console.log(`  grid targets (research, not claims): ` + T.map(([n, ok, v]) => `${ok ? "PASS" : "FAIL"} ${n} [${v}]`).join("; "));
     console.log(`${t.id}: ${a.bpm} BPM (ref ${row.tempo.ref}), bar 1 ${row.bar1.ok ? "OK" : "WRONG"} (${row.bar1.errSec == null ? "none" : (row.bar1.errSec * 1000).toFixed(0) + " ms"}, ${row.bar1.source}), beats F ${row.beats.f} (${onOff} on off-beats), downbeats F ${row.downbeats.f}, pickup ${pickFound}/${pick.length}, notes F ${row.notes.f} (P ${row.notes.precision} R ${row.notes.recall}), ${ms} ms`);
   }
   const scored = rows.filter(r => !r.refused), sum = k => scored.reduce((p, r) => p + k(r), 0);

@@ -119,3 +119,22 @@ Keep some compositions as holdout (`"split": "holdout"`) and do not tune on them
 Not done: only one render scored so far (the vote's thresholds are set on it, so it is a development result, not a measured accuracy); drum tracks still choose beat 1
 from kick and snare only; no harmony-change cue yet; polyphonic transcription (the note F1 above is capped by a one-melody-one-bass design; Basic Pitch is the first
 candidate to compare offline, not to adopt); the browser decodes MP3 slightly differently from ffmpeg (a few ms of encoder delay), which the bench does not model.
+
+### Grid accuracy targets (research targets, not performance claims)
+
+Three levels of correctness, in this order: **timing** (BPM, beat phase, bar 1, grid), **musical content** (pitches, chords, durations), **reconstruction** (exported MIDI
+resembles the performance). Work is on level 1 first. `bench/paired-renders.js` prints PASS/FAIL per render for fixed-tempo DAW renders:
+
+| Target | `more please` |
+|---|---|
+| first downbeat error <= 20 ms | 12.2 ms |
+| beats within 20 ms >= 99 % | 99.4 % |
+| cumulative drift <= 20 ms (first fifth vs last fifth of the track) | 1.9 ms |
+| wrong beat or bar shifts = 0 (beats or downbeats not on the MIDI's) | 0 / 0 |
+| pickup preserved 100 % | 2 / 2 |
+| not called variable | constant |
+| exported MIDI (all parts, tempo map) decoded independently: every note that matches a reference note sits within 70 ms of its song position | 100 % of 283 notes, worst 59.5 ms |
+
+Not gates: one render, development split, thresholds not tuned on it (they are the proposed targets). The last row's 59.5 ms is note-onset estimation error (notes are matched
+within 50 ms), not grid error. The reference beats extend over the audio's tail (the render keeps sounding after the MIDI's last note); an earlier run that did not
+counted those 3 beats as wrong. The target list becomes a CI gate only when there are several renders and a holdout.
