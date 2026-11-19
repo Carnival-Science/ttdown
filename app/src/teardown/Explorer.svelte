@@ -358,9 +358,7 @@
     box-shadow: 0 4px 14px rgb(0 0 0 / 0.45); z-index: 2;
   }
 
-  .barruler { position: relative; height: 16px; margin-top: 0; font: 500 0.68rem/16px var(--tt-font-body); font-variant-numeric: tabular-nums; color: var(--tt-ink-3); }
-
-  .barruler :global(span.end) { translate: -100%; border-left: 0; border-right: 1px solid #3a3d46; padding: 0 3px 0 0; }
+  /* The bar ruler is a TimeRuler: styled by its own component and by .barruler in components.css (scoped rules here cannot reach it). */
   .key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: var(--tt-fs-xs); color: var(--tt-ink-2); }
   .key i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
   .keyloud { display: inline-flex; align-items: center; gap: 6px; }
