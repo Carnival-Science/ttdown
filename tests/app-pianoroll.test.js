@@ -6,6 +6,7 @@
 //   4. the chord strip names each bar's chord; the one under the playhead is marked and matches the bar.beat · chord readout, also while
 //      playing; clicking a chord opens the correction, which records the change like before
 //   5. zoom −, + and Fit
+//   7. chord regions: a chord change inside a bar shows where it happens (strip and voicings); its bar's correction lists both and replaces them
 //   6. the arrangement: a click seeks to exactly that place and selects that section (paused stays paused); a drag scrubs without changing
 //      the selection (paused stays paused; playing keeps playing from the new place); the PLAYING section is marked apart from the SELECTED
 //      one; the view box's handle pans the piano roll without seeking; a double-click fits a section in the roll
@@ -60,8 +61,10 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   check(await drawn() === "chords,bass,hook", "3: Alt-click again brings every part back");
 
   // ---- 4. chord strip, playing chord, readout, correction
-  const strip = await p.evaluate(() => [...document.querySelectorAll('[data-annotations="chords"] .ann-item')].map(e => ({ bar: +e.dataset.bar, text: e.textContent.trim() })));
-  check(strip.length >= 4 && strip.every(x => x.text.replace(/\?$/, "") === (td.chords[x.bar] && td.chords[x.bar] !== "–" ? td.chords[x.bar] : "·")), `4: the chord strip names each visible bar's chord (${strip.slice(0, 6).map(x => x.text).join(" ")})`);
+  const strip = await p.evaluate(() => [...document.querySelectorAll('[data-annotations="chords"] .ann-item')].map(e => ({ bar: +e.dataset.bar, step: +e.dataset.step, text: e.textContent.trim() })));
+  const regs0 = await p.evaluate(() => (window.__td.chordRegions || { regions: [] }).regions);
+  const wantChord = x => { const r = regs0.find(r => r.bar * 16 + r.beat * 4 === x.step); return r ? r.c : td.chords[x.bar]; };
+  check(strip.length >= 4 && strip.every(x => x.text.replace(/\?$/, "") === wantChord(x)), `4: the chord strip names each visible chord where it starts (${strip.slice(0, 6).map(x => x.text).join(" ")})`);
   const mid = strip[Math.min(5, strip.length - 1)];
   const tMid = await p.evaluate(b => { const el = document.querySelector(`[data-annotations="chords"] .ann-item[data-bar="${b}"]`), r = el.getBoundingClientRect(), box = el.parentElement.getBoundingClientRect(), l = document.querySelector(".lanes"); return +l.dataset.vpStart + ((r.left + r.width / 2 - box.left) / box.width) * +l.dataset.vpSpan; }, mid.bar);
   await setT(tMid); await p.waitForTimeout(250);
@@ -84,6 +87,32 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   await p.click('.phead button:has-text("Fit")'); await p.waitForTimeout(100); const z2 = await vp();
   check(Math.abs(z1.span - z0.span / 2) < 0.05 && Math.abs(z2.span - td.dur) < 0.1 && z2.start < 0.05, `5: + halves the span (${z0.span.toFixed(1)} → ${z1.span.toFixed(1)} s), Fit shows the whole track (${z2.span.toFixed(1)} s)`);
   await p.click('.phead button[aria-label="Zoom in"]'); await p.click('.phead button[aria-label="Zoom in"]'); await p.waitForTimeout(100);
+
+  // ---- 7. chord regions: a chord where it changes, which need not be a bar line
+  const reg = await p.evaluate(() => window.__td.chordRegions || null);
+  check(reg && reg.method === "chords-v2" && reg.regions.length > 0 && reg.regions.every(r => r.t1 > r.t0 && r.endBar * 16 + r.endBeat * 4 > r.bar * 16 + r.beat * 4), `7: the analysis reports chord regions with real starts and ends (${reg && reg.regions.length}, ${reg && reg.method})`);
+  { // split a region of at least a bar (in view, not the corrected bar) at its 3rd beat into a different chord, as the analyzer would for a mid-bar change
+    const v = await vp(), stepOf = r => r.bar * 16 + r.beat * 4, endOf = r => r.endBar * 16 + r.endBeat * 4;
+    const R = reg.regions.find(r => r.c !== "–" && r.bar >= 0 && r.bar !== mid.bar && endOf(r) - stepOf(r) >= 16 && r.t0 >= v.start && r.t0 + (r.t1 - r.t0) * 8 / (endOf(r) - stepOf(r)) < v.start + v.span - 0.5);
+    check(!!R, "7: (a region of a bar or more is in view)");
+    if (R) {
+      const q = stepOf(R) + 8, tm = R.t0 + (R.t1 - R.t0) * 8 / (endOf(R) - stepOf(R)), Y = R.c === "C" ? "F" : "C", bar = Math.floor(q / 16), beat = (q % 16) / 4;
+      const nCh0 = await p.locator('.lanes g[data-layer="chords"] rect').count();
+      await p.evaluate(([R, q, tm, Y, bar, beat]) => window.__tdReplace(y => { const i = y.chordRegions.regions.findIndex(r => r.t0 === R.t0 && r.c === R.c);
+        y.chordRegions.regions.splice(i, 1, { ...R, t1: +tm.toFixed(3), endBar: bar, endBeat: beat }, { ...R, t0: +tm.toFixed(3), bar, beat, c: Y }); }), [R, q, tm, Y, bar, beat]); await p.waitForTimeout(300);
+      const it = p.locator(`[data-annotations="chords"] .ann-item[data-step="${q}"]`);
+      check(await it.count() === 1 && (await it.innerText()).replace("?", "") === Y && /beat 3/.test(await it.getAttribute("title")), `7: the strip shows ${Y} starting on beat 3 of bar ${bar + 1}, not on the bar line ("${await it.getAttribute("title")}")`);
+      check(await p.locator('.lanes g[data-layer="chords"] rect').count() === nCh0 + 3, "7: the suggested voicing changes there too (one more triad)");
+      await it.click(); await p.waitForTimeout(150);
+      const fx = await p.locator(".fix").innerText();
+      check(fx.startsWith(`Bar ${bar + 1}: ${R.c} → ${Y}`) && /sets one chord for the whole bar/.test(fx), `7: clicking it opens bar ${bar + 1}'s correction, which lists both chords and says a correction covers the bar ("${fx.split("\n")[0]}")`);
+      const sel2 = p.locator('.fix select[aria-label="Change this bar\'s chord"]'), o2 = (await sel2.locator("option").allInnerTexts()).filter(o => o && !/Change|No chord/.test(o))[0];
+      await sel2.selectOption(o2); await p.waitForTimeout(250);
+      const items = await p.locator(`[data-annotations="chords"] .ann-item[data-bar="${bar}"]`).allInnerTexts();
+      check(items.length === 1 && items[0].replace("?", "") === o2, `7: after the correction the bar has the one chord the person chose (${items.join(", ")})`);
+      await p.click('.fix button[aria-label="Close the chord correction"]');
+    }
+  }
 
   // ---- 6. the arrangement as a scrubbing surface
   const map = await p.locator(".map").boundingBox(), y = map.y + map.height * 0.6, X = f => map.x + map.width * f;

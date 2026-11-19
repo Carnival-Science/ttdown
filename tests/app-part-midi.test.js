@@ -78,6 +78,15 @@ fs.mkdirSync(OUT, { recursive: true });
       await choose(p, "part", "bass"); await choose(p, "range", "whole"); await choose(p, "timing", "tempo-map");
       const tm = await grab(/\.mid$/, "bass_tempomap"); check(tm.notes.length > 0 && tm.tempos.length >= 1, `${f}: Follow tempo map writes the bass with the song's tempo map (${tm.notes.length} notes, ${tm.tempos.length} tempo events)`);
     } else check(md["tempo-map"].why.length > 5, `${f}: Follow tempo map is unavailable and says why ("${md["tempo-map"].why}")`);
+    // a pickup (a note before bar 1): the whole-track file starts before bar 1 and keeps it; the range says so
+    if (!md.original.disabled) {
+      await p.keyboard.press("Escape"); await p.evaluate(() => window.__tdReplace(y => { const n = y.transcription.lead[0]; y.transcription.lead.unshift({ ...n, on: 0.01, off: 0.1, bar: -1, beat: -0.5, midi: 99 }); })); await p.waitForTimeout(300);
+      const wl = await (await menu(p)).locator('label:has(input[name="midi-range"][value="whole"])').innerText();
+      check(/\+ pickup/.test(wl), `pickup: the Whole track range says it includes the pickup ("${wl.trim()}")`);
+      await choose(p, "part", "hook"); await choose(p, "range", "whole"); await choose(p, "timing", "original");
+      const pk = await grab(/entire track/, "melody_pickup"), nl = await p.evaluate(() => window.__td.transcription.lead.length);
+      check(pk.notes.some(x => x.pitch === 99) && pk.notes.length === nl, `pickup: the whole-track file keeps the note before bar 1 (${pk.notes.length} of ${nl} notes)`);
+    }
     await (await menu(p)).locator('button:has-text("Copy this section")').click(); await p.waitForTimeout(200);
     const clip = await p.evaluate(() => navigator.clipboard.readText().catch(() => null)), wantTxt = td.chords.slice(sec.startBar, sec.startBar + sec.bars).map(c => !c || c === "–" ? "N.C." : c).join(" | ");
     check(clip === wantTxt || /Copied: /.test(await p.locator(".tst-title").last().innerText()), `${f}: chord names copied as text (${(clip || "").slice(0, 40)}…)`);
