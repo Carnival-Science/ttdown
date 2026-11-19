@@ -27,7 +27,8 @@ Triads only (major or minor), as before. Sevenths and other chord types are the 
 Everything that shows or writes chords uses `chordSpans`:
 - the piano roll's chord strip and its purple suggested voicings;
 - the bar.beat · chord readout;
-- the chords MIDI in all three timings (per part and all parts);
+- the chords MIDI in all three timings (per part and all parts), cut at the exported bars: a chord that began before the range and still sounds in it is kept, and with no range and no section ("Whole track") every bar is written, from the pickup bar when there is one;
+- `songNotes` (the full-song MIDI package and the Check by ear overlay);
 - the copied chord names: `Eb F | F | Gm | Dm`, bars separated by `|`, with a bar's chords in order.
 
 Clicking a chord opens the correction for its bar. When the bar holds more than one chord, the correction lists them and says a correction sets one chord for the whole bar.

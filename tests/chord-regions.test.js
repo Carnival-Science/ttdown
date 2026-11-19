@@ -66,5 +66,21 @@ function synth() {
   Object.assign(x, { barSec: 2, nBars: 4, bpm: 120, sections: [], pattern: { kick: [], snare: [], hats: [] } });
   const one = D.allPartsMidi(x, { timing: "quantized", tempo: 120 }), od = decodeMidi(one.data), ch = od.notes.filter(n => od.tracks[n.track].name === "Chords (suggested)");
   check([...new Set(ch.map(n => n.onTick / od.division))].includes(2), "3: all parts (quantized) writes the same mid-bar change");
+  // ---- 4. the three export paths that must agree with the regions (review of PR 41)
+  // (a) "Whole track": no range and no section writes every chord, not just a selected section; the section path still cuts at its bars
+  x = base(); Object.assign(x, { barSec: 2, nBars: 4, bpm: 120, sections: [], pattern: { kick: [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0], snare: new Array(16).fill(0), hats: new Array(16).fill(0) }, balance: new Array(8).fill(12), key: "C major", rhythm: {}, width: 0.5, title: "t" });
+  { const all = decodeMidi(D.partMidi(x, "chords", { tempo: 120 }).data), sec = decodeMidi(D.partMidi(x, "chords", { section: { startBar: 1, bars: 1 }, tempo: 120 }).data);
+    check(all.notes.length === 12 && Math.max(...all.notes.map(n => n.offTick)) >= 14.9 * all.division, `4a: Whole track chords hold all four bars (${all.notes.length} notes)`);
+    check(sec.notes.length === 3 && Math.max(...sec.notes.map(n => n.offTick)) <= 4 * sec.division, `4a: a section range still writes just its own bars (${sec.notes.length} notes)`); }
+  // (b) a chord that began before the exported bars and still sounds in them is kept (G starts in bar 1 and runs through bar 2)
+  { const bar2 = decodeMidi(D.allPartsMidi(x, { timing: "quantized", tempo: 120, range: { startBar: 1, endBar: 2 } }).data), ch = bar2.notes.filter(n => bar2.tracks[n.track].name === "Chords (suggested)");
+    check(ch.length === 3 && ch.every(n => n.onTick === 0 && n.offTick >= 3.9 * bar2.division), `4b: exporting bar 2 alone keeps the G that began in bar 1 (${ch.length} notes from tick 0, ${ch.length && ch[0].offTick / bar2.division} beats)`); }
+  { const bar2 = D.partMidi(x, "chords", { range: { startBar: 1, endBar: 2 }, tempo: 120 }), d = decodeMidi(bar2.data);
+    check(d.notes.length === 3 && d.notes.every(n => n.onTick === 0), "4b: the same for the chords-only file"); }
+  // (c) the full-song package and the Check-by-ear notes (songNotes) use the same regions as the piano roll
+  { const N = D.songNotes(x), on = [...new Set(N.chords.map(n => n.t))].sort((p, q) => p - q);
+    check(JSON.stringify(on) === "[0,8,32,48]" && N.chords.filter(n => n.t === 8).every(n => n.dur === 24), `4c: songNotes has the chords where they change (16th steps ${on})`);
+    const files = D.songMidiFiles(x, { tempo: 120 }), cf = files.find(f => /Chords/.test(f.name)), cd = decodeMidi(cf.data), cOn = [...new Set(cd.notes.map(n => n.onTick / (cd.division / 4)))].sort((p, q) => p - q);
+    check(JSON.stringify(cOn) === "[0,8,32,48]", `4c: the full-song package's chords file changes chord at the same steps (${cOn})`); }
   console.log(`chord region tests: ${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

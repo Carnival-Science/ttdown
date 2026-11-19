@@ -87,6 +87,10 @@ fs.mkdirSync(OUT, { recursive: true });
       const pk = await grab(/entire track/, "melody_pickup"), nl = await p.evaluate(() => window.__td.transcription.lead.length);
       check(pk.notes.some(x => x.pitch === 99) && pk.notes.length === nl, `pickup: the whole-track file keeps the note before bar 1 (${pk.notes.length} of ${nl} notes)`);
     }
+    // "Whole track" chords: every bar, not just the selected section (the panel used to pass the selected section)
+    await choose(p, "part", "chords"); await choose(p, "range", "whole"); await choose(p, "timing", "quantized");
+    { const wd = await grab(/Chords entire track/, "chords_whole"), nSpans = await p.evaluate(() => window.__sn(window.__td).chords.length);
+      check(wd.notes.length >= nSpans && wd.notes.length >= cd.notes.length && Math.max(...wd.notes.map(x => x.offTick)) > (sec.startBar + sec.bars) * 16 * 24 - 24, `${f}: Whole track chords reach past the selected section (${wd.notes.length} notes, ends at step ${Math.max(...wd.notes.map(x => x.offTick)) / 24 | 0}; section ends at ${(sec.startBar + sec.bars) * 16})`); }
     await (await menu(p)).locator('button:has-text("Copy this section")').click(); await p.waitForTimeout(200);
     const clip = await p.evaluate(() => navigator.clipboard.readText().catch(() => null)), wantTxt = td.chords.slice(sec.startBar, sec.startBar + sec.bars).map(c => !c || c === "–" ? "N.C." : c).join(" | ");
     check(clip === wantTxt || /Copied: /.test(await p.locator(".tst-title").last().innerText()), `${f}: chord names copied as text (${(clip || "").slice(0, 40)}…)`);

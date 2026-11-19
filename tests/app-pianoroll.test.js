@@ -12,14 +12,15 @@
 //      one; the view box's handle pans the piano roll without seeking; a double-click fits a section in the roll
 //   npm run app:build && TT_APP_URL=... node tests/app-pianoroll.test.js   (npm run app:product-tests sets the URL)
 "use strict";
-const path = require("node:path");
+const path = require("node:path"), fs = require("node:fs"), os = require("node:os");
+const { decodeMidi } = require("./lib/smf");
 const { chromium } = require("playwright");
 const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `file://${ROOT}/app/dist/bench/`, SONGS = path.join(ROOT, "test-songs");
 (async () => {
   const guard = setTimeout(() => { console.error("test timed out"); process.exit(1); }, 280000);
   const b = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] }), errs = []; let failed = 0, n = 0;
   const check = (ok, msg) => { n++; console.log(`${ok ? "PASS" : "FAIL"} ${msg}`); if (!ok) failed++; };
-  const p = await (await b.newContext({ viewport: { width: 1280, height: 720 } })).newPage(); p.on("pageerror", e => errs.push(String(e)));
+  const p = await (await b.newContext({ viewport: { width: 1280, height: 720 }, acceptDownloads: true })).newPage(); p.on("pageerror", e => errs.push(String(e)));
   await p.goto(`${URL}index.html`); await p.waitForTimeout(300);
   await p.setInputFiles("#file", path.join(SONGS, "sections120.mp3"));
   await p.waitForFunction(() => /Teardown ready|Couldn/.test(document.querySelector("#status").textContent), null, { timeout: 120000 }); await p.waitForTimeout(500);
@@ -113,6 +114,19 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
       await p.click('.fix button[aria-label="Close the chord correction"]');
     }
   }
+
+  // ---- 8. "Whole track" chords are every bar, not the selected section (a review found the panel passed the section)
+  { await p.locator("#explorer .seg").nth(1).click(); await p.waitForTimeout(250);
+    const dlTo = async tag => { const [d] = await Promise.all([p.waitForEvent("download"), p.locator(".midi-pop .dl").click()]); const f = path.join(os.tmpdir(), `pr_${tag}_${Date.now()}.mid`); await d.saveAs(f); return decodeMidi(fs.readFileSync(f)); };
+    const pick = async (name, v) => { if (!(await p.locator(".midi-pop").count())) { await p.click(".phead .midi"); await p.waitForTimeout(200); } await p.locator(`.midi-pop input[name="midi-${name}"][value="${v}"]`).check(); await p.waitForTimeout(80); };
+    // quantized is where the selected section used to leak in; it needs the bar lines confirmed in Export first
+    await p.keyboard.press("Escape"); await p.waitForTimeout(100);
+    await p.locator('#exports input[type=checkbox]').nth(0).check(); await p.locator('#exports input[type=checkbox]').nth(1).check(); await p.locator('#exports button:has-text("Confirm and unlock")').click(); await p.waitForTimeout(250);
+    await pick("part", "chords"); await pick("timing", "quantized"); await pick("range", "section"); const sectionFile = await dlTo("sec");
+    await pick("part", "chords"); await pick("timing", "quantized"); await pick("range", "whole"); const wholeFile = await dlTo("whole");
+    const nCh = await p.evaluate(() => window.__sn(window.__td).chords.length);
+    check(!sectionFile.tempos.some(t => t.tick > 0) && wholeFile.notes.length > sectionFile.notes.length * 1.5 && wholeFile.notes.length >= nCh * 0.9, `8: Whole track chords hold far more than the selected section (${wholeFile.notes.length} notes vs ${sectionFile.notes.length} for one section; the song has ${nCh})`);
+    await p.keyboard.press("Escape"); await p.waitForTimeout(100); }
 
   // ---- 6. the arrangement as a scrubbing surface
   const map = await p.locator(".map").boundingBox(), y = map.y + map.height * 0.6, X = f => map.x + map.width * f;

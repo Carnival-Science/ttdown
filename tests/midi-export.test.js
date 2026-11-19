@@ -161,7 +161,10 @@ for (const id of ["pop127_pad300", "pop127_pad1200", "leading_silence_2s", "pick
   }
   check(nPhrase > 6, "per-part phrases exercised: " + nPhrase);
   assert.throws(() => D.partMidi(byId("pop127_Amaj"), "drums", {}), /unknown part/); check(true, "an unknown part is refused");
-  check(D.partMidi(byId("pop127_Amaj"), "chords", {}) === null, "chords without a section write nothing");
+  { // no range and no section is the WHOLE track (the app's "Whole track"), not nothing and not the selected section
+    const A = byId("pop127_Amaj"), w = D.partMidi(A, "chords", {}), nb = A.chords.bars.filter(c => c && c !== "–").length, d = decodeMidi(w.data);
+    check(w && /entire track/.test(w.name) && d.notes.length === nb * 3 && Math.max(...d.notes.map(n => n.offTick)) > (A.nBars - 1) * 16 * 24, `chords without a range or section write the whole track (${d.notes.length} notes for ${nb} chorded bars)`);
+  }
   const a0 = byId("pop127_Amaj"); a0.chords = { bars: ["–", "–"] }; check(D.partMidi(a0, "chords", { section: { startBar: 0, bars: 2 } }) === null && D.chordNamesText(a0, { startBar: 0, bars: 2 }) === "N.C. | N.C.", "bars with no chord write no notes and read N.C.");
 }
 

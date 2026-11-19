@@ -164,7 +164,7 @@
     try {
       const m = part === "all"
         ? D.allPartsMidi(a, { timing: t, grid: G, range, tempo })
-        : partMidi(a, part, { timing: t, grid: G, range, section: s, tempo, source: full && part !== "chords" ? "transcribed" : undefined });
+        : partMidi(a, part, { timing: t, grid: G, range, section: rangePick === "whole" ? undefined : s, tempo, source: full && part !== "chords" ? "transcribed" : undefined });
       if (!m) { notify("warning", "There is nothing to write for this part in that range."); return; }
       // the all-parts file is already named after the track
       await saveFile(part === "all" ? m.name.replace(/[\\/:*?"<>|]+/g, "") : `${base} - ${m.name}`, m.data, "audio/midi"); menuOpen = false;
