@@ -118,12 +118,12 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
     await p.click("#recent-btn"); await p.click("#hist .h-open"); await p.waitForTimeout(500);
     check(await p.locator("#attach-btn").isVisible() && /Playback is unavailable/.test(await p.locator("#no-audio").innerText()) && await p.locator('button[aria-label="Play"]').count() === 0, "5: a saved teardown says playback is unavailable and offers Attach audio");
     check(await p.locator("#explorer .timeline .seg").count() >= 1, "5: and the arrangement and notes stay navigable");
-    await p.setInputFiles("#attach", path.join(SONGS, "sections120.mp3")); await p.waitForFunction(() => document.querySelector("#attach-note") && !/Comparing/.test(document.querySelector("#attach-note").textContent), null, { timeout: 20000 });
-    check(/different track/.test(await p.locator("#attach-note").innerText()) && await p.locator('button[aria-label="Play"]').count() === 0, `5: a file of another length is refused (“${(await p.locator("#attach-note").innerText()).slice(0, 70)}…”)`);
-    await p.setInputFiles("#attach", path.join(SONGS, "pop127_pad300.wav")); await p.waitForFunction(() => document.querySelector("#attach-note") && !/Comparing/.test(document.querySelector("#attach-note").textContent), null, { timeout: 20000 });
+    await p.setInputFiles("#attach", path.join(SONGS, "sections120.mp3")); await p.waitForFunction(() => [...document.querySelectorAll(".tst-title")].some(t => !/Comparing/.test(t.textContent)), null, { timeout: 20000 });
+    check(/different track/.test(await p.locator(".tst-title").last().innerText()) && await p.locator('button[aria-label="Play"]').count() === 0, `5: a file of another length is refused (“${(await p.locator(".tst-title").last().innerText()).slice(0, 70)}…”)`);
+    await p.setInputFiles("#attach", path.join(SONGS, "pop127_pad300.wav")); await p.waitForFunction(() => [...document.querySelectorAll(".tst-title")].some(t => !/Comparing/.test(t.textContent)), null, { timeout: 20000 });
     check(await p.locator('button[aria-label="Play"]').count() === 0, "5: a copy cut 0.3 s differently is refused too (it would put the playhead out of step)");
     await p.setInputFiles("#attach", path.join(SONGS, "pop127_Amaj.wav")); await p.waitForSelector('button[aria-label="Play"]', { timeout: 20000 }); await p.waitForTimeout(300);
-    check(/Audio attached/.test(await p.locator("#attach-note").count() ? await p.locator("#attach-note").innerText() : "Audio attached") || await p.locator("#attach-btn").count() === 0, "5: the matching file is accepted");
+    check(/Audio attached/.test(await p.locator(".tst-title").last().innerText().catch(() => "Audio attached")) || await p.locator("#attach-btn").count() === 0, "5: the matching file is accepted");
     await p.click('button[aria-label="Play"]'); await p.waitForTimeout(1200);
     const at = await audio(p); check(!at.paused && at.t > 0.5 && await p.locator("#explorer svg.loud").count() === 1, `5: and it plays after attaching (${at.t.toFixed(2)} s), with the loudness shape back`);
     await p.context().close(); }

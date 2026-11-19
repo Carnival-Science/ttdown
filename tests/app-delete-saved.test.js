@@ -46,7 +46,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   await p.locator('#hist [data-delete][aria-label="Delete Second take"]').click(); await p.locator("#hist [data-delete-yes]").click(); await p.waitForTimeout(200);
   let t = await store(p);
   check(t.length === 2 && !t.includes("Second take") && await p.locator("#hist .h-open").count() === 2, `3: Yes removes it from storage and the list (${t})`);
-  check(/deleted “Second take” from this browser|Deleted “Second take” from this browser/i.test(await p.locator("#hist-note").innerText()), "3: a note says it was deleted from this browser");
+  check(/deleted “Second take” from this browser|Deleted “Second take” from this browser/i.test(await p.locator(".tst-title").last().innerText()), "3: a toast says it was deleted from this browser");
   await p.reload(); await p.waitForTimeout(500); t = await store(p);
   check(t.length === 2 && !t.includes("Second take"), `3: after a reload it is still gone (${t})`);
 
@@ -55,7 +55,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   const shown = await p.evaluate(() => window.__td.title);
   await p.click("#recent-btn"); await p.locator(`#hist [data-delete][aria-label="Delete ${shown}"]`).click(); await p.locator("#hist [data-delete-yes]").click(); await p.waitForTimeout(300);
   check(!(await store(p)).includes(shown) && await p.evaluate(() => window.__td.title) === shown && await p.locator("#explorer").isVisible(), `5: deleting the open teardown ("${shown}") leaves it open on screen`);
-  check(/no longer saved/i.test(await p.locator("#hist-note").innerText()), "5: and says it is no longer saved");
+  check(/no longer saved/i.test(await p.locator(".tst-title").last().innerText()), "5: and a toast says it is no longer saved");
   check(await p.locator('.detail [role="tab"]').count() > 0, "5: the rest of the page still works");
 
   // ---- 4. clear all (the popover has one saved teardown left plus we add two)

@@ -7,11 +7,13 @@
   import { installTestHooks } from "./lib/testing/hooks";
   import { teardown } from "./lib/state/teardown.svelte";
   import { timeMapSelfCheck } from "./lib/timemap";
+  import { mountNotes } from "./lib/ui/toast";
   import Toolbar from "./teardown/Toolbar.svelte";
   import DropZone from "./teardown/DropZone.svelte";
   import Workspace from "./teardown/Workspace.svelte";
 
   installTestHooks();
+  $effect(() => mountNotes());
   $effect(() => { teardown.refreshHistory(); });
   // Runs the canonical TimeMap once; the smoke test compares this with Node (dev server and built bundle alike).
   const tm = timeMapSelfCheck();
@@ -29,7 +31,6 @@
 
 <main class="app" class:dragging={depth > 0} data-timemap-schema={tm.schema} data-timemap-fingerprint={tm.fingerprint}>
   <Toolbar />
-  <p id="hist-note" class={"histnote" + (teardown.histNote.bad ? " err" : "")} role="status" hidden={!teardown.histNote.text}>{teardown.histNote.text}</p>
   <div id="out" class="stage" class:has-result={!!teardown.result}>
     {#if teardown.result}
       {#key teardown.mountId}

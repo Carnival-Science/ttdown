@@ -11,11 +11,12 @@
   import { bufferOf } from "../lib/engine";
   import { TimingStore } from "../lib/persistence/timing";
   import { saveFile, safeName } from "../lib/files/download";
+  import { notify, pending } from "../lib/ui/toast";
 
   const { zipStore, songMidiFiles, alignedWav, exportGate } = domain as any;
   const a = $derived(teardown.result as any);
-  let downbeatOk = $state(false), meterOk = $state(false), note = $state("");
-  $effect(() => { void exportState.id; downbeatOk = false; meterOk = false; note = ""; });
+  let downbeatOk = $state(false), meterOk = $state(false);
+  $effect(() => { void exportState.id; downbeatOk = false; meterOk = false; });
   // one decision for the page, the download and the per-part MIDI buttons: domain.exportGate, held in exportState
   const elig = $derived(exportState.gate);
   const staleWhy = $derived(elig.stale);
@@ -30,7 +31,10 @@
   const canExport = $derived(elig.canExport);
   const buffer = $derived(bufferOf(a));
   const base = $derived(safeName(a.title, "song"));
-  async function run(fn: () => Promise<string>) { try { note = await fn(); } catch (e) { note = "Couldn't save the file" + ((e as Error)?.message ? ": " + (e as Error).message.slice(0, 80) : "."); } }
+  async function run(fn: () => Promise<string>, busy?: string) {
+    const say = busy ? pending(busy) : notify;
+    try { say("success", await fn()); } catch (e) { say("error", "Couldn't save the file" + ((e as Error)?.message ? ": " + (e as Error).message.slice(0, 80) : ".")); }
+  }
   const data = () => run(async () => { await saveFile(`${base} - analysis.json`, JSON.stringify(TimingStore.forStorage(a), null, 1), "application/json"); return "Saved the analysis data, including the tracked beat times."; });
   const midi = () => run(async () => {
     const g = exportGate(a, (gridOf(a) as any).map, exportState.confirmed); if (!g.canExport) throw new Error("these exports are blocked"); // decided again at the click, from the same rule as the button
@@ -38,11 +42,11 @@
     return "Saved. Unzip it: each file is one part and starts at bar 1, so put the song lined up to bar 1 (.wav) at bar 1 too. Notes are snapped to the 16th-note grid, not the original timing, and the chords are suggested voicings, not transcribed.";
   });
   const wav = () => run(async () => {
-    note = "Preparing the file…"; await new Promise(r => setTimeout(r, 30));
+    await new Promise(r => setTimeout(r, 30)); // let the "Preparing" toast paint before the synchronous WAV build blocks the page
     await saveFile(`${base} - reference lined up to bar 1.wav`, alignedWav(a), "audio/wav");
     const fd = a.firstDown || 0;
     return "Saved. " + (Math.abs(fd) < 0.005 ? "It already starts on a downbeat." : fd < 0 ? `It has ${Math.round(-fd * 1000)} ms of silence added at the start so bar 1 lands on the first downbeat.` : `The first ${Math.round(fd * 1000)} ms (before the first downbeat) is trimmed so bar 1 lands on the downbeat.`);
-  });
+  }, "Preparing the file…");
 </script>
 
 <section class="dock" id="exports" aria-labelledby="export-h">
@@ -67,7 +71,6 @@
     <button class="btn" type="button" disabled={!canExport || !buffer} onclick={wav}>Download the song lined up to bar 1 (.wav)</button>
   </div>
   {#if canExport && !buffer}<p class="small">The lined-up audio needs the track itself: upload it again (saved teardowns don't keep the audio).</p>{/if}
-  <p class="small" role="status">{note}</p>
 </section>
 
 <style>

@@ -16,6 +16,7 @@
   import { gridOf } from "../lib/timeline/grid";
   import { barBeat, barTicks, gridLines, timeAtBeat } from "../lib/timeline/position";
   import { saveFile, safeName } from "../lib/files/download";
+  import { notify } from "../lib/ui/toast";
   import Basis from "../lib/ui/Basis.svelte";
   import Segmented from "../lib/ui/Segmented.svelte";
   import Popover from "../lib/ui/Popover.svelte";
@@ -139,30 +140,29 @@
   const rangeOf = (r: RangePick): [number, number] => r === "section" ? [s.startBar, s.startBar + s.bars] : r === "visible" ? visibleBars() : [0, a.nBars + 1];
   const rangeText = (r: RangePick) => { const [b0, b1] = rangeOf(r); return r === "whole" ? `bars 1–${a.nBars}` : `bars ${b0 + 1}–${b1}`; };
 
-  let menuOpen = $state(false), note = $state("");
-  $effect(() => { void index; note = ""; });
+  let menuOpen = $state(false);
   const base = $derived(safeName(a.title, "song"));
   async function download() {
     const t = timing;
     // decided again at the click, from the same rules the menu shows
-    if (!okOf(t)) { note = "That timing isn't available: " + whyOf(t); return; }
+    if (!okOf(t)) { notify("warning", "That timing isn't available: " + whyOf(t)); return; }
     const [startBar, endBar] = rangeOf(rangePick), range = { startBar, endBar };
     const tempo = t === "quantized" ? exportState.gate.tempo : undefined;
     try {
       const m = part === "all"
         ? D.allPartsMidi(a, { timing: t, grid: G, range, tempo })
         : partMidi(a, part, { timing: t, grid: G, range, section: s, tempo, source: full && part !== "chords" ? "transcribed" : undefined });
-      if (!m) { note = "There is nothing to write for this part in that range."; return; }
+      if (!m) { notify("warning", "There is nothing to write for this part in that range."); return; }
       // the all-parts file is already named after the track
       await saveFile(part === "all" ? m.name.replace(/[\\/:*?"<>|]+/g, "") : `${base} - ${m.name}`, m.data, "audio/midi"); menuOpen = false;
       const rt = m.refTempo != null ? Math.round(m.refTempo * 10) / 10 : refTempo;
       const how = t === "quantized" ? `snapped to the 16th-note grid at ${Math.round((exportState.gate.tempo || a.bpm) * 10) / 10} BPM, not the original timing` : t === "tempo-map" ? "following the song's tempo map" : `with the original timing${rt ? `; it plays in time at ${rt} BPM (set your DAW to it, or import the file's tempo)` : ""}`;
-      note = `Saved, ${how}.` + (part === "chords" || part === "all" ? " Chords are suggested voicings built from the detected chord names, not transcribed from the audio." : " The notes are a rough transcription.");
-    } catch (e) { note = "Couldn't save the file" + ((e as Error)?.message ? ": " + (e as Error).message.slice(0, 80) : "."); }
+      notify("success", `Saved, ${how}.` + (part === "chords" || part === "all" ? " Chords are suggested voicings built from the detected chord names, not transcribed from the audio." : " The notes are a rough transcription."));
+    } catch (e) { notify("error", "Couldn't save the file" + ((e as Error)?.message ? ": " + (e as Error).message.slice(0, 80) : ".")); }
   }
   async function copyChords() {
     const text = chordNamesText(a, s);
-    try { await navigator.clipboard.writeText(text); note = "Copied: " + text; } catch { note = "Couldn't copy. The chords are: " + text; }
+    try { await navigator.clipboard.writeText(text); notify("success", "Copied: " + text); } catch { notify("warning", "Couldn't copy. The chords are: " + text); }
   }
   const TIMINGS: { id: Timing; label: string }[] = [{ id: "original", label: "Original timing" }, { id: "tempo-map", label: "Follow tempo map" }, { id: "quantized", label: "Quantized" }];
   const PART_PICKS: { id: PartPick; label: string }[] = [{ id: "hook", label: "Melody" }, { id: "bass", label: "Bass" }, { id: "chords", label: "Chords (suggested)" }, { id: "all", label: "All parts (multitrack MIDI)" }];
@@ -257,7 +257,6 @@
     {#if missing.length}<p class="small missing">Not found: {missing.join(", ")}. <Basis kind="unknown" note="The analyzer could not read these reliably from the mix, so nothing is drawn for them." /></p>{/if}
     {#if exportState.lockedWhy}<p class="small">Quantized MIDI is locked: {exportState.lockedWhy} <a href="#exports">Go to Export</a></p>{/if}
   {/if}
-  {#if note}<p class="small" role="status">{note}</p>{/if}
 </div>
 
 <style>

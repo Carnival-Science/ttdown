@@ -37,7 +37,6 @@ p { margin: 0; }
 .seggap { background: repeating-linear-gradient(45deg, #15161a 0 6px, #1b1c21 6px 12px); border-radius: 6px; min-width: 2px; }
 .barruler { position: relative; height: 18px; margin-top: 4px; font: 600 .66rem var(--font-mono); color: var(--ink-3); }
 .barruler span { position: absolute; top: 0; transform: translateX(-1px); padding-left: 3px; border-left: 1px solid #3a3d46; line-height: 18px; }
-#hist-note.err { color: var(--accent); }
 .barruler span.ext { border-left-style: dashed; opacity: .55; }
 .playhead-wrap { cursor: pointer; }
 /* panels */

@@ -80,7 +80,7 @@ fs.mkdirSync(OUT, { recursive: true });
     } else check(md["tempo-map"].why.length > 5, `${f}: Follow tempo map is unavailable and says why ("${md["tempo-map"].why}")`);
     await (await menu(p)).locator('button:has-text("Copy this section")').click(); await p.waitForTimeout(200);
     const clip = await p.evaluate(() => navigator.clipboard.readText().catch(() => null)), wantTxt = td.chords.slice(sec.startBar, sec.startBar + sec.bars).map(c => !c || c === "–" ? "N.C." : c).join(" | ");
-    check(clip === wantTxt || /Copied: /.test(await p.locator("#explorer .detail [role=status]").first().innerText()), `${f}: chord names copied as text (${(clip || "").slice(0, 40)}…)`);
+    check(clip === wantTxt || /Copied: /.test(await p.locator(".tst-title").last().innerText()), `${f}: chord names copied as text (${(clip || "").slice(0, 40)}…)`);
     await p.keyboard.press("Escape");
     const sName = await p.locator("#explorer .detail h3.dtitle").first().innerText(); check(!/^Groove\b/.test(sName), `${f}: the section is not called "Groove" ("${sName.split("bars")[0].trim()}")`);
     check(await p.locator("#explorer [data-drumless]").count() === 0 && await tabBtn(p, "Rhythm").count() === 1, `${f}: a track with drums keeps the Rhythm tab and shows no drumless notice`);

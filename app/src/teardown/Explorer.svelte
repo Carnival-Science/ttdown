@@ -239,7 +239,6 @@
           onchange={e => { const f = e.currentTarget.files?.[0]; void teardown.attachAudio(f); e.currentTarget.value = ""; }}>
         <button type="button" class="btn primary" id="attach-btn" onclick={() => attachEl?.click()}>Attach audio</button>
         <span class="small" id="no-audio">Playback is unavailable: a saved teardown doesn't keep the audio. Attach the track it was made from to play it. It stays in this browser.</span>
-        {#if teardown.attachNote.text}<span class={"small " + (teardown.attachNote.ok ? "ok" : "bad")} id="attach-note" role="status">{teardown.attachNote.text}</span>{/if}
       </div>
     {/if}
 
@@ -353,7 +352,6 @@
   .posn .plabel { margin-right: 4px; }
   .clock .total { margin-left: 4px; }
   .attach { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
-  .attach .ok { color: var(--tt-good); } .attach .bad { color: #ff8f7a; }
   .readout {
     position: absolute; top: calc(100% + 2px); translate: -50% 0; padding: 4px 8px; border-radius: 6px; white-space: pre; pointer-events: none;
     background: var(--tt-ink); color: var(--tt-bg); font: 600 0.74rem/1.3 var(--tt-font-body); font-variant-numeric: tabular-nums;

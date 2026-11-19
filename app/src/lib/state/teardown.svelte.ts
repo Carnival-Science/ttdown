@@ -8,6 +8,7 @@
 import { engine, bufferOf, withHidden, type AnalysisResult } from "../engine";
 import { domain } from "../domain";
 import { loadHist, saveHist, deleteHist, clearHist } from "../storage/data";
+import { notify, pending } from "../ui/toast";
 
 declare const __TEST_HOOKS__: boolean;
 const { fixSectionTimes, applyTempo, applyMeter, forcedOf, recordCorrection } = domain;
@@ -28,7 +29,6 @@ class Teardown {
   progress = $state(0);
   running = $state(false);
   history = $state.raw<AnalysisResult[]>([]);
-  histNote = $state({ text: "", bad: false });
   /** The name in the toolbar: the optional name for the next analysis, and the name of the teardown on screen. */
   title = $state("");
   /** The person typed a name for the next analysis (used once; otherwise the file name is). */
@@ -47,15 +47,15 @@ class Teardown {
   forget(h: AnalysisResult) {
     const ok = deleteHist(h), shown = this.result && this.result.title === h.title && this.result.duration === h.duration;
     this.refreshHistory();
-    this.histNote = ok ? { text: shown ? `“${h.title || "Untitled"}” is deleted from this browser. It is still open here, but it is no longer saved.` : `Deleted “${h.title || "Untitled"}” from this browser.`, bad: false }
-      : { text: "Couldn't delete it: this browser blocked access to its storage.", bad: true };
+    if (ok) notify("success", shown ? `“${h.title || "Untitled"}” is deleted from this browser. It is still open here, but it is no longer saved.` : `Deleted “${h.title || "Untitled"}” from this browser.`);
+    else notify("error", "Couldn't delete it: this browser blocked access to its storage.");
   }
   forgetAll() {
     const ok = clearHist(), shown = !!this.result; this.refreshHistory();
-    this.histNote = ok ? { text: shown ? "All saved teardowns are deleted from this browser. The one open here stays open, but it is no longer saved." : "All saved teardowns are deleted from this browser.", bad: false }
-      : { text: "Couldn't delete them: this browser blocked access to its storage.", bad: true };
+    if (ok) notify("success", shown ? "All saved teardowns are deleted from this browser. The one open here stays open, but it is no longer saved." : "All saved teardowns are deleted from this browser.");
+    else notify("error", "Couldn't delete them: this browser blocked access to its storage.");
   }
-  private save(a: AnalysisResult) { const r = saveHist(a); this.histNote = { text: r.note, bad: r.bad }; this.refreshHistory(); }
+  private save(a: AnalysisResult) { const r = saveHist(a); if (r.note) notify(r.bad ? "error" : "info", r.note); this.refreshHistory(); }
 
   supersede(msg?: string) {
     this.job++;
@@ -97,7 +97,7 @@ class Teardown {
     this.supersede("Opened a saved teardown, so the analysis in progress was stopped.");
     if (this.audioURL) URL.revokeObjectURL(this.audioURL);
     this.audioURL = null; this.buffer = null; this.selected = 0;
-    this.title = saved.title || ""; this.titleTyped = false; this.attachNote = { text: "", ok: false };
+    this.title = saved.title || ""; this.titleTyped = false;
     this.show(saved); this.mountId++;
   }
   /* ---- corrections (Phase 2d). A tempo or first-downbeat correction re-runs the analysis from the SAME audio with that value fixed, so
@@ -142,12 +142,11 @@ class Teardown {
   /* ---- audio for a saved teardown. A saved teardown has no audio; attaching the track again makes it playable (the playhead, loops,
      beat clicks, the loudness shape). Before enabling playback the file must match: the same length (within 0.15 s: a different export of the same song can differ by a few tens of milliseconds, but anything more would put the playhead out of step) and the same loudest
      sample, measured exactly as the analysis measured it (peakDb). That is a cheap fingerprint, not proof of identity, and it says so. */
-  attachNote = $state({ text: "", ok: false });
   async attachAudio(file: File | undefined | null): Promise<boolean> {
     const cur = this.result as AnalysisResult | null; if (!file || !cur || this.running) return false;
     const fmt = (x: number) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, "0")}`;
-    const say = (text: string, ok = false) => { this.attachNote = { text, ok }; return ok; };
-    say("Comparing the file with this teardown…");
+    const done = pending("Comparing the file with this teardown…");
+    const say = (text: string, ok = false) => { done(ok ? "success" : "error", text); return ok; };
     let ab: AudioBuffer;
     try { ab = await new OfflineAudioContext(2, 44100, 44100).decodeAudioData(await file.arrayBuffer()); }
     catch { return say("Couldn't read that file. Try the MP3 or WAV the teardown was made from."); }
