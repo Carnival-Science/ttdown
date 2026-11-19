@@ -454,29 +454,51 @@ function alignedWav(a) {
 function songMidiFiles(a, opts) {
   const N = songNotes(a), al = songAlign(a), sh = arr => arr.map(n => Object.assign({}, n, { t: n.t + al.ofs })), bpm = opts && opts.tempo != null ? opts.tempo : a.bpm;
   const q = `quantized to the 16th-note grid from bar 1 at ${Math.round(bpm * 1000) / 1000} BPM, 4/4; not the original timing`;
+  // bass and hook: the full-track transcription at its real positions when the analysis has one; otherwise the 4-bar pattern repeated
+  const nB = a.nBars || Math.floor(a.duration / a.barSec), tb = transcribedSteps(a, "bass", 0, nB + 1), th = transcribedSteps(a, "hook", 0, nB + 1);
+  const bassNotes = tb || N.bass, hookNotes = th || N.hook;
+  const bassHow = tb ? "rough transcription of the bass at its real positions in the song" : "detected bass line folded to 4 bars and repeated", hookHow = th ? "rough transcription of the top line at its real positions in the song" : "rough melody estimate folded to 4 bars and repeated";
   const files = [
     ["1 Kick", "1 Kick", N.D.kick, `Kick: detected pattern, ${q}`], ["2 Snare or clap", "2 Snare or clap", N.D.snare, `Snare or clap: detected pattern, ${q}`],
     ["3 Hi-hats", "3 Hi-hats", N.D.hats, `Hi-hats: detected pattern, ${q}`],
-    is808(a, genreOf(a)) ? ["4 808", "4 808", N.bass, `808: detected bass line folded to 4 bars and repeated, ${q}`] : ["4 Bass", "4 Bass", N.bass, `Bass: detected bass line folded to 4 bars and repeated, ${q}`],
+    is808(a, genreOf(a)) ? ["4 808", "4 808", bassNotes, `808: ${bassHow}, ${q}`] : ["4 Bass", "4 Bass", bassNotes, `Bass: ${bassHow}, ${q}`],
     ["5 Chords (suggested)", "5 Chords", N.chords, `Chords: SUGGESTED voicings generated from the detected chord names, not transcribed from the audio; ${q}`],
-    ["6 Hook (rough)", "6 Hook", N.hook, `Hook: rough melody estimate folded to 4 bars and repeated, ${q}`]];
+    ["6 Hook (rough)", "6 Hook", hookNotes, `Hook: ${hookHow}, ${q}`]];
   return files.filter(f => f[2].length).map(([n, label, notes, text]) => ({ name: `${n} - full song.mid`, data: midiBytes(sh(notes), bpm, { name: label, text }) }));
+}
+/* The full-track transcription (engine transcribeTrack: notes at their real positions, a.transcription) of one part, as 16th steps
+   counted from bar startBar, for bars [startBar, endBar). A note that runs past endBar is cut there. null when the analysis has none
+   (teardowns analysed before it existed): callers then fall back to the representative pattern and say so. */
+function transcribedSteps(a, part, startBar, endBar) {
+  const T = a.transcription, list = T && (part === "hook" ? T.lead : part === "bass" ? T.bass : null); if (!list) return null;
+  const out = []; list.forEach(n => { if (n.bar < startBar || n.bar >= endBar) return; const t = Math.round(n.beat * 4) - startBar * 16, end = Math.min(t + Math.round(n.dur * 4), (endBar - startBar) * 16); if (end > t) out.push({ t, dur: end - t, midi: n.midi, vel: n.vel || 100 }); });
+  return out;
 }
 /* One displayed part as a single small MIDI file, written by the same midiBytes as the full-song package (same 96-per-quarter grid, tempo
    and 4/4 events, same-pitch handling, labels). part "hook" or "bass": the phrase the piano roll shows (the detected 4-bar loop, notes in
    16th steps from its first bar), NOT the song-length repeat that songMidiFiles writes. part "chords": the detected chord of each bar of
    section {startBar, bars} as suggested triads, one per bar, starting at the section's first bar. opts.tempo is the export grid's BPM, as for
-   songMidiFiles. Returns { name, data } or null when there is nothing to write. The caller checks exportGate first. */
+   songMidiFiles. Returns { name, data } or null when there is nothing to write. The caller checks exportGate first.
+   opts.range = { startBar, endBar } (end exclusive) writes the transcribed notes in those bars, starting the file at startBar; opts.source
+   "transcribed" | "pattern" chooses explicitly. Without either, hook/bass write the displayed 4-bar phrase, as before. */
 function partMidi(a, part, opts) {
   const bpm = opts && opts.tempo != null ? opts.tempo : a.bpm, q = `quantized to the 16th-note grid at ${Math.round(bpm * 1000) / 1000} BPM, 4/4; not the original timing`;
   if (part === "hook" || part === "bass") {
-    const src = part === "hook" ? a.hook : a.bassline, min = part === "hook" ? 3 : 2; if (!src || !src.notes || src.notes.length < min) return null;
-    const label = part === "hook" ? "Top line" : is808(a, genreOf(a)) ? "808" : "Bass", from = src.bar != null ? `bar ${src.bar} of the song` : "the song";
-    const notes = src.notes.map(n => ({ t: n.t, dur: n.dur, midi: n.midi, vel: n.vel || 100 }));
-    return { name: `${label} (rough, 4-bar phrase).mid`, data: midiBytes(notes, bpm, { name: label, text: `${label}: rough transcription read from ${from}, folded to a 4-bar phrase, ${q}` }) };
+    const label = part === "hook" ? "Top line" : is808(a, genreOf(a)) ? "808" : "Bass", nBars = a.nBars || Math.floor(a.duration / a.barSec);
+    // a range asks for the notes in those bars (the transcription when there is one); no range and no source keeps the displayed 4-bar phrase
+    const src = opts && opts.source || (opts && opts.range && a.transcription ? "transcribed" : "pattern");
+    if (src === "transcribed") {
+      const r = opts && opts.range || { startBar: 0, endBar: nBars + 1 }, notes = transcribedSteps(a, part, r.startBar, r.endBar); if (!notes || !notes.length) return null;
+      const span = r.startBar === 0 && r.endBar > nBars ? "entire track" : `bars ${r.startBar + 1}-${r.endBar}`;
+      return { name: `${label} ${span} (rough transcription).mid`, data: midiBytes(notes, bpm, { name: label, text: `${label}: rough transcription at its real positions in the song, ${span === "entire track" ? "the entire track" : span} (the file starts at bar ${r.startBar + 1}); ${q}` }) };
+    }
+    const pat = part === "hook" ? a.hook : a.bassline, min = part === "hook" ? 3 : 2; if (!pat || !pat.notes || pat.notes.length < min) return null;
+    const from = pat.bar != null ? `bar ${pat.bar} of the song` : "the song";
+    const notes = pat.notes.map(n => ({ t: n.t, dur: n.dur, midi: n.midi, vel: n.vel || 100 }));
+    return { name: `${label} (rough, 4-bar phrase).mid`, data: midiBytes(notes, bpm, { name: label, text: `${label}: rough transcription read from ${from}, folded to a 4-bar phrase (a representative pattern, not every bar), ${q}` }) };
   }
   if (part === "chords") {
-    const sec = opts && opts.section, bars = (a.chords && a.chords.bars) || []; if (!sec) return null;
+    const sec = opts && (opts.range ? { startBar: opts.range.startBar, bars: opts.range.endBar - opts.range.startBar } : opts.section), bars = (a.chords && a.chords.bars) || []; if (!sec) return null;
     const notes = []; for (let k = 0; k < sec.bars; k++) { const c = bars[sec.startBar + k]; if (!c || c === "–") continue; chordFromName(c).notes.forEach(m => notes.push({ t: k * 16, dur: 16, midi: m, vel: 85 })); }
     if (!notes.length) return null;
     return { name: `Chords bars ${sec.startBar + 1}-${sec.startBar + sec.bars} (suggested voicings).mid`, data: midiBytes(notes, bpm, { name: "Chords", text: `Chords: SUGGESTED voicings generated from the detected chord names for bars ${sec.startBar + 1} to ${sec.startBar + sec.bars}, not transcribed from the audio; ${q}` }) };
@@ -971,5 +993,5 @@ const EXAMPLE = {
   sections: [{ label: "Intro", startBar: 0, bars: 16 }, { label: "Build", startBar: 16, bars: 8 }, { label: "Drop", startBar: 24, bars: 32 }, { label: "Breakdown", startBar: 56, bars: 16 }, { label: "Build", startBar: 72, bars: 8 }, { label: "Drop", startBar: 80, bars: 24 }, { label: "Outro", startBar: 104, bars: 15 }].map(s => Object.assign(s, { start: +(s.startBar * 1.92).toFixed(1), end: +((s.startBar + s.bars) * 1.92).toFixed(1) })),
   barSec: 1.92, nBars: 119, balance: [17, 33, 19, 15, 10, 6], width: 0.31, loudRms: -8.9, crest: 8.2, peakDb: -0.3
 };
-return Object.freeze({ partMidi, chordNamesText, noDrumsFound, exportGate, recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
+return Object.freeze({ transcribedSteps, partMidi, chordNamesText, noDrumsFound, exportGate, recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
 });

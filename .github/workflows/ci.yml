@@ -43,6 +43,9 @@ jobs:
       - name: Generate time-model fixtures (used by the timing tests; also reported below)
         run: npm run songs:time
 
+      - name: Generate melody fixtures (melody and bass change between sections; one drifts in tempo)
+        run: npm run songs:melody
+
       - name: Feature tests
         run: npm test
 
@@ -80,6 +83,9 @@ jobs:
         run: |
           npm run bench:melody
           npm run bench:transcription
+
+      - name: "Full-track transcription vs the repeated 4-bar pattern (melody fixtures checked; synthetic set reported)"
+        run: npm run bench:melody-track
 
       - name: Upload run records
         if: always()

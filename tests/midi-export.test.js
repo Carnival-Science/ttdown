@@ -174,4 +174,39 @@ for (const id of ["pop127_pad300", "pop127_pad1200", "leading_silence_2s", "pick
   const e = JSON.parse(JSON.stringify(b)); delete e.drumParts; check(D.noDrumsFound(e) === true, "a result with no per-section patterns is judged on the main pattern");
 }
 
+/* 9. full-track transcription (a.transcription): part MIDI by range, and the full-song package, write the notes at their real positions */
+{
+  const fx = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", "melody_change_120.analysis.json"), "utf8")), a = Object.assign({}, fx.full); a.grid = fx.grid;
+  const bpm = gridOf(a).bpm, T = a.transcription, nB = a.nBars;
+  check(T && T.version === 1 && T.lead.length > 50 && T.bass.length > 30 && T.lead.every(n => n.off > n.on && n.beat >= 0 && n.dur > 0 && n.section >= 0), "the fixture carries a full-track transcription (" + T.lead.length + " lead, " + T.bass.length + " bass notes)");
+  const truth = fs.readFileSync(path.join(__dirname, "fixtures", "melody_change_120.melody_lead.txt"), "utf8").trim().split("\n").map(l => l.split("\t").map(Number));
+  // entire track: every transcribed note, in order, at its own beat; tick -> seconds through the file's tempo lands on the note's time
+  const all = D.partMidi(a, "hook", { tempo: bpm, range: { startBar: 0, endBar: nB + 1 } }), d = decodeMidi(all.data), sorted = T.lead.slice().sort((x, y) => x.beat - y.beat || x.midi - y.midi);
+  check(/Top line entire track \(rough transcription\)\.mid/.test(all.name) && d.notes.length === T.lead.length && d.unmatched.length === 0, "entire track: one MIDI note per transcribed note (" + d.notes.length + ") in " + all.name);
+  const fd = sorted[0].on - sorted[0].beat * 60 / bpm, worst = Math.max(...d.notes.map((n, i) => Math.abs(tickToSec(d, n.onTick) + fd - sorted[i].on)));
+  check(d.notes.every((n, i) => n.pitch === sorted[i].midi) && worst < 0.03, "entire track: pitches equal, and each onset lands within 30 ms of the note's time in the audio (worst " + (worst * 1000).toFixed(1) + " ms)");
+  check(/real positions/.test(d.tracks[0].text[0].text) && /not the original timing/.test(d.tracks[0].text[0].text), "says rough transcription at real positions, quantized");
+  // no fabricated repetition: bars 17-20 of the fixture have no lead (the truth has none there), so neither does the file
+  const silentLo = truth.findIndex(r => r[0] >= 32) < 0 ? null : 16; // bars 17-20 start at 32 s at 120 BPM
+  const inSilence = d.notes.filter(n => { const b = n.onTick / 384; return b >= 16 && b < 20; }).length, truthIn = truth.filter(r => r[0] >= 32 - 0.01 && r[0] < 40 - 0.01).length;
+  check(silentLo === 16 && truthIn === 0 && inSilence === 0, "no fabricated notes in the silent passage (bars 17-20): " + inSilence + " written, " + truthIn + " in the truth");
+  const b9 = d.notes.filter(n => n.onTick / 384 >= 8 && n.onTick / 384 < 9).map(n => n.pitch), b1 = d.notes.filter(n => n.onTick / 384 >= 0 && n.onTick / 384 < 1).map(n => n.pitch);
+  check(b9.join() !== b1.join() && b9.length > 0, "the changed melody is written as it changes (bar 1: " + b1 + " / bar 9: " + b9 + ")");
+  // a range: bars 9-16 (0-based 8..16): the file starts at bar 9, holds exactly the notes in those bars
+  const r = D.partMidi(a, "hook", { tempo: bpm, range: { startBar: 8, endBar: 16 } }), dr = decodeMidi(r.data), want = T.lead.filter(n => n.bar >= 8 && n.bar < 16);
+  check(/bars 9-16/.test(r.name) && dr.notes.length === want.length && dr.notes.every(n => n.onTick < 8 * 384) && Math.min(...dr.notes.map(n => n.onTick)) === Math.round((Math.min(...want.map(n => n.beat)) - 32) * 96), "range bars 9-16: " + dr.notes.length + " notes, starting at the range's first bar");
+  const cut = D.transcribedSteps(a, "bass", 8, 9); check(cut.every(n => n.t >= 0 && n.t + n.dur <= 16), "a note running past the range end is cut at it");
+  check(D.partMidi(a, "hook", { tempo: bpm, range: { startBar: 16, endBar: 20 } }) === null, "a range with no notes writes nothing (the silent passage)");
+  check(/4-bar phrase/.test(D.partMidi(a, "hook", { tempo: bpm }).name), "no range and no source: the displayed 4-bar phrase, as the current Notes button expects");
+  // the pattern is still available on request, and labelled as a pattern
+  const pat = D.partMidi(a, "hook", { tempo: bpm, source: "pattern" }); check(/4-bar phrase/.test(pat.name) && /representative pattern/.test(decodeMidi(pat.data).tracks[0].text[0].text), "source 'pattern' still writes the 4-bar phrase, labelled as a representative pattern");
+  // the full-song package uses the transcription for bass and hook: same notes as partMidi entire track, no repetition in the silent bars
+  const pkg = D.songMidiFiles(a, { tempo: bpm }), hook = decodeMidi(pkg.find(x => /^6 /.test(x.name)).data), bass = decodeMidi(pkg.find(x => /^4 /.test(x.name)).data);
+  check(hook.notes.length === T.lead.length && bass.notes.length === T.bass.length && /real positions/.test(hook.tracks[0].text[0].text), "the full-song package writes the transcribed hook and bass (" + hook.notes.length + ", " + bass.notes.length + " notes), labelled as such");
+  check(hook.notes.filter(n => n.onTick / 384 >= 16 && n.onTick / 384 < 20).length === 0, "and the package writes no hook in the silent bars either");
+  const old = Object.assign({}, a); delete old.transcription; const oldHook = decodeMidi(D.songMidiFiles(old, { tempo: bpm }).find(x => /^6 /.test(x.name)).data);
+  check(/folded to 4 bars and repeated/.test(oldHook.tracks[0].text[0].text), "a teardown analysed before the transcription existed keeps the repeated pattern, labelled as repeated");
+  const ch = D.partMidi(a, "chords", { tempo: bpm, range: { startBar: 4, endBar: 8 } }); check(ch && /bars 5-8/.test(ch.name), "chords take a range too (" + (ch && ch.name) + ")");
+}
+
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

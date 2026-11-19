@@ -22,11 +22,13 @@
     "bench:integrity": "node tests/bench-score-integrity.test.js",
     "bench:check-splits": "node bench/check-splits.js",
     "songs:time": "python test-songs/make_time_fixtures.py",
+    "songs:melody": "node test-songs/make_melody_fixtures.js",
     "bench:time-fixtures": "node bench/run.js test-songs/time-fixtures/manifest.json --out bench/out/time-fixtures && node bench/score.js bench/out/time-fixtures/predictions.json && node bench/time-fixtures-summary.js bench/out/time-fixtures",
     "sync:timemap": "node scripts/sync-timemap.js",
     "bench:regions": "node tests/bench-regions-score.test.js",
     "bench:arrangement": "node bench/run.js test-songs/arrangement-fixtures/manifest.json --out bench/out/arrangement-fixtures && node bench/score.js bench/out/arrangement-fixtures/predictions.json",
     "bench:melody": "node tests/bench-melody-score.test.js",
+    "bench:melody-track": "node bench/run.js test-songs/melody-fixtures/manifest.json --out bench/out/melody-fixtures && node bench/melody-track.js bench/out/melody-fixtures/predictions.json test-songs/melody-fixtures/manifest.json --check && node bench/melody-track.js bench/out/synthetic/predictions.json test-songs/manifest.json",
     "bench:transcription": "python bench/crosscheck_transcription.py"
   },
   "devDependencies": {

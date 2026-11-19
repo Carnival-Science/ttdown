@@ -126,6 +126,64 @@ function transcribe(x, SR, firstDown, barSec, sections, tune) {
     return { hook: { notes: foldNotes(mel, 64, 1), from: sec.label, bar: sec.startBar + 1 }, bass: { notes: bassNotes, from: sec.label, bar: sec.startBar + 1 } };
   } catch (e) { return {}; }
 }
+/* ---- full-track transcription: lead (per 16th) and bass (16th onsets) over EVERY bar, at their real times ----
+   The 4-bar hook/bassline above stays as it is (a representative pattern from one section, folded). This one reads each 16th step of
+   every bar on the bar grid G (the tracked grid when there is one, so it follows tempo drift), with the same harmonic-salience pitch
+   picking, and keeps what it hears where it hears it: no folding, no repetition, gaps where nothing clears the gate. Notes carry absolute
+   seconds and their bar/beat position. Steps before bar 1 (a pickup) are not read. Rough: same limits as the 4-bar version. */
+function transcribeTrack(x, SR, G, firstDown, barSec, nBars, dur, sections, tune) {
+  try {
+    const barAt = b => G ? G.barStart(b) : firstDown + b * barSec, steps = [];
+    // every 16th step that lies inside the audio: a bar 1 that starts a hair before 0:00 (grid jitter) keeps its steps, a bar running past the end loses only the steps after it
+    for (let b = 0; b <= nBars; b++) { const s0 = barAt(b), s1 = barAt(b + 1); if (!(s1 > 0) || !(s0 < dur)) continue; for (let i = 0; i < 16; i++) { const t0 = s0 + i * (s1 - s0) / 16, t1 = s0 + (i + 1) * (s1 - s0) / 16; if (t0 >= -0.02 && t1 <= dur) steps.push({ b, i, t0: Math.max(0, t0), t1 }); } }
+    if (steps.length < 32) return null;
+    const secOf = b => sections.findIndex(sc => b >= sc.startBar && b < sc.startBar + sc.bars);
+    const peaks = (N, m, fLo, fHi) => { const P = [], i0 = Math.max(2, Math.floor(fLo * N / SR)), i1 = Math.min(N / 2 - 2, Math.ceil(fHi * N / SR)); for (let i = i0; i <= i1; i++) if (m[i] > m[i - 1] && m[i] >= m[i + 1]) { const A = Math.log(m[i - 1] + 1e-9), B = Math.log(m[i] + 1e-9), C = Math.log(m[i + 1] + 1e-9), d = A - 2 * B + C; P.push([(i + (d ? 0.5 * (A - C) / d : 0)) * SR / N, m[i]]); } return f0 => { let v = 0; for (const [pf, pv] of P) { const c = 1200 * Math.log2(pf / f0); if (c > -90 && c < 90) { const q = pv * Math.exp(-(c / 40) * (c / 40)); if (q > v) v = q; } } return v; }; };
+    const hz = n => 440 * Math.pow(2, (n - 69 + tune) / 12);
+    const vel = (v, ref) => Math.max(1, Math.min(127, Math.round(40 + 87 * Math.sqrt(Math.min(1, v / (ref || 1))))));
+    const q = (arr, p) => { const srt = arr.slice().sort((u, w) => u - w); return srt[Math.floor((srt.length - 1) * p)] || 0; };
+    const note = (st, en, midi, v) => ({ on: +st.t0.toFixed(3), off: +en.t1.toFixed(3), midi, vel: v, bar: st.b, beat: +(st.b * 4 + st.i / 4).toFixed(3), dur: +(((en.b * 16 + en.i + 1) - (st.b * 16 + st.i)) / 4).toFixed(3), section: secOf(st.b) });
+    // lead: best note per step (MIDI 60-91), gated against the whole track; equal neighbours join into one note (at most a bar long)
+    const N = 4096, m = new Float32Array(N / 2), w = [1, 0.6, 0.4], best = [], val = [];
+    for (const st of steps) {
+      mag(x, Math.round((st.t0 + st.t1) / 2 * SR - N / 2), N, m); const near = peaks(N, m, 240, 4500);
+      let bm = -1, bs = 0; for (let n = 60; n <= 91; n++) { const f0 = hz(n); let sal = 0; w.forEach((wt, h) => { sal += wt * near(f0 * (h + 1)); }); if (near(f0 / 2) > near(f0)) sal *= 0.5; sal *= 1 + 0.12 * (n - 60) / 12; if (sal > bs) { bs = sal; bm = n; } }
+      best.push(bm); val.push(bs);
+    }
+    const gate = 0.4 * q(val, 0.75), ref = q(val, 0.95), lead = [];
+    let cur = null;
+    steps.forEach((st, k) => {
+      const n = val[k] >= gate ? best[k] : -1, prev = k ? steps[k - 1] : null, contiguous = prev && (prev.b * 16 + prev.i + 1 === st.b * 16 + st.i);
+      if (cur && n === cur.midi && contiguous && cur.k1 - cur.k0 < 15) { cur.k1 = k; cur.v = Math.max(cur.v, val[k]); return; }
+      if (cur) lead.push(note(steps[cur.k0], steps[cur.k1], cur.midi, vel(cur.v, ref)));
+      cur = n >= 0 ? { k0: k, k1: k, midi: n, v: val[k] } : null;
+    });
+    if (cur) lead.push(note(steps[cur.k0], steps[cur.k1], cur.midi, vel(cur.v, ref)));
+    // bass: per-step salience (MIDI 24-47) and low-end onset strength; a note starts on an onset or after silence and ends where the
+    // pitch evidence drops below the gate or the next onset; its pitch is the strongest over the span after the attack
+    const NB = 8192, mb = new Float32Array(NB / 2), N2 = 1024, m2 = new Float32Array(N2 / 2), wb = [1, 0.8, 0.6, 0.4], b0 = Math.max(1, Math.floor(25 * N2 / SR)), b1 = Math.ceil(220 * N2 / SR);
+    const S = [], top = [], F = [];
+    for (const st of steps) {
+      mag(x, Math.round((st.t0 + st.t1) / 2 * SR - NB / 2), NB, mb); const near = peaks(NB, mb, 28, 520), row = new Float32Array(24);
+      for (let n = 24; n <= 47; n++) { const f0 = hz(n); let sal = 0; wb.forEach((wt, h) => { sal += wt * near(f0 * (h + 1)); }); if (near(f0) < 0.25 * sal) sal *= 0.6; row[n - 24] = sal; }
+      S.push(row); top.push(Math.max(...row));
+      mag(x, Math.round(st.t0 * SR - 64), N2, m2); let e = 0; for (let i = b0; i <= b1; i++) e += m2[i];
+      mag(x, Math.round(st.t0 * SR - N2 + 64), N2, m2); let eb = 0; for (let i = b0; i <= b1; i++) eb += m2[i];
+      F.push(Math.max(0, e - eb) / (eb + 1e-6 + 0.05 * e));
+    }
+    const bg = 0.35 * q(top, 0.75), bref = q(top, 0.95), thr = Math.max(q(F, 0.5) * 1.3, q(F, 0.9) * 0.2), bass = [];
+    const adj = k => k > 0 && (steps[k - 1].b * 16 + steps[k - 1].i + 1 === steps[k].b * 16 + steps[k].i);
+    const on = []; for (let k = 0; k < steps.length; k++) { if (top[k] < bg) continue; const wasOff = !adj(k) || top[k - 1] < bg; if (wasOff || (F[k] > thr && F[k] >= F[k - 1])) on.push(k); }
+    on.forEach((k, j) => {
+      const nx = j + 1 < on.length ? on[j + 1] : steps.length; let en = k + 1; while (en < nx && adj(en) && top[en] >= bg && en - k < 16) en++;
+      const a0 = en - k >= 2 ? k + 1 : k, a1 = en - k >= 2 ? Math.min(en, k + 5) : en, acc = new Float32Array(24); let pk = 0;
+      for (let p = a0; p < a1; p++) S[p].forEach((v, i) => { acc[i] += v; if (v > pk) pk = v; });
+      let bi = 0; acc.forEach((v, i) => { if (v > acc[bi]) bi = i; });
+      bass.push(note(steps[k], steps[en - 1], 24 + bi, vel(pk, bref)));
+    });
+    return { version: 1, method: "salience-16th-track-v1", grid: G && G.tracked ? "tracked" : "fallback", lead, bass };
+  } catch (e) { return null; }
+}
 /* Processing limits. Everything is analysed in the browser tab, so a file that is too large or too long can exhaust memory:
    a decoded stereo float track is about 21 MB per minute (8 min = 169 MB, plus analysis arrays). The numbers are policy
    choices, not measurements of any device; they are meant to be reviewed and tuned with the performance work (Phase 9).
@@ -539,6 +597,7 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
     s.start = +Math.max(0, a0).toFixed(2); s.end = +Math.min(dur, a1).toFixed(2); if (barGrid && barGrid.tracked) s.timing = "tracked";
   });
   const tr = transcribe(x, SR, firstDown, barSec, sections, tune);
+  const full = transcribeTrack(x, SR, barGrid, firstDown, barSec, nBars, dur, sections, tune);
   onProg(100, "Done");
   const result = {
     swing: pat ? pat.swing || null : null, drumParts, hook: tr.hook || null, bassline: tr.bass || null,
@@ -549,6 +608,7 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
     pattern: Object.assign({ kick, snare, hats }, pat ? { ghost: pat.ghost, vel: pat.vel, freq: pat.freq, bars: pat.bars, tracked: true } : {}), rhythm, sections, steady: steadyGroove, barSec: +barSec.toFixed(3), nBars,
     balance, width: +width.toFixed(2), loudRms: +loudRms.toFixed(1), crest: +crest.toFixed(1), peakDb: +(20 * Math.log10(peak + 1e-9)).toFixed(1)
   };
+  if (full) result.transcription = full; // after every Version A field, so those are untouched and in their original order
   /* Measurement only (G0): the tracked beat and downbeat times in seconds, as the engine computed them.
      Non-enumerable, so saved history, account sync, sharing and the coach see exactly what they saw before.
      Section times use this grid (Phase 2c step 2); chords and MIDI still use firstDown + n * barSec. */
@@ -559,5 +619,5 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
   return result;
 }
 
-return Object.freeze({ analyze, analyzeDecoded, transcribe, tick, mag, detrend, acfAt, NAMES, CAM_MAJ, CAM_MIN, LIMITS, InputLimitError, fmtLen, ANALYSIS_STATS });
+return Object.freeze({ analyze, analyzeDecoded, transcribe, transcribeTrack, tick, mag, detrend, acfAt, NAMES, CAM_MAJ, CAM_MIN, LIMITS, InputLimitError, fmtLen, ANALYSIS_STATS });
 });

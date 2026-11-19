@@ -13,3 +13,6 @@ test-songs/time-fixtures/truth/
 test-songs/arrangement-fixtures/*.wav
 test-songs/arrangement-fixtures/*.json
 test-songs/arrangement-fixtures/truth/
+test-songs/melody-fixtures/*.wav
+test-songs/melody-fixtures/*.json
+test-songs/melody-fixtures/truth/
