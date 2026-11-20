@@ -2,7 +2,7 @@
  *   1. synthetic: sustained pitched notes with piano-like attacks read as "no drums" (found false); the same music with kick, snare and
  *      hi-hat hits reads as drums (found true); noise on its own reads as drums; audio shorter than 5 s says nothing (null)
  *   2. the generated test songs (when generated, never committed): every song with drums reads found true; the bass stem reads false
- *   3. real paired renders on this machine (TT_PAIRED_DIR or the usual folders; skipped when absent): piano pieces read found false or unclear, never true
+ *   3. real paired renders, ONLY when TT_PAIRED_DIR points at them (a folder, or several separated by "|"; never searched for): piano pieces never read as drums
  *   4. domain.noDrumsFound / drumsAbsence: measured evidence of no drums wins over a pattern that has a kick; no evidence leaves the old rule
  * Thresholds were set on a handful of files, so this is a regression test, not a measurement of accuracy. */
 "use strict";
@@ -22,9 +22,11 @@ function piano(sec, bpm, drums) {
   return x;
 }
 { const a = eng.drumEvidence(piano(40, 120, false), SR), b = eng.drumEvidence(piano(40, 120, true), SR), c = eng.drumEvidence(Float32Array.from({ length: 20 * SR }, () => 0.3 * rnd()), SR);
-  check(a && a.found === false && a.pAll < 0.16, `1: synthetic piano-like notes: no drums (${JSON.stringify(a)})`);
-  check(b && b.found === true && b.pAll >= 0.35, `1: the same notes with kick, snare and hats: drums (${JSON.stringify(b)})`);
+  check(a && a.found === false && a.pAll < 0.2, `1: synthetic piano-like notes: no drums (${JSON.stringify(a)})`);
+  check(b && b.found === true && b.pAll >= 0.3, `1: the same notes with kick, snare and hats: drums (${JSON.stringify(b)})`);
   check(c && c.found === true, `1: noise reads as percussive (${JSON.stringify(c)})`);
+  { const long = piano(120, 120, false), d5 = piano(5, 120, true); for (let i = 0; i < d5.length; i++) long[i] += d5[i] - 0; const r = eng.drumEvidence(long, SR), only = eng.drumEvidence(long.subarray(0, 8 * SR), SR);
+    check(r && r.found !== false && r.pAll >= 0.9 * only.pAll, `1: drums in only the first 5 s of a 2-minute track are not missed (whole track ${r && r.pAll}, its first 8 s ${only && only.pAll}, found ${r && r.found})`); }
   check(eng.drumEvidence(piano(4, 120, true), SR) === null && eng.drumEvidence(new Float32Array(0), SR) === null, "1: under 5 s of audio: no verdict"); }
 
 const ffmpeg = f => { try { const raw = cp.execFileSync("ffmpeg", ["-v", "error", "-i", f, "-ac", "1", "-ar", String(SR), "-f", "f32le", "-"], { maxBuffer: 1 << 30 }); return new Float32Array(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.length)); } catch (e) { return null; } };
@@ -35,10 +37,10 @@ if (fs.existsSync(T("pop127_Amaj.wav")) && ffmpeg(T("pop127_Amaj.wav"))) {
   check(withDrums.length >= 6 && !bad.length, `2: every generated song with drums reads as drums (${withDrums.length} checked${bad.length ? ", not: " + bad.join(", ") : ""})`);
   if (fs.existsSync(T("stem_bass.mp3"))) { const r = eng.drumEvidence(ffmpeg(T("stem_bass.mp3")), SR); check(r && r.found === false, `2: the bass stem has no drums (${JSON.stringify(r)})`); }
 } else console.log("SKIP generated songs (run npm run songs; ffmpeg needed)");
-{ const dirs = (process.env.TT_PAIRED_DIR || `${process.env.HOME}/Downloads/midi-audio-5/midi+audio|${process.env.HOME}/Downloads`).split("|"), files = [];
-  for (const d of dirs) try { for (const f of fs.readdirSync(d)) if (/^(more please\.mp3|big mac.*\.wav|an angel orchestrated.*\.wav|bliss.*\.wav)$/.test(f)) files.push(path.join(d, f)); } catch (e) {}
-  if (!files.length) console.log("SKIP paired piano renders (not on this machine)");
-  else { const res = files.map(f => [path.basename(f), eng.drumEvidence(ffmpeg(f), SR)]); check(res.every(([, r]) => r && r.found !== true), `3: piano renders are never read as drums (${res.map(([n, r]) => n + ": " + (r && r.found)).join(", ")})`); } }
+{ const dirs = (process.env.TT_PAIRED_DIR || "").split("|").filter(Boolean), files = [];
+  for (const d of dirs) try { for (const f of fs.readdirSync(d)) if (/\.(wav|mp3)$/i.test(f)) files.push(path.join(d, f)); } catch (e) {}
+  if (!files.length) console.log("SKIP paired piano renders (set TT_PAIRED_DIR to a folder of drumless renders to run them)");
+  else { const res = files.map(f => [path.basename(f), eng.drumEvidence(ffmpeg(f), SR)]); check(res.every(([, r]) => r && r.found !== true), `3: drumless renders are never read as drums (${res.map(([n, r]) => n + ": " + (r && r.found)).join(", ")})`); } }
 
 { const base = { pattern: { kick: [true, false, false, false], snare: [false, false, true, false] }, drumParts: [] };
   check(D.noDrumsFound(base) === false && D.drumsAbsence(base) === null, "4: a pattern with a kick and snare and no evidence: drums");

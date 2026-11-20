@@ -466,13 +466,14 @@ function songMidiFiles(a, opts) {
   const bassNotes = tb || N.bass, hookNotes = th || N.hook;
   const poly = isPoly(a), by = poly ? " by Spotify's Basic Pitch" : "";
   const bassHow = tb ? `rough transcription${by} of the bass at its real positions in the song` : "detected bass line folded to 4 bars and repeated", hookHow = th ? (poly ? "rough transcription by Spotify's Basic Pitch of the notes above C3 at their real positions in the song" : "rough transcription of the top line at its real positions in the song") : "rough melody estimate folded to 4 bars and repeated";
+  const noDrums = noDrumsFound(a) && !(opts && opts.includeDrums); // the app says there are no drums: no invented drum patterns in the package, unless asked for
   const files = [
     ["1 Kick", "1 Kick", N.D.kick, `Kick: detected pattern, ${q}`], ["2 Snare or clap", "2 Snare or clap", N.D.snare, `Snare or clap: detected pattern, ${q}`],
     ["3 Hi-hats", "3 Hi-hats", N.D.hats, `Hi-hats: detected pattern, ${q}`],
     !poly && is808(a, genreOf(a)) ? ["4 808", "4 808", bassNotes, `808: ${bassHow}, ${q}`] : ["4 Bass", "4 Bass", bassNotes, `Bass: ${bassHow}, ${q}`],
     ["5 Chords (suggested)", "5 Chords", N.chords, `Chords: SUGGESTED voicings generated from the detected chord names, not transcribed from the audio; ${q}`],
     poly ? ["6 Notes (rough)", "6 Notes", hookNotes, `Notes: ${hookHow}, ${q}`] : ["6 Hook (rough)", "6 Hook", hookNotes, `Hook: ${hookHow}, ${q}`]];
-  return files.filter(f => f[2].length).map(([n, label, notes, text]) => ({ name: `${n} - full song.mid`, data: midiBytes(sh(notes), bpm, { name: label, text }) }));
+  return files.filter((f, i) => f[2].length && !(noDrums && i < 3)).map(([n, label, notes, text]) => ({ name: `${n} - full song.mid`, data: midiBytes(sh(notes), bpm, { name: label, text }) }));
 }
 /* The full-track transcription (engine transcribeTrack: notes at their real positions, a.transcription) of one part, as 16th steps
    counted from bar startBar, for bars [startBar, endBar). A note that runs past endBar is cut there. null when the analysis has none
