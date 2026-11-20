@@ -60,7 +60,12 @@
   const isChord = (c: string | undefined) => !!c && c !== "–";
   const triad = (c: string) => { const m = c.endsWith("m"), r = NAMES.indexOf(m ? c.slice(0, -1) : c); return r < 0 ? [] : [48 + r, 48 + r + (m ? 3 : 4), 48 + r + 7]; };
   const barT = (b: number) => G.barStart(b);
-  const chordNotesAll = $derived.by(() => { const out: LaneNote[] = []; spans.forEach(sp => { if (!(sp.t1 > sp.t0)) return; for (const p of triad(sp.c)) out.push({ start: sp.t0, end: sp.t1, pitch: p }); }); return out; });
+  // The voicings of bars the person corrected are their own layer (drawn solid and dark), apart from the suggested ones (hollow purple): what the
+  // analyzer suggested and what you decided never look alike.
+  const voicings = (yours: boolean) => { const out: LaneNote[] = []; spans.forEach(sp => { if (!(sp.t1 > sp.t0) || sp.corrected !== yours) return; for (const p of triad(sp.c)) out.push({ start: sp.t0, end: sp.t1, pitch: p }); }); return out; };
+  const chordNotesSuggested = $derived(voicings(false));
+  const chordNotesYours = $derived(voicings(true));
+  const chordNotesAll = $derived([...chordNotesSuggested, ...chordNotesYours]);
   const inKey = $derived(keyChords(a.key) as Set<string>);
   const count = $derived.by(() => { const c: Record<string, number> = {}; spans.forEach(x => { c[x.c] = (c[x.c] || 0) + 1; }); return c; });
   const shaky = (c: string) => isChord(c) && (!inKey.has(c) || count[c]! <= 2);
@@ -86,7 +91,8 @@
   $effect(() => { const t = teardown.notesUpgradedAt; if (!t) { upgraded = false; return; } const left = 6000 - (Date.now() - t); if (left <= 0) { upgraded = false; return; } upgraded = true; const id = setTimeout(() => (upgraded = false), left); return () => clearTimeout(id); });
   const noteOpacity = $derived(drafting ? 0.38 : 1);
   const layers = $derived<RollLayer[]>([
-    { id: "chords", label: "Suggested chord voicings", notes: chordNotesAll, hidden: !show.chords, fill: "#8A6BC9", fillOpacity: 0, stroke: drafting ? "#C4B4E4" : "#8A6BC9", strokeWidth: 1.2 },
+    { id: "chords", label: "Suggested chord voicings", notes: chordNotesSuggested, hidden: !show.chords, fill: "#8A6BC9", fillOpacity: 0, stroke: drafting ? "#C4B4E4" : "#8A6BC9", strokeWidth: 1.2 },
+    { id: "chords-yours", label: "Your chord voicings", notes: chordNotesYours, hidden: !show.chords, fill: "#2B2F2A", fillOpacity: 0.16, stroke: "#2B2F2A", strokeWidth: 1.6 },
     { id: "bass", label: "Bass", notes: bassNotes, hidden: !show.bass, fill: "#4E8A3E", fillOpacity: noteOpacity },
     { id: "hook", label: poly ? "Notes" : "Melody", notes: leadNotes, hidden: !show.hook, fill: "#526BCE", fillOpacity: noteOpacity },
   ]);
@@ -218,6 +224,14 @@
         The grey outlined notes are suggested voicings: plain triads built from the chord names (major or minor only), not notes heard in the audio. {#if a.chordRegions?.method === "chords-from-notes-v1"}The chord names are read from the transcribed notes above (checked on one piece only; where the notes are wrong the chords will be too).{:else}The chord names are detected from the audio.{/if}{#if regions} Each chord starts where the analysis hears the harmony change, which can be inside a bar.{/if}
         {#if a.chords?.loop}Most repeated 4-bar chord loop: <b class="mono">{a.chords.loop.join(" · ")}</b> (heard {a.chords.loopCount}×).{/if}
         Scroll with Shift + wheel or by dragging, zoom with Ctrl/⌘ + wheel or the buttons. Use "Check by ear" to hear the parts over the song.</p>
+      <ul class="key" aria-label="How each mark on the roll is known" data-provenance-key>
+        <li><i class="kk heard"></i><span><b>{poly ? "Notes" : "Melody"}</b>: heard by the analyzer. Estimated: expect wrong, missing and extra notes.</span></li>
+        <li><i class="kk bass"></i><span><b>Bass</b>: heard by the analyzer. Estimated.</span></li>
+        <li><i class="kk name">Am</i><span><b>Chord name</b>: inferred from the sound. Estimated; a “?” marks a shaky guess.</span></li>
+        <li><i class="kk suggest"></i><span><b>Hollow purple outline</b>: a suggested voicing built from the chord name. Not heard in the audio.</span></li>
+        <li><i class="kk yours"></i><span><b>Dark outline and a dot</b>: your correction. What depends on it was recomputed, or is marked out of date.</span></li>
+        <li><i class="kk name">–</i><span><b>Blank or “–”</b>: nothing could be read reliably there. Unknown, not silence.</span></li>
+      </ul>
       {#if full}<Segmented class="srcseg" label="Which notes" items={[{ value: "full", label: "Full track" }, { value: "pattern", label: "Representative pattern" }]} value={source} onchange={v => (want = v as "full" | "pattern")} />{/if}
     </Popover>
     <Popover bind:open={menuOpen} triggerClass="btn midi" label="Download MIDI: choose the part, range and timing" class="midi-pop" align="end" side="bottom" disabled={nothing}>
@@ -324,10 +338,17 @@
   .lanes :global(.ann-item.shaky) { color: var(--tt-warn); }
   .lanes :global(.ann-item.none) { color: var(--tt-ink-3); }
   .lanes :global(.ann-item.fixed) { text-decoration: underline dotted; }
+  .lanes :global(.ann-item.fixed)::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 4px; border-radius: 50%; background: #2B2F2A; vertical-align: 1px; }
+  .key { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+  .key li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 6px; align-items: start; }
+  .kk { display: block; width: 18px; height: 9px; margin-top: 4px; border-radius: 2px; box-sizing: border-box; }
+  .kk.heard { background: #526BCE; } .kk.bass { background: #4E8A3E; }
+  .kk.suggest { border: 1.2px solid #8A6BC9; } .kk.yours { border: 1.6px solid #2B2F2A; background: rgb(43 47 42 / .16); }
+  .kk.name { height: auto; margin-top: 0; font: 600 .7rem var(--tt-font-mono); color: var(--tt-ink-2); }
   .fix { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
   .fix .close { margin-left: auto; }
   .dim { color: var(--tt-ink-3); }
-  :global(.about-pop) { max-width: 360px; padding: 8px 12px; }
+  :global(.about-pop) { max-width: 360px; max-height: min(var(--available-height, 78dvh), 640px); overflow-y: auto; padding: 8px 12px; }
   :global(.about-pop p) { margin: 0; }
   :global(.tt-pop.midi-pop) { display: grid; gap: 8px; padding: 12px 12px; width: min(580px, 94vw); max-width: min(580px, 94vw); }
   :global(.midi-pop .mcols) { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }

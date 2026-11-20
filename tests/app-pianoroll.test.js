@@ -37,7 +37,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   await p.click('.detail [role="tab"]:has-text("Piano roll")'); await p.waitForTimeout(300);
   const shape = await p.evaluate(() => { const l = document.querySelector(".lanes"); return { rolls: l.querySelectorAll(".mroll").length, keys: l.querySelectorAll(".keys").length, heads: l.querySelectorAll(".phbox").length, rulers: l.querySelectorAll(".mroll-ruler").length, layers: [...l.querySelectorAll("g[data-layer]")].map(g => g.dataset.layer) }; });
   check(shape.rolls === 1 && shape.keys === 1 && shape.heads === 1 && shape.rulers === 1, `1: one roll, one keyboard, one ruler and one playhead for every part (${JSON.stringify(shape)})`);
-  check(JSON.stringify(shape.layers) === '["chords","bass","hook"]' && td.tr, `1: melody, bass and suggested chords are layers of that roll (${shape.layers})`);
+  check(JSON.stringify(shape.layers) === '["chords","chords-yours","bass","hook"]' && td.tr, `1: melody, bass, suggested chords and your own chords are layers of that roll (${shape.layers})`);
 
   // ---- 2. styles and legend
   const st = await p.evaluate(() => Object.fromEntries([...document.querySelectorAll(".lanes g[data-layer]")].map(g => [g.dataset.layer, { fill: g.getAttribute("fill"), op: +g.getAttribute("fill-opacity"), stroke: g.getAttribute("stroke"), dash: g.getAttribute("stroke-dasharray"), n: g.querySelectorAll("rect").length }])));
@@ -45,20 +45,25 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   check(st.bass.fill === "#4E8A3E" && st.bass.op === 1 && !st.bass.dash && st.bass.n > 0, `2: bass notes are filled green (${st.bass.n} visible)`);
   check(st.chords.op === 0 && st.chords.stroke && st.chords.stroke !== "none" && !st.chords.dash && st.chords.n > 0, `2: suggested chord voicings are hollow solid outlines (fill-opacity ${st.chords.op}, dash ${st.chords.dash})`);
   check(await p.locator("[data-legend]").count() === 0 && (await p.locator("[data-part-toggle]").evaluateAll(es => es.map(e => e.closest("label").innerText.trim()))).some(t => /^(Notes|Melody)\b/.test(t)), "2: no legend strip under the roll; the part toggles above it name the parts");
-  await p.click('[aria-label="About the piano roll"]'); await p.click('[role="radio"]:has-text("Representative pattern")'); await p.waitForTimeout(200);
+  await p.click('[aria-label="About the piano roll"]');
+  { const keyTxt = await p.locator("[data-provenance-key]").innerText(), rows = await p.locator("[data-provenance-key] li").count();
+    check(rows === 6 && /heard by the analyzer/.test(keyTxt) && /suggested voicing[^]*Not heard in the audio/.test(keyTxt) && /your correction/.test(keyTxt) && /nothing could be read reliably/i.test(keyTxt), `2: the About popover keys every mark: heard notes, inferred chord names, suggested voicings, your corrections and unread gaps (${rows} rows)`); }
+  { const last = p.locator("[data-provenance-key] li").last(); await last.scrollIntoViewIfNeeded(); const bb = await last.boundingBox(), vh = await p.evaluate(() => innerHeight);
+    check(!!bb && bb.y >= 0 && bb.y + bb.height <= vh, `2: the key's last row can be scrolled into view inside the window (${bb && Math.round(bb.y + bb.height)} of ${vh} px)`); }
+  await p.click('[role="radio"]:has-text("Representative pattern")'); await p.waitForTimeout(200);
   check(await p.locator(".lanes").getAttribute("data-source") === "pattern" && await p.locator(".pat").count() === 1, "2: the representative pattern is chosen in the About popover and says where it was read");
   await p.click('[role="radio"]:has-text("Full track")'); await p.waitForTimeout(200); await p.keyboard.press("Escape");
 
   // ---- 3. part toggles and solo
   const drawn = () => p.evaluate(() => [...document.querySelectorAll(".lanes g[data-layer]")].map(g => g.dataset.layer).join(","));
   await p.locator('[data-part-toggle="bass"] input').uncheck(); await p.waitForTimeout(100);
-  check(await drawn() === "chords,hook", "3: unticking Bass hides the bass");
+  check(await drawn() === "chords,chords-yours,hook", "3: unticking Bass hides the bass");
   await p.locator('[data-part-toggle="bass"] input').check(); await p.waitForTimeout(100);
   await p.locator('[data-part-toggle="hook"] input').click({ modifiers: ["Alt"] }); await p.waitForTimeout(100);
   const boxes = await p.evaluate(() => [...document.querySelectorAll("[data-part-toggle] input")].map(i => i.checked).join(","));
   check(await drawn() === "hook" && boxes === "true,false,false", `3: Alt-click on Melody shows only the melody (${boxes})`);
   await p.locator('[data-part-toggle="hook"] input').click({ modifiers: ["Alt"] }); await p.waitForTimeout(100);
-  check(await drawn() === "chords,bass,hook", "3: Alt-click again brings every part back");
+  check(await drawn() === "chords,chords-yours,bass,hook", "3: Alt-click again brings every part back");
 
   // ---- 4. chord strip, playing chord, readout, correction
   const strip = await p.evaluate(() => [...document.querySelectorAll('[data-annotations="chords"] .ann-item')].map(e => ({ bar: +e.dataset.bar, step: +e.dataset.step, text: e.textContent.trim() })));
@@ -80,6 +85,12 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   await sel.selectOption(opts[0]); await p.waitForTimeout(200);
   const rec = await p.evaluate(() => (window.__td.timingCorrections || []).filter(c => c.type === "chord"));
   check(rec.length === 1 && rec[0].bar === mid.bar && rec[0].to === opts[0] && (await p.locator(`[data-annotations="chords"] .ann-item[data-bar="${mid.bar}"]`).innerText()).replace("?", "") === opts[0], `4: changing it records the correction and the strip shows ${opts[0]}`);
+  { // a corrected bar is drawn as the person's own: its voicing leaves the suggested layer for a solid dark one, and its chord name is marked
+    const yours = await p.evaluate(() => { const g = document.querySelector('.lanes g[data-layer="chords-yours"]'); return { n: g.querySelectorAll("rect").length, fill: g.getAttribute("fill"), op: +g.getAttribute("fill-opacity"), stroke: g.getAttribute("stroke") }; });
+    const mark = await p.evaluate(b => { const e = document.querySelector(`[data-annotations="chords"] .ann-item[data-bar="${b}"]`); return { fixed: e.classList.contains("fixed"), dot: getComputedStyle(e, "::before").content !== "none", title: e.title }; }, mid.bar);
+    check(yours.n === 3 && yours.op > 0 && yours.stroke === "#2B2F2A", `4: the corrected bar's voicing moves to "Your chord voicings", a solid dark triad (${yours.n} notes, ${yours.stroke})`);
+    check(mark.fixed && mark.dot && /your correction/.test(mark.title), `4: and its chord name carries a dot and says "your correction" ("${mark.title.slice(0, 60)}…")`);
+  }
   await p.click('.fix button[aria-label="Close the chord correction"]');
 
   // ---- 5. zoom
