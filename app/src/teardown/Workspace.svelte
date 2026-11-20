@@ -1,7 +1,7 @@
 <!-- The analysis workspace. The arrangement and the section editor are the main area: they stay put while you work. The findings
-     about the whole track and the export are an inspector beside them on wide screens (foldable to a rail), and a sheet opened
+     about the whole track are an inspector beside them on wide screens (foldable to a rail), and a sheet opened
      from a bar on narrow screens. One Inspector component holds both, and the state it needs lives in `workspace`, so folding
-     it, closing the sheet or crossing the breakpoint never resets playback, the selection, edits or a bar-grid confirmation. -->
+     it, closing the sheet or crossing the breakpoint never resets playback, the selection or edits. -->
 <script lang="ts">
   import { teardown } from "../lib/state/teardown.svelte";
   import { workspace } from "../lib/state/workspace.svelte";
@@ -19,23 +19,22 @@
   <section class="main panel" aria-label="Arrangement and section editor"><Explorer /></section>
 
   {#if workspace.wide}
-    <aside class="inspector panel" aria-label="Track findings and export">
+    <aside class="inspector panel" aria-label="Track findings">
       <div class="ihead">
         {#if !folded}<h2 id="found-h" class="ititle">Findings</h2>{/if}
-        <button type="button" class="fold" aria-expanded={!folded} aria-label={folded ? "Show findings and export" : "Hide findings and export"} onclick={() => (workspace.collapsed = !workspace.collapsed)}>
+        <button type="button" class="fold" aria-expanded={!folded} aria-label={folded ? "Show findings" : "Hide findings"} onclick={() => (workspace.collapsed = !workspace.collapsed)}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d={folded ? "m14 6-6 6 6 6" : "m10 6 6 6-6 6"} /></svg>
         </button>
       </div>
-      {#if folded}<span class="railtext" aria-hidden="true">Findings · Export</span>{/if}
+      {#if folded}<span class="railtext" aria-hidden="true">Findings</span>{/if}
       <div class="insp" hidden={folded}><Inspector /></div>
     </aside>
   {:else}
     <div class="sheetbar">
       <span class="summary">{a.bpm} BPM · {a.key} · {a.notFourFour ? "not 4/4" : "4/4"}</span>
-      <button type="button" class="btn" onclick={() => workspace.openSheet("findings")}>Findings</button>
-      <button type="button" class="btn primary" onclick={() => workspace.openSheet("export")}>Export</button>
+      <button type="button" class="btn" onclick={() => workspace.openSheet()}>Findings</button>
     </div>
-    <Sheet bind:open={workspace.sheet} title={workspace.section === "export" ? "Export" : "Findings"}><Inspector sheet /></Sheet>
+    <Sheet bind:open={workspace.sheet} title="Findings"><Inspector sheet /></Sheet>
   {/if}
 </div>
 

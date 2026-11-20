@@ -4,7 +4,7 @@
 //      to 174 takes the tracked beats and downbeats from wrong to right against the known answer
 //   2. moving bar 1 by one beat four times is a full turn, so the result equals a fresh analysis (identical, apart from the record of the edits)
 //   3. without the audio (a saved teardown) a tempo correction cannot be analysed again: Rhythm and the Piano roll are marked out of date
-//      (hidden, not shown as valid), exports are blocked, bar 1 cannot be moved; the correction is recorded and no confidence is invented
+//      (hidden, not shown as valid), MIDI cannot be downloaded, bar 1 cannot be moved; the correction is recorded and no confidence is invented
 //   4. "this track isn't in 4/4" invalidates the same way, and unticking it restores everything
 //   5. a key correction is recorded with its original, keeps the measured confidence (no hard-coded 99) and invalidates nothing
 //   6. chord and drum edits are recorded with their ORIGINAL value (editing one back removes the record); a re-analysis discards them but
@@ -30,6 +30,9 @@ const F = (pred, ref, tol = 0.07) => { const used = new Set(); let tp = 0; for (
   const full = p => p.evaluate(() => { const a = JSON.parse(JSON.stringify(window.__td)); a.__grid = window.__td.grid; return a; });
   const tab = (p, name) => p.click(`.detail [role="tab"]:has-text("${name}")`);
   const staleCount = p => p.locator(".detail [data-stale]").count();
+  // MIDI comes only from the piano roll's menu (there is no Export panel): open = the menu works and quantized is not refused; shut = no menu
+  const midiOpen = async p => await p.locator(".detail .phead .midi").count() === 1 && await p.locator(".detail .phead .midi").isEnabled() && !/Quantized MIDI is unavailable/.test(await p.locator('.detail [data-part="roll"]').innerText());
+  const midiShut = async p => { await tab(p, "Piano roll"); await p.waitForTimeout(120); return await p.locator(".detail .phead .midi").count() === 0 && await p.locator('.detail [data-part="roll"][data-stale]').count() === 1; };
 
   // 1. dnb_174: the octave correction, against the known answer
   { const p = await open(); await analyse(p, path.join(FIX, "dnb_174.wav"));
@@ -41,8 +44,8 @@ const F = (pred, ref, tol = 0.07) => { const used = new Set(); let tp = 0; for (
     const rec = c.timingCorrections;
     check(rec.length === 1 && rec[0].type === "bpm" && rec[0].from === 87 && rec[0].to === 174 && rec[0].source === "user" && rec[0].recomputed === true && !c.bpmFixed, `the correction is recorded with its original (${JSON.stringify(rec[0])}) and nothing is marked stale`);
     check(c.bpmConf === before.conf && c.bpmConf !== 99 && c.keyConf !== 99, `the measured confidence is kept (${c.bpmConf}), not replaced by a made-up 99`);
-    check(await staleCount(p) === 0 && !/Blocked/.test(await p.locator("#exports").innerText()) && await p.locator('[data-finding="tempo"] .basis-corrected').count() === 1, "no part of the page is out of date, exports are not blocked, and the tempo is labelled as corrected");
-    check(/Check the bar lines/.test(await p.locator("#exports").innerText()), "and the bar lines must be checked again before the bar-aligned files unlock (the grid changed)");
+    await tab(p, "Piano roll"); await p.waitForTimeout(150);
+    check(await staleCount(p) === 0 && await midiOpen(p) && await p.locator('[data-finding="tempo"] .basis-corrected').count() === 1, "no part of the page is out of date, MIDI (quantized included) can be downloaded, and the tempo is labelled as corrected");
     check(await p.locator("#out .notice.info").count() === 1 && /detected: 87 BPM/.test(await p.locator("#out .notice.info").innerText()), "the page says it analysed again at the user's tempo and names the detected one");
     // 7. survives a reload
     await p.reload(); await p.waitForTimeout(400); await p.click("#recent-btn"); await p.locator("#hist .h-open").first().click(); await p.waitForTimeout(400);
@@ -73,7 +76,7 @@ const F = (pred, ref, tol = 0.07) => { const used = new Set(); let tp = 0; for (
     const stale = await p.evaluate(() => [...document.querySelectorAll(".detail [data-stale]")].map(e => ({ part: e.dataset.part, text: e.innerText })));
     check(stale.length === 2 && stale.every(s => /Out of date/i.test(s.text) && /audio isn't here/.test(s.text)), "Rhythm and the Piano roll are marked out of date, with the reason, instead of showing results that no longer match");
     check(await p.locator(".detail .rack-row, .detail .mroll, .detail .ann-item, .detail svg").count() === 0, "and none of the stale drum pattern, chords or notes is drawn");
-    const ex = await p.locator("#exports").innerText(); check(/Blocked/.test(ex) && await p.locator('#exports button:has-text("Download the song as MIDI")').isDisabled() && await p.locator('#exports button:has-text("lined up")').isDisabled(), "bar-aligned exports are blocked");
+    check(await midiShut(p), "no MIDI can be downloaded: the piano roll and its MIDI menu are replaced by the out-of-date notice");
     const rec = await p.evaluate(() => JSON.parse(localStorage.getItem("teardown_history_v1"))[0]);
     check(rec.bpmFixed === true && rec.timingCorrections.length === 1 && rec.timingCorrections[0].from === saved.bpm && rec.timingCorrections[0].to === 100 && rec.timingCorrections[0].recomputed === undefined && rec.bpmConf === saved.bpmConf && rec.keyConf === saved.keyConf, `the correction is recorded (original ${saved.bpm}), marked as not recomputed, and no confidence was invented (bpmConf ${rec.bpmConf})`);
     check(await p.locator("#out .notice").first().innerText().then(t => /out of date/.test(t) && /Upload the track again/.test(t)), "the page tells the user to upload the track again");
@@ -85,7 +88,7 @@ const F = (pred, ref, tol = 0.07) => { const used = new Set(); let tp = 0; for (
     await box.check(); await p.waitForTimeout(300);
     for (const t of ["Rhythm", "Piano roll"]) { await tab(p, t); await p.waitForTimeout(100); }
     check(await staleCount(p) === 2 && /isn't in 4\/4/.test(await p.locator(".detail [data-stale]").first().innerText()), "ticking “This track isn't in 4/4” marks the bar-based parts out of date, with the reason");
-    check(await p.locator('[data-finding="meter"] .big').innerText().then(t => /Not 4\/4/.test(t)) && await p.locator("#exports").innerText().then(t => /Blocked/.test(t) && /4\/4/.test(t)), "the meter reads “Not 4/4” and bar-aligned exports are blocked");
+    check(await p.locator('[data-finding="meter"] .big').innerText().then(t => /Not 4\/4/.test(t)) && await midiShut(p), "the meter reads “Not 4/4” and no MIDI can be downloaded");
     check(await p.locator('button:has-text("Check by ear")').isDisabled(), "and “Check by ear” is off, because it would play the stale parts");
     await box.uncheck(); await p.waitForTimeout(300); await tab(p, "Rhythm");
     check(await staleCount(p) === 0 && await p.locator(".detail .rack-row").count() > 0, "unticking it brings the parts back");

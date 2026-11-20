@@ -15,7 +15,6 @@ const TESTS = [
   "app-bars.test.js",           // ruler, beat clicks and 4-bar loops on the tracked grid; a tempo correction replaces it
   "app-sections.test.js",       // section times on the tracked bar lines
   "app-persistence.test.js",    // saved teardowns keep the tracker's beats
-  "app-exports.test.js",        // bar-aligned exports: gated, refused, blocked when stale
   "app-part-midi.test.js",      // per-part MIDI beside the piano rolls and chords; drumless tracks hide the drum tools
   "app-corrections.test.js",    // Phase 2d: a correction recomputes (equals a fresh analysis) or invalidates (stale, not exported)
   "app-workspace.test.js",      // the analysis workspace: arrangement and editor stay put, findings and export as an inspector (wide) or a sheet (narrow)

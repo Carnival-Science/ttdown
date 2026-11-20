@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // End-to-end: the critical user journey, in a real browser, through the page only (no test hooks), on the PRODUCTION build.
-//   empty page -> upload a track -> analysis renders the timeline and findings -> confirm the bar lines -> download the MIDI zip and
-//   the analysis data, and read both back -> the teardown was saved -> reload -> reopen it from Recent -> its tracked grid is back.
+//   empty page -> upload a track -> analysis renders the timeline and findings -> download all parts as MIDI from the piano roll and
+//   read it back -> the teardown was saved -> reload -> reopen it from Recent -> its tracked grid is back.
 // Runs in Chromium, Firefox or WebKit:  TT_BROWSER=firefox node tests/e2e-journey.test.js   (default chromium)
 // Needs: npm run songs (test-songs/pop127_Amaj.wav) and npm run app:build. Starts its own local server for app/dist/<TT_BUILD>
 // (default production) unless TT_APP_URL points at a running one.
@@ -9,7 +9,7 @@
 const path = require("node:path"), fs = require("node:fs");
 const pw = require("playwright");
 const { createTarget } = require("../bench/lib/target");
-const { decodeMidi, readZip } = require("./lib/smf");
+const { decodeMidi } = require("./lib/smf");
 
 const ROOT = path.resolve(__dirname, ".."), SONG = path.join(ROOT, "test-songs", "pop127_Amaj.wav"), HK = "teardown_history_v1";
 const BROWSER = process.env.TT_BROWSER || "chromium", BUILD = process.env.TT_BUILD || "production";
@@ -41,22 +41,15 @@ const OUT = path.join(__dirname, "out", `e2e-journey-${BROWSER}`);
     check(/Teardown ready for/.test(status), `2: the analysis finishes ("${status.trim().slice(0, 60)}", ${((Date.now() - t0) / 1000).toFixed(1)} s)`);
     const ticks = await p.locator("#out .barruler span").count(), grid = await p.locator("#out .barruler").getAttribute("data-grid");
     check(ticks >= 4 && grid === "tracked", `2: the timeline shows a bar ruler on the tracked beats (${ticks} ticks, ${grid})`);
-    check(await p.locator("#explorer").isVisible() && await p.locator("#exports").isVisible(), "2: the findings and the export panel are shown");
+    check(await p.locator("#explorer").isVisible() && await p.locator("[data-finding]").count() === 5 && await p.locator("#exports").count() === 0, "2: the findings are shown (and there is no Export panel)");
 
-    // 3. exports: bar-aligned MIDI only after the bar lines are confirmed; the analysis data always
-    const midi = p.locator('#exports button:has-text("Download the song as MIDI")'), json = p.locator('#exports button:has-text("Analysis data")');
-    check(await midi.isDisabled(), "3: the MIDI export is locked until the bar lines are confirmed");
-    await p.locator("#exports input[type=checkbox]").nth(0).check(); await p.locator("#exports input[type=checkbox]").nth(1).check();
-    await p.locator('#exports button:has-text("Confirm and unlock")').click(); await p.waitForTimeout(150);
-    check(await midi.isEnabled(), "3: after confirming, the MIDI export is available");
-    let [dl] = await Promise.all([p.waitForEvent("download"), midi.click()]); const zipPath = path.join(OUT, "song.zip"); await dl.saveAs(zipPath);
-    const parts = readZip(fs.readFileSync(zipPath)).map(f => ({ name: f.name, d: decodeMidi(f.data) }));
-    const bpm = parts[0] && parts[0].d.tempos[0] && parts[0].d.tempos[0].bpm;
-    check(parts.length === 6 && parts.every(x => x.d.format === 1 || x.d.format === 0) && Math.abs(bpm - 127) < 0.01,
-      `3: the MIDI zip (${dl.suggestedFilename()}) holds ${parts.length} readable MIDI files at ${bpm} BPM`);
-    [dl] = await Promise.all([p.waitForEvent("download"), json.click()]); const jsonPath = path.join(OUT, "analysis.json"); await dl.saveAs(jsonPath);
-    const data = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
-    check(Math.abs(data.bpm - 127) < 1 && data.timing && data.timing.beats.length > 16 && !("__buf" in data), `3: the analysis data parses (${data.bpm} BPM, ${data.timing && data.timing.beats.length} tracked beats)`);
+    // 3. MIDI from the piano roll (the first tab, open by default): all parts, the whole track, quantized; no bar-line confirmation step
+    check(await p.locator('.detail [role="tab"][aria-selected="true"]').innerText() === "Piano roll", "3: the Piano roll is the open tab");
+    await p.click(".detail .phead .midi"); await p.waitForTimeout(200);
+    for (const [name, v] of [["part", "all"], ["range", "whole"], ["timing", "quantized"]]) await p.locator(`.midi-pop input[name="midi-${name}"][value="${v}"]`).check();
+    const [dl] = await Promise.all([p.waitForEvent("download"), p.locator(".midi-pop .dl").click()]); const midPath = path.join(OUT, "song.mid"); await dl.saveAs(midPath);
+    const d = decodeMidi(fs.readFileSync(midPath)), bpm = d.tempos[0] && d.tempos[0].bpm;
+    check(d.format === 1 && d.tracks.length >= 2 && d.notes.length > 0 && Math.abs(bpm - 127) < 0.01, `3: the all-parts MIDI (${dl.suggestedFilename()}) is a readable multitrack file at ${bpm} BPM with ${d.notes.length} notes`);
 
     // 4. it was saved, with its tracked timing and without the audio
     const saved = await store();

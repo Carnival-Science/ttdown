@@ -84,7 +84,7 @@ async function pageChecks(browser, name, baseUrl, expect) {
     if (expect.hooks) {
       await p.setInputFiles("#file", SONG);
       await p.waitForFunction(() => /ready|Couldn/.test(document.querySelector("#status").textContent), null, { timeout: 120000 }); await p.waitForTimeout(300);
-      check(await p.locator("[data-finding]").count() === 5 && await p.locator("#explorer .timeline .seg").count() >= 1 && await p.locator("#exports").count() === 1, `${name}/${label}: findings, timeline and exports render`);
+      check(await p.locator("[data-finding]").count() === 5 && await p.locator("#explorer .timeline .seg").count() >= 1 && await p.locator(".detail .phead .midi").count() === 1 && await p.locator("#exports").count() === 0, `${name}/${label}: findings, timeline and the piano roll's MIDI menu render (no Export panel)`);
       o = await over(); check(o.over <= 0 && o.wide.length === 0, `${name}/${label}: the analysed page fits the screen (${o.over}px, ${o.wide})`);
       await p.screenshot({ path: path.join(OUT, `${name}-${label}.png`), fullPage: true });
     }

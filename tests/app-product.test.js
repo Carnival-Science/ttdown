@@ -68,7 +68,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   check(tEnd > (await p.evaluate(() => window.__td.duration)) - 1, `the ruler is a keyboard slider that moves the song (End → ${tEnd.toFixed(1)} s)`);
   await segs.nth(2).focus(); await p.keyboard.press("ArrowLeft"); await p.waitForTimeout(250);
   check(await segs.nth(1).getAttribute("aria-checked") === "true" && (await p.locator(".detail h3").first().innerText()).includes(secs[1].label), "arrow keys move between sections and show the chosen one");
-  const tabs = await p.locator('.detail [role="tab"]').allInnerTexts(); check(JSON.stringify(tabs) === '["Rhythm","Piano roll"]', `a section's detail has Rhythm and Piano roll (${tabs})`);
+  const tabs = await p.locator('.detail [role="tab"]').allInnerTexts(); check(JSON.stringify(tabs) === '["Piano roll","Rhythm"]', `a section's detail has Piano roll then Rhythm (${tabs})`);
   await p.click('.detail [role="tab"]:has-text("Piano roll")'); await p.waitForTimeout(150);
   check(await p.locator('.detail [data-part="roll"] [data-annotations="chords"] .ann-item').count() >= 1, "the Piano roll names the chords of the bars in view");
 

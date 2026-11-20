@@ -118,9 +118,9 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
     await p.click("#recent-btn"); await p.click("#hist .h-open"); await p.waitForTimeout(500);
     check(await p.locator("#attach-btn").isVisible() && /Playback is unavailable/.test(await p.locator("#no-audio").innerText()) && await p.locator('button[aria-label="Play"]').count() === 0, "5: a saved teardown says playback is unavailable and offers Attach audio");
     check(await p.locator("#explorer .timeline .seg").count() >= 1, "5: and the arrangement and notes stay navigable");
-    await p.setInputFiles("#attach", path.join(SONGS, "sections120.mp3")); await p.waitForFunction(() => [...document.querySelectorAll(".tst-title")].some(t => !/Comparing/.test(t.textContent)), null, { timeout: 20000 });
+    await p.setInputFiles("#attach", path.join(SONGS, "sections120.mp3")); await p.waitForFunction(() => { const t = [...document.querySelectorAll(".tst-title")].pop(); return !!t && !/Comparing/.test(t.textContent); }, null, { timeout: 20000 }); /* the newest toast: the one read below */
     check(/different track/.test(await p.locator(".tst-title").last().innerText()) && await p.locator('button[aria-label="Play"]').count() === 0, `5: a file of another length is refused (“${(await p.locator(".tst-title").last().innerText()).slice(0, 70)}…”)`);
-    await p.setInputFiles("#attach", path.join(SONGS, "pop127_pad300.wav")); await p.waitForFunction(() => [...document.querySelectorAll(".tst-title")].some(t => !/Comparing/.test(t.textContent)), null, { timeout: 20000 });
+    await p.setInputFiles("#attach", path.join(SONGS, "pop127_pad300.wav")); await p.waitForFunction(() => { const t = [...document.querySelectorAll(".tst-title")].pop(); return !!t && !/Comparing/.test(t.textContent); }, null, { timeout: 20000 }); /* the newest toast: the one read below */
     check(await p.locator('button[aria-label="Play"]').count() === 0, "5: a copy cut 0.3 s differently is refused too (it would put the playhead out of step)");
     await p.setInputFiles("#attach", path.join(SONGS, "pop127_Amaj.wav")); await p.waitForSelector('button[aria-label="Play"]', { timeout: 20000 }); await p.waitForTimeout(300);
     check(/Audio attached/.test(await p.locator(".tst-title").last().innerText().catch(() => "Audio attached")) || await p.locator("#attach-btn").count() === 0, "5: the matching file is accepted");
@@ -128,14 +128,14 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
     const at = await audio(p); check(!at.paused && at.t > 0.5 && await p.locator("#explorer svg.loud").count() === 1, `5: and it plays after attaching (${at.t.toFixed(2)} s), with the loudness shape back`);
     await p.context().close(); }
 
-  // ---- 6. a changing tempo: playback works, export stays refused
+  // ---- 6. a changing tempo: playback works, quantized MIDI stays refused
   { const p = await open(); await analyse(p, path.join(FIX, "drift_fast.wav"));
     await p.click('button[aria-label="Play"]'); await p.waitForTimeout(1500);
     const a1 = await audio(p), h = await heads(p); await p.waitForTimeout(800); const h2 = await heads(p);
     check(!a1.paused && h2.arr.got > h.arr.got + 4 && Math.abs(h2.arr.got - h2.arr.want) < 4, `6: drift_fast plays with a moving playhead (${h.t.toFixed(2)} s to ${h2.t.toFixed(2)} s, off by ${Math.abs(h2.arr.got - h2.arr.want).toFixed(1)} px)`);
     check(/^\d+\.\d$/.test((await p.locator(".posn b").innerText()).trim()), `6: and bar.beat comes from the tracked grid (${await p.locator(".posn b").innerText()})`);
-    const ex = await p.locator("#exports").innerText();
-    check(/Blocked/.test(ex) && await p.locator('#exports button:has-text("Download the song as MIDI")').isDisabled(), "6: while the MIDI export stays refused: playback and export are separate");
+    await p.click('.detail [role="tab"]:has-text("Piano roll")'); await p.waitForTimeout(200);
+    check(/Quantized MIDI is unavailable/.test(await p.locator('.detail [data-part="roll"]').innerText()), "6: while quantized MIDI stays refused: playback and export are separate");
     await p.context().close(); }
 
   clearTimeout(guard); console.log("errors", errs); if (errs.length || failed) process.exitCode = 1; await b.close();

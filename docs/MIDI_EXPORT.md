@@ -49,7 +49,7 @@ The SMF spec does not say what overlapping notes of one pitch mean, and players 
 
 * `tests/lib/smf.js` is an independent SMF and zip reader (no code shared with the writer).
 * `tests/midi-export.test.js` (in `npm test`) decodes every file for every exportable Version A fixture and compares counts, pitches, velocities, onsets (within half a tick), durations (within 1.5 ticks), tempo (equals the export grid's), 4/4, track end, metadata and file names; plus repeated, overlapping, duplicate, octave and very long notes, bad input, and the export gate (stale, refused with confirmation, key-only correction).
-* `tests/app-exports.test.js` downloads the real zip from the built app, unzips and decodes it, and checks the parts, tempo against the tracked beats, 4/4, grid placement and the labels.
+* The app no longer has an Export panel or the full-song zip download (removed in 0.1.x): MIDI is downloaded from the piano roll's menu. `tests/app-part-midi.test.js` and `tests/app-pianoroll.test.js` download those files from the built app and decode them; `tests/e2e-journey.test.js` downloads the all-parts file on the production build. `songMidiFiles` is still covered at the data level by `tests/midi-export.test.js`.
 
 ## Not done (still open in #29)
 
