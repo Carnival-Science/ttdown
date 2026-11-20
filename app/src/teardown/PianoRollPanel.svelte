@@ -218,6 +218,7 @@
         The grey outlined notes are suggested voicings: plain triads built from the chord names (major or minor only), not notes heard in the audio. {#if a.chordRegions?.method === "chords-from-notes-v1"}The chord names are read from the transcribed notes above (checked on one piece only; where the notes are wrong the chords will be too).{:else}The chord names are detected from the audio.{/if}{#if regions} Each chord starts where the analysis hears the harmony change, which can be inside a bar.{/if}
         {#if a.chords?.loop}Most repeated 4-bar chord loop: <b class="mono">{a.chords.loop.join(" · ")}</b> (heard {a.chords.loopCount}×).{/if}
         Scroll with Shift + wheel or by dragging, zoom with Ctrl/⌘ + wheel or the buttons. Use "Check by ear" to hear the parts over the song.</p>
+      {#if full}<Segmented class="srcseg" label="Which notes" items={[{ value: "full", label: "Full track" }, { value: "pattern", label: "Representative pattern" }]} value={source} onchange={v => (want = v as "full" | "pattern")} />{/if}
     </Popover>
     <Popover bind:open={menuOpen} triggerClass="btn midi" label="Download MIDI: choose the part, range and timing" class="midi-pop" align="end" side="bottom" disabled={nothing}>
       {#snippet trigger()}↓ MIDI ▾{/snippet}
@@ -285,12 +286,6 @@
         <button class="btn close" type="button" aria-label="Close the chord correction" onclick={() => { cur = null; curKey = null; }}>✕</button>
       </div>
     {/if}
-    <div class="legend small" data-legend>
-      <span><i class="sw sw-mel"></i><i class="sw sw-bass"></i>Transcribed notes</span>
-      <span><i class="sw sw-ch"></i>Suggested chord voicings</span>
-      {#if source === "pattern"}<span><i class="sw sw-pat"></i>Representative pattern</span>{/if}
-      {#if full}<Segmented class="srcseg" label="Which notes" items={[{ value: "full", label: "Full track" }, { value: "pattern", label: "Representative pattern" }]} value={source} onchange={v => (want = v as "full" | "pattern")} />{/if}
-    </div>
     {#if missing.length}<p class="small missing">Not found: {missing.join(", ")}. <Basis kind="unknown" note="The analyzer could not read these reliably from the mix, so nothing is drawn for them." /></p>{/if}
     {#if exportState.lockedWhy}<p class="small">Quantized MIDI is unavailable: {exportState.lockedWhy}</p>{/if}
   {/if}
@@ -310,10 +305,6 @@
   .sw { display: inline-block; width: 12px; height: 8px; border-radius: 2px; vertical-align: 0; }
   .sw-mel { background: var(--tt-part-notes); } .sw-bass { background: var(--tt-part-bass); }
   .sw-ch { background: transparent; border: 1.2px solid var(--tt-part-chords); box-sizing: border-box; }
-  .sw-pat { background: repeating-linear-gradient(45deg, var(--tt-part-notes) 0 2px, transparent 2px 4px); }
-  .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; color: var(--tt-ink-3); }
-  .legend :global(.srcseg) { margin-left: auto; }
-  .legend span { display: inline-flex; align-items: center; gap: 4px; }
   .pat { margin: 0; }
   /* the roll takes what the window leaves after the transport, the song map and the tabs (about 400 px), never less than 260 px */
   /* the draft strip: cobalt (it is about state, not data), one line, the progress as a hairline along its bottom */
