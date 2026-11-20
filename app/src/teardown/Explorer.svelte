@@ -320,30 +320,32 @@
     transition: background-color var(--tt-ease), color var(--tt-ease);
   }
   :global(.explorer .bands .seg:hover) { background: color-mix(in srgb, var(--c) 24%, transparent); color: var(--tt-ink); }
+  /* the selected section: a deeper tint and a thicker colour bar, no outline (the view box is the one outline on the map) */
   :global(.explorer .bands .seg[data-checked]) {
-    background: color-mix(in srgb, var(--c) 30%, transparent); color: var(--tt-ink);
-    box-shadow: inset 0 0 0 2px var(--tt-ink), inset 0 5px 0 var(--c);
+    background: color-mix(in srgb, var(--c) 34%, transparent); color: var(--tt-ink);
+    box-shadow: inset 1px 0 0 var(--tt-line-2), inset 0 5px 0 var(--c);
   }
   :global(.explorer .bands .seg:focus-visible) { outline: 2px solid var(--tt-focus); outline-offset: -4px; z-index: 1; }
   :global(.explorer .bands .seg .seglabel) {
-    position: absolute; top: 9px; left: 8px; right: 6px; font: 600 0.8rem/1.2 var(--tt-font-body); text-transform: none; letter-spacing: 0;
+    position: absolute; top: 9px; left: 8px; right: 6px; font: 500 0.8rem/1.2 var(--tt-font-body); text-transform: none; letter-spacing: 0;
     white-space: nowrap; overflow: hidden; text-overflow: clip;
   }
-  :global(.explorer .bands .seg[data-checked] .seglabel) { font-weight: 700; }
+  :global(.explorer .bands .seg[data-checked] .seglabel) { font-weight: 600; }
   :global(.explorer .bands .seg) { container-type: inline-size; }
   @container (max-width: 64px) { :global(.explorer .bands .seg .seglabel) { display: none; } }
 
   .map { --tl-playhead: var(--tt-lcd); }
-  .vpwin { position: absolute; top: 0; bottom: 0; border: 1.5px solid var(--tt-accent); background: var(--tt-accent-soft); border-radius: 0; pointer-events: none; z-index: 3; transition: left 120ms cubic-bezier(0.23, 1, 0.32, 1), width 120ms cubic-bezier(0.23, 1, 0.32, 1); }
+  .vpwin { position: absolute; top: 0; bottom: 0; border: 1px solid var(--tt-accent); background: color-mix(in srgb, var(--tt-accent) 6%, transparent); border-radius: 0; pointer-events: none; z-index: 3; transition: left 120ms cubic-bezier(0.23, 1, 0.32, 1), width 120ms cubic-bezier(0.23, 1, 0.32, 1); }
   .vpwin.panning { transition: none; }
-  .vphandle { position: absolute; left: 50%; bottom: -1px; translate: -50% 0; width: max(28px, min(64px, 100%)); height: 14px; border-radius: 0; background: var(--tt-accent); pointer-events: auto; cursor: ew-resize; touch-action: none; display: grid; place-items: center; }
-  .vphandle i { width: 16px; height: 4px; border-block: 1.5px solid var(--tt-accent-ink); }
-  .vphandle:hover, .vpwin.panning .vphandle { background: color-mix(in srgb, var(--tt-accent) 85%, black); }
+  /* the grip is the window's bottom edge: a slim cobalt strip (with a taller invisible hit area) that thickens under the pointer */
+  .vphandle { position: absolute; left: -1px; right: -1px; bottom: -1px; height: 14px; pointer-events: auto; cursor: ew-resize; touch-action: none; }
+  .vphandle i { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--tt-accent); transition: height 120ms ease; }
+  .vphandle:hover i, .vpwin.panning .vphandle i { height: 5px; }
   .vphandle:focus-visible { outline: 2px solid var(--tt-focus); outline-offset: 2px; }
   .map { cursor: pointer; }
   .map.scrubbing, .map.scrubbing :global(.seg) { cursor: ew-resize; }
   :global(.explorer .bands .seg[data-playing]) { box-shadow: inset 1px 0 0 var(--tt-line-2), inset 0 3px 0 var(--c), inset 0 -4px 0 var(--tt-lcd); }
-  :global(.explorer .bands .seg[data-playing][data-checked]) { box-shadow: inset 0 0 0 2px var(--tt-ink), inset 0 5px 0 var(--c), inset 0 -5px 0 var(--tt-lcd); }
+  :global(.explorer .bands .seg[data-playing][data-checked]) { box-shadow: inset 1px 0 0 var(--tt-line-2), inset 0 5px 0 var(--c), inset 0 -4px 0 var(--tt-lcd); }
   :global(.explorer .bands .seg .nowmark) { color: var(--tt-lcd); }
   .posn { font: 500 .9rem var(--tt-font-body); color: var(--tt-ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .posn b { color: var(--tt-ink); font-weight: 600; }
@@ -369,12 +371,17 @@
   .secondary[hidden] { display: none; }
   .tgroup { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .tlabel { font-size: var(--tt-fs-xs); color: var(--tt-ink-3); }
-  @media (min-width: 1180px) and (max-width: 1500px) {
-    .tlabel { display: none; } .volslider { width: 72px; }
-    .transport { gap: 6px 12px; } .secondary { gap: 6px 8px; } .primary { gap: 6px; }
-    .transport :global(.tt-seg .tt-seg-item) { height: 32px; min-width: 38px; padding: 0 8px; font-size: .78rem; }
-    .transport :global(.tt-toggle) { height: 34px; padding: 0 8px; font-size: .8rem; }
-  }
+  /* wide: ONE compact row (play, time, bar, volume, speed, loop, beat clicks, follow), so the piano roll gets the height */
+  .transport.wide { flex-wrap: nowrap; gap: 12px; }
+  .transport.wide .secondary { flex-wrap: nowrap; gap: 8px; margin-left: auto; }
+  .transport.wide .primary { gap: 4px; }
+  .transport.wide .tlabel { display: none; }
+  .transport.wide .volslider { width: 72px; }
+  .transport.wide .play { width: 34px; height: 34px; } .transport.wide .play svg { width: 16px; height: 16px; }
+  .transport.wide .iconbtn { width: 32px; height: 32px; } .transport.wide .iconbtn svg { width: 19px; height: 19px; }
+  .transport.wide :global(.tt-seg .tt-seg-item) { height: 28px; min-width: 36px; padding: 0 8px; font-size: .78rem; }
+  .transport.wide :global(.tt-toggle) { height: 30px; padding: 0 10px; font-size: .8rem; }
+  .transport.wide :global(.tt-slider .tt-slider-control) { height: 32px; }
   .play {
     width: 44px; height: 44px; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer; flex: none;
     background: var(--tt-accent); color: var(--tt-accent-ink); transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1), filter var(--tt-ease);

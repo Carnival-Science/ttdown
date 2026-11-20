@@ -1,6 +1,6 @@
 // ONE piano roll and a scrubbable arrangement.
 //   1. the section editor has two tabs, Piano roll (first, and open by default) and Rhythm; the roll is ONE keyboard, pitch axis, time axis and playhead for all parts
-//   2. melody (deep lime) and bass (dark ink-green) are filled; the suggested chord voicings are hollow solid outlines (not heard in
+//   2. melody (cobalt) and bass (green) are filled; the suggested chord voicings are hollow solid outlines (not heard in
 //      the audio); the legend says "Transcribed notes · Suggested chord voicings" (+ "Representative pattern" when that is shown)
 //   3. a checkbox per part hides or shows it; Alt/Option-click shows only that part, and again brings the others back
 //   4. the chord strip names each bar's chord; the one under the playhead is marked and matches the bar.beat · chord readout, also while
@@ -41,8 +41,8 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
 
   // ---- 2. styles and legend
   const st = await p.evaluate(() => Object.fromEntries([...document.querySelectorAll(".lanes g[data-layer]")].map(g => [g.dataset.layer, { fill: g.getAttribute("fill"), op: +g.getAttribute("fill-opacity"), stroke: g.getAttribute("stroke"), dash: g.getAttribute("stroke-dasharray"), n: g.querySelectorAll("rect").length }])));
-  check(st.hook.fill === "#5E8A2E" && st.hook.op === 1 && !st.hook.dash && st.hook.n > 0, `2: melody notes are filled deep lime (${st.hook.n} visible)`);
-  check(st.bass.fill === "#2E3A33" && st.bass.op === 1 && !st.bass.dash && st.bass.n > 0, `2: bass notes are filled dark ink-green (${st.bass.n} visible)`);
+  check(st.hook.fill === "#526BCE" && st.hook.op === 1 && !st.hook.dash && st.hook.n > 0, `2: melody notes are filled cobalt (${st.hook.n} visible)`);
+  check(st.bass.fill === "#4E8A3E" && st.bass.op === 1 && !st.bass.dash && st.bass.n > 0, `2: bass notes are filled green (${st.bass.n} visible)`);
   check(st.chords.op === 0 && st.chords.stroke && st.chords.stroke !== "none" && !st.chords.dash && st.chords.n > 0, `2: suggested chord voicings are hollow solid outlines (fill-opacity ${st.chords.op}, dash ${st.chords.dash})`);
   let legend = await p.locator("[data-legend]").innerText();
   check(/Transcribed notes/.test(legend) && /Suggested chord voicings/.test(legend) && !/Representative pattern\s*$/.test(legend.split("\n")[0] || ""), "2: the legend reads Transcribed notes · Suggested chord voicings");

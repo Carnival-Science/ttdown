@@ -68,7 +68,9 @@ const ROOT = path.resolve(__dirname, '..'), ARR = path.join(ROOT, 'test-songs', 
     check(/without its tracked beats/.test(note) && /constant-tempo/.test(note), `4: and the user is told: "${note}"`);
     check(JSON.stringify(after[1]) === JSON.stringify(first[0]), '4: the earlier saved teardown is untouched, beats included');
     await q.evaluate(() => { window.__limit = 10; }); const beforeFail = await q.evaluate(k => localStorage.getItem(k), HK);
-    await analyse(q, path.join(ARR, 'arrangement_constant.wav'), 'arrangement_constant'); await q.waitForTimeout(300);
+    await analyse(q, path.join(ARR, 'arrangement_constant.wav'), 'arrangement_constant');
+    // the newest toast is the one read below: wait until it is no longer the previous one (the save runs after the teardown is shown)
+    await q.waitForFunction(prev => { const t = [...document.querySelectorAll('.tst-title')].pop(); return !!t && t.textContent !== prev; }, note, { timeout: 10000 }).catch(() => {});
     const noteFail = await q.locator('.tst-title').last().innerText(), isErr = await q.locator('.tst[data-type="error"]').count() === 1;
     check(/Couldn't save this teardown/.test(noteFail) && /not changed/.test(noteFail) && isErr, `4: when nothing fits, it says so: "${noteFail}"`);
     check(beforeFail === await q.evaluate(k => localStorage.getItem(k), HK), '4: and nothing already saved was changed');

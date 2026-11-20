@@ -79,9 +79,9 @@
     show = solo ? { hook: true, bass: true, chords: true } : { hook: p === "hook", bass: p === "bass", chords: p === "chords" };
   }
   const layers = $derived<RollLayer[]>([
-    { id: "chords", label: "Suggested chord voicings", notes: chordNotesAll, hidden: !show.chords, fill: "#8C968D", fillOpacity: 0, stroke: "#8C968D", strokeWidth: 1.2 },
-    { id: "bass", label: "Bass", notes: bassNotes, hidden: !show.bass, fill: "#2E3A33" },
-    { id: "hook", label: poly ? "Notes" : "Melody", notes: leadNotes, hidden: !show.hook, fill: "#5E8A2E" },
+    { id: "chords", label: "Suggested chord voicings", notes: chordNotesAll, hidden: !show.chords, fill: "#8A6BC9", fillOpacity: 0, stroke: "#8A6BC9", strokeWidth: 1.2 },
+    { id: "bass", label: "Bass", notes: bassNotes, hidden: !show.bass, fill: "#4E8A3E" },
+    { id: "hook", label: poly ? "Notes" : "Melody", notes: leadNotes, hidden: !show.hook, fill: "#526BCE" },
   ]);
 
   // ---- chord strip and the correction it opens
@@ -295,7 +295,8 @@
   .legend :global(.srcseg) { margin-left: auto; }
   .legend span { display: inline-flex; align-items: center; gap: 4px; }
   .pat { margin: 0; }
-  .lanes { height: clamp(220px, 38dvh, 460px); min-width: 0; --tl-ann-ink: var(--tt-ink-2); }
+  /* the roll takes what the window leaves after the transport, the song map and the tabs (about 400 px), never less than 260 px */
+  .lanes { height: clamp(260px, calc(100dvh - 400px), 900px); min-width: 0; --tl-ann-ink: var(--tt-ink-2); }
   .lanes :global(.ann-item.shaky) { color: var(--tt-warn); }
   .lanes :global(.ann-item.none) { color: var(--tt-ink-3); }
   .lanes :global(.ann-item.fixed) { text-decoration: underline dotted; }

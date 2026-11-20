@@ -46,7 +46,8 @@ const SHOTS = process.env.TT_SWEEP_SHOTS;
     if (motion === 'no-preference') {
       // Reopening a saved teardown is not an analysis finishing: no sweep.
       await p.reload(); await p.waitForTimeout(400);
-      const open = p.locator('#out .rl .h-open').first();
+      await p.click('#recent-btn'); await p.waitForTimeout(200);
+      const open = p.locator('#hist .h-open').first();
       check(await open.count() > 0, 'the saved teardown is listed after a reload');
       if (await open.count()) {
         await open.click();

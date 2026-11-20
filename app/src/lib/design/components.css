@@ -19,8 +19,8 @@ a { color: var(--accent); text-underline-offset: 2px; }
 .wrap { max-width: 1060px; margin: 0 auto; padding: 16px 16px 96px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.1; }
 h1 { font-size: clamp(2rem, 5vw, 3.1rem); font-weight: 800; font-stretch: 75%; letter-spacing: -0.01em; }
-h2 { font-size: 1.1rem; font-weight: 700; letter-spacing: 0; font-family: var(--font-body); }
-h3 { font-size: 1rem; font-weight: 700; font-family: var(--font-body); }
+h2 { font-size: 1.1rem; font-weight: 600; letter-spacing: 0; font-family: var(--font-body); }
+h3 { font-size: 1rem; font-weight: 600; font-family: var(--font-body); }
 p { margin: 0; }
 .lead { color: var(--ink-2); max-width: 65ch; font-size: 1.04rem; }
 .mono, .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
@@ -40,14 +40,17 @@ p { margin: 0; }
 .barruler span.ext { border-left-style: dashed; opacity: .55; }
 .playhead-wrap { cursor: pointer; }
 /* panels */
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--tt-radius); padding: 20px; display: grid; gap: 12px; min-width: 0; }
+/* panels are paper laid over the wash of the discs behind the workspace: slightly translucent, a hairline, no shadow */
+.panel { background: color-mix(in srgb, var(--panel) 76%, transparent); border: 1px solid var(--line); border-radius: var(--tt-radius); padding: 20px; display: grid; gap: 12px; min-width: 0; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.btn { font: 600 0.88rem var(--font-body); border-radius: 2px; padding: 8px 12px; border: 1px solid var(--tt-line-2); background: var(--panel); color: var(--ink); cursor: pointer; box-shadow: 0 1px 0 rgb(27 33 29 / 0.06); transition: transform 160ms var(--tt-ease-out), border-color 150ms ease, background-color 150ms ease; }
-.btn:hover { border-color: var(--ink); }
+/* secondary buttons are unboxed: a faint ink tint, no outline; only the primary action is filled */
+.btn { font: 500 0.88rem var(--font-body); border-radius: 2px; padding: 8px 12px; border: 1px solid transparent; background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); cursor: pointer; transition: transform 160ms var(--tt-ease-out), border-color 150ms ease, background-color 150ms ease; }
+.btn:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
 .btn:active:not(:disabled) { transform: scale(0.97); }
-.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); box-shadow: 0 1px 0 rgb(27 33 29 / 0.12); }
+.btn.primary { font-weight: 600; background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .btn.primary:hover { background: color-mix(in srgb, var(--accent) 88%, black); border-color: color-mix(in srgb, var(--accent) 88%, black); }
-.btn.cool { color: var(--cool); border-color: color-mix(in srgb, var(--cool) 45%, transparent); }
+.btn.cool { color: var(--cool); background: color-mix(in srgb, var(--cool) 9%, transparent); }
+.btn.cool:hover { background: color-mix(in srgb, var(--cool) 15%, transparent); }
 .btn:disabled { opacity: 0.5; cursor: default; }
 :focus-visible { outline: 2px solid var(--cool); outline-offset: 2px; }
 .drop { border: 1px dashed var(--tt-line-2); border-radius: var(--tt-radius); padding: 24px; display: grid; gap: 8px; justify-items: start; background: var(--panel); transition: border-color .15s, background .15s; }
@@ -64,7 +67,7 @@ p { margin: 0; }
 table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
 th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { font: 600 0.72rem var(--font-mono); letter-spacing: 0.01em; color: var(--ink-3); }
-.rack { display: grid; gap: 8px; background: var(--inset); border: 1px solid var(--line); border-radius: 0; padding: 8px; }
+.rack { display: grid; gap: 8px; background: var(--inset); border: 0; border-radius: 0; padding: 8px; }
 .rack-row { display: grid; grid-template-columns: 92px 1fr; gap: 8px; align-items: center; }
 .rack-row span { font: 600 0.72rem var(--font-mono); letter-spacing: 0; color: var(--ink-2); white-space: nowrap; }
 .steps { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 3px; }

@@ -2,7 +2,7 @@
 // help) over a stage: a drop zone before a track is loaded, then the arrangement and the section editor with the findings about the whole
 // track beside them (an inspector) on wide screens, and a sheet on narrow ones. MIDI is downloaded from the piano roll (no Export panel).
 //   one view (1280x720, the smallest comfortable desktop window):
-//     0. before a track: the stage is a drop zone (with what you get and the "never uploaded" line); the toolbar has Open track, a name,
+//     0. before a track: the stage is the motif (one line, and it opens a file; formats and privacy are in help); the toolbar has Open track, a name,
 //        Recent (off until something is saved), status and help; the window does not scroll; a file dragged over anywhere shows the drop veil
 //     0b. after: the window still does not scroll (scrollHeight <= the window), and the transport, song map, section tabs, a piano roll, the
 //        findings and the piano roll's MIDI button are all on screen; only the inspector and the editor scroll inside themselves
@@ -37,7 +37,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   { const p = await open({ width: 1280, height: 720 });
     const page = () => p.evaluate(() => ({ sh: document.documentElement.scrollHeight, ih: innerHeight, sw: document.documentElement.scrollWidth - innerWidth }));
     const e = await page(), txt = await p.locator("#empty").innerText();
-    check(await p.locator("#empty").isVisible() && /drop a track here/i.test(txt) && /never uploaded/.test(txt) && await p.locator(".workspace").count() === 0, "0: before a track the stage is a drop zone (no landing page, no workspace yet)");
+    check(await p.locator("#empty").isVisible() && /drop a track/i.test(txt) && await p.locator(".workspace").count() === 0, "0: before a track the stage is the drop motif (no landing page, no workspace yet)");
     check(e.sh <= e.ih && e.sw <= 0, `0: and the window does not scroll (${e.sh} <= ${e.ih})`);
     check(await p.locator('.toolbar button:has-text("Open track")').isVisible() && await p.locator("#title").isVisible() && await p.locator("#recent-btn").isDisabled() && await p.locator('.toolbar button[aria-label^="Help"]').isVisible() && await p.locator("#status").isVisible(), "0: the toolbar has Open track, a name, Recent (disabled: nothing saved yet), the status and help");
     await p.evaluate(() => { const dt = new DataTransfer(); dt.items.add(new File([new Uint8Array(4)], "x.wav", { type: "audio/wav" })); window.dispatchEvent(new DragEvent("dragenter", { dataTransfer: dt, bubbles: true, cancelable: true })); });
