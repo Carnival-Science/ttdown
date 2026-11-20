@@ -2,6 +2,7 @@
 //   1. without opting in, the bench build does not run it (so the other browser tests keep their speed): the engine's rough notes stay
 //   2. opted in (window.__ttBasicPitch): the teardown is ready first, then the notes are transcribed (status says so), and a.transcription is
 //      the model's: polyphonic, named method, notes inside the audio, each with bar, beat, length and section; bass below C3, the rest Notes
+//      and the chord regions are the ones read from those notes (chords-from-notes-v1)
 //   3. the roll names them Notes (not Melody), the legend and the label say Basic Pitch, and the roll draws them
 //   4. the MIDI export: "Notes" and "Bass" files hold exactly those notes (original timing), all parts names its tracks Notes and Bass
 //   5. a saved teardown keeps them: reload, open from Recent, no audio, the roll still shows Notes
@@ -51,6 +52,8 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   const m = await p.evaluate(() => { const a = window.__td, T = a.transcription, all = [...T.lead, ...T.bass]; return { v: T.version, poly: T.polyphonic, method: T.method, split: T.split, n: all.length, lead: T.lead.length, bass: T.bass.length, dur: a.duration,
     inAudio: all.every(x => x.on >= 0 && x.off > x.on && x.off <= a.duration + 0.5), midi: all.every(x => Number.isInteger(x.midi) && x.midi >= 21 && x.midi <= 108 && x.vel >= 1 && x.vel <= 127), labelled: all.every(x => Number.isInteger(x.bar) && typeof x.beat === "number" && x.dur > 0 && x.section >= -1),
     bassLow: T.bass.every(x => x.midi < 48), leadHigh: T.lead.every(x => x.midi >= 48), sorted: T.lead.every((x, i) => i === 0 || T.lead[i - 1].on <= x.on), info: window.__bpInfo }; });
+  { const C = await p.evaluate(() => { const r = window.__td.chordRegions; return { method: r && r.method, n: r && r.regions.length, valid: !!r && r.regions.every(x => /^([A-G]#?m?|–)$/.test(x.c) && x.t1 > x.t0 && Number.isInteger(x.bar)) }; });
+    check(C.method === "chords-from-notes-v1" && C.n >= 8 && C.valid, `2: the chords are read from the notes (default chord source): "${C.method}", ${C.n} regions, major/minor triads only`); }
   check(m.v === 1 && m.poly === true && /Basic Pitch/.test(m.method) && m.split === 48, `2: a.transcription is the model's: version ${m.v}, polyphonic, "${m.method.slice(0, 40)}…", split at C3`);
   check(m.n > 100 && m.lead > 0 && m.bass > 0 && m.inAudio && m.midi && m.labelled && m.bassLow && m.leadHigh && m.sorted, `2: ${m.n} notes (${m.lead} Notes, ${m.bass} Bass), all inside the ${m.dur.toFixed(0)} s of audio, valid pitch and strength, labelled with bar, beat, length and section, bass below C3`);
   check(m.info.backend && m.info.ms > 0 && models === 1, `2: the model ran once in this tab (${m.info.backend}, ${(m.info.ms / 1000).toFixed(0)} s) and was fetched once`);

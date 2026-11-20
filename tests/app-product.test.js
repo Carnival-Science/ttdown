@@ -83,7 +83,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
 
   // corrections are labelled
   await p.click('button[aria-label="Halve the BPM"]'); await p.waitForFunction(() => /Analysed again/.test(document.querySelector('#status').textContent), null, { timeout: 120000 }); await p.waitForTimeout(300);
-  check(await p.locator('[data-finding="tempo"] .basis-corrected').count() === 1 && /Analysed again at your tempo/.test(await p.locator("#out .notice").first().innerText()), "a tempo correction is labelled, and the page says the track was analysed again at it");
+  check(await p.locator('[data-finding="tempo"] .basis-corrected').count() === 1 && /Analysed again at your tempo/.test(await p.locator(".tst-title").last().innerText()), "a tempo correction is labelled, and the page says the track was analysed again at it");
   await p.locator('select[aria-label="Set the key yourself"]').selectOption("C minor"); await p.waitForTimeout(300);
   check(await p.locator('[data-finding="key"] .basis-corrected').count() === 1 && /C minor/.test(await p.locator('[data-finding="key"] .big').innerText()), "a key correction is labelled and shown");
   await p.close();
