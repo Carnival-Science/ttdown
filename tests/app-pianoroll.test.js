@@ -1,6 +1,6 @@
 // ONE piano roll and a scrubbable arrangement.
 //   1. the section editor has two tabs, Rhythm and Piano roll; the roll is ONE keyboard, pitch axis, time axis and playhead for all parts
-//   2. melody (orange) and bass (blue) are filled; the suggested chord voicings are hollow solid outlines (not heard in
+//   2. melody (deep lime) and bass (dark ink-green) are filled; the suggested chord voicings are hollow solid outlines (not heard in
 //      the audio); the legend says "Transcribed notes · Suggested chord voicings" (+ "Representative pattern" when that is shown)
 //   3. a checkbox per part hides or shows it; Alt/Option-click shows only that part, and again brings the others back
 //   4. the chord strip names each bar's chord; the one under the playhead is marked and matches the bar.beat · chord readout, also while
@@ -41,8 +41,8 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
 
   // ---- 2. styles and legend
   const st = await p.evaluate(() => Object.fromEntries([...document.querySelectorAll(".lanes g[data-layer]")].map(g => [g.dataset.layer, { fill: g.getAttribute("fill"), op: +g.getAttribute("fill-opacity"), stroke: g.getAttribute("stroke"), dash: g.getAttribute("stroke-dasharray"), n: g.querySelectorAll("rect").length }])));
-  check(st.hook.fill === "#ff7a1a" && st.hook.op === 1 && !st.hook.dash && st.hook.n > 0, `2: melody notes are filled orange (${st.hook.n} visible)`);
-  check(st.bass.fill === "#5b9dff" && st.bass.op === 1 && !st.bass.dash && st.bass.n > 0, `2: bass notes are filled blue (${st.bass.n} visible)`);
+  check(st.hook.fill === "#5E8A2E" && st.hook.op === 1 && !st.hook.dash && st.hook.n > 0, `2: melody notes are filled deep lime (${st.hook.n} visible)`);
+  check(st.bass.fill === "#2E3A33" && st.bass.op === 1 && !st.bass.dash && st.bass.n > 0, `2: bass notes are filled dark ink-green (${st.bass.n} visible)`);
   check(st.chords.op === 0 && st.chords.stroke && st.chords.stroke !== "none" && !st.chords.dash && st.chords.n > 0, `2: suggested chord voicings are hollow solid outlines (fill-opacity ${st.chords.op}, dash ${st.chords.dash})`);
   let legend = await p.locator("[data-legend]").innerText();
   check(/Transcribed notes/.test(legend) && /Suggested chord voicings/.test(legend) && !/Representative pattern\s*$/.test(legend.split("\n")[0] || ""), "2: the legend reads Transcribed notes · Suggested chord voicings");
@@ -118,7 +118,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   // ---- 8. "Whole track" chords are every bar, not the selected section (a review found the panel passed the section)
   { await p.locator("#explorer .seg").nth(1).click(); await p.waitForTimeout(250);
     const dlTo = async tag => { const [d] = await Promise.all([p.waitForEvent("download"), p.locator(".midi-pop .dl").click()]); const f = path.join(os.tmpdir(), `pr_${tag}_${Date.now()}.mid`); await d.saveAs(f); return decodeMidi(fs.readFileSync(f)); };
-    const pick = async (name, v) => { if (!(await p.locator(".midi-pop").count())) { await p.click(".phead .midi"); await p.waitForTimeout(200); } await p.locator(`.midi-pop input[name="midi-${name}"][value="${v}"]`).check(); await p.waitForTimeout(80); };
+    const pick = async (name, v) => { if (!(await p.locator(".midi-pop[data-open]").count())) { await p.click(".phead .midi"); await p.waitForTimeout(200); } await p.locator(`.midi-pop input[name="midi-${name}"][value="${v}"]`).check(); await p.waitForTimeout(80); };
     // quantized is where the selected section used to leak in; it needs the bar lines confirmed in Export first
     await p.keyboard.press("Escape"); await p.waitForTimeout(100);
     await p.locator('#exports input[type=checkbox]').nth(0).check(); await p.locator('#exports input[type=checkbox]').nth(1).check(); await p.locator('#exports button:has-text("Confirm and unlock")').click(); await p.waitForTimeout(250);
@@ -153,7 +153,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   await p.locator(".vphandle").focus(); await p.keyboard.press("ArrowLeft"); await p.waitForTimeout(100);
   check((await vp()).start < v1.start, "6: the handle also moves with the arrow keys");
   const s1 = td.sections[1], sx = map.x + map.width * ((s1.start + s1.end) / 2 / td.dur);
-  await p.mouse.dblclick(sx, y); await p.waitForTimeout(250); const v2 = await vp();
+  await p.mouse.dblclick(sx, y); await p.waitForTimeout(600); /* the view glides there (0.3 s) */ const v2 = await vp();
   check(Math.abs(v2.start - s1.start) < 0.1 && Math.abs(v2.span - (s1.end - s1.start)) < 0.1, `6: a double-click fits that section in the piano roll (${v2.start.toFixed(1)}–${(v2.start + v2.span).toFixed(1)} s for ${s1.start.toFixed(1)}–${s1.end.toFixed(1)})`);
   const sc = await p.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1);
   check(sc, "the page still does not scroll at 1280×720");

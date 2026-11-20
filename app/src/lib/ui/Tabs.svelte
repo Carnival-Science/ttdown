@@ -29,7 +29,7 @@
   .tt-tabbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; flex: none; }
   :global(.tt-tablist) {
     display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding: 4px; flex: none; max-width: 100%;
-    background: var(--tt-inset); border-radius: var(--tt-radius-sm); box-shadow: inset 0 0 0 1px #000;
+    background: var(--tt-inset); border-radius: var(--tt-radius-sm); box-shadow: inset 0 0 0 1px var(--tt-line-2);
   }
   :global(.tt-tabpanel) { min-height: 0; overflow-y: auto; overscroll-behavior: contain; flex: 1; }
   :global(.tt-tabpanel[hidden]) { display: none; }

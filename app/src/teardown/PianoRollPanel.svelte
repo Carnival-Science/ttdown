@@ -1,4 +1,4 @@
-<!-- The piano roll: the transcribed melody (orange), the transcribed bass (blue) and SUGGESTED chord voicings (purple, hollow outlines,
+<!-- The piano roll: the transcribed notes (deep lime), the transcribed bass (dark ink-green) and SUGGESTED chord voicings (grey, hollow outlines,
      because they are built from the detected chord names, not heard in the audio) on ONE keyboard, pitch axis and time axis, sharing the
      arrangement's viewport and its one playhead. A chord strip above the notes names each chord where it sounds (several in a bar when the analysis
      hears the chord change inside it), marks the one under the playhead
@@ -22,6 +22,7 @@
   import Segmented from "../lib/ui/Segmented.svelte";
   import Popover from "../lib/ui/Popover.svelte";
   import MultiRoll from "../lib/ui/timeline/MultiRoll.svelte";
+  import { confirmAt } from "../lib/ui/confirm";
   import type { RollLayer, AnnotationLane, Annotation, LaneNote } from "../lib/ui/timeline/MultiRoll.svelte";
 
   let { index }: { index: number } = $props();
@@ -78,9 +79,9 @@
     show = solo ? { hook: true, bass: true, chords: true } : { hook: p === "hook", bass: p === "bass", chords: p === "chords" };
   }
   const layers = $derived<RollLayer[]>([
-    { id: "chords", label: "Suggested chord voicings", notes: chordNotesAll, hidden: !show.chords, fill: "#a78bfa", fillOpacity: 0, stroke: "#b9a2ff", strokeWidth: 1.2 },
-    { id: "bass", label: "Bass", notes: bassNotes, hidden: !show.bass, fill: "#5b9dff" },
-    { id: "hook", label: poly ? "Notes" : "Melody", notes: leadNotes, hidden: !show.hook, fill: "#ff7a1a" },
+    { id: "chords", label: "Suggested chord voicings", notes: chordNotesAll, hidden: !show.chords, fill: "#8C968D", fillOpacity: 0, stroke: "#8C968D", strokeWidth: 1.2 },
+    { id: "bass", label: "Bass", notes: bassNotes, hidden: !show.bass, fill: "#2E3A33" },
+    { id: "hook", label: poly ? "Notes" : "Melody", notes: leadNotes, hidden: !show.hook, fill: "#5E8A2E" },
   ]);
 
   // ---- chord strip and the correction it opens
@@ -170,6 +171,7 @@
       if (!m) { notify("warning", "There is nothing to write for this part in that range."); return; }
       // the all-parts file is already named after the track
       await saveFile(part === "all" ? m.name.replace(/[\\/:*?"<>|]+/g, "") : `${base} - ${m.name}`, m.data, "audio/midi"); menuOpen = false;
+      confirmAt(document.querySelector(".phead .midi"));
       const rt = m.refTempo != null ? Math.round(m.refTempo * 10) / 10 : refTempo;
       const how = t === "quantized" ? `snapped to the 16th-note grid at ${Math.round((exportState.gate.tempo || a.bpm) * 10) / 10} BPM, not the original timing` : t === "tempo-map" ? "following the song's tempo map" : `with the original timing${rt ? `; it plays in time at ${rt} BPM (set your DAW to it, or import the file's tempo)` : ""}`;
       notify("success", `Saved, ${how}.` + (part === "chords" || part === "all" ? " Chords are suggested voicings built from the detected chord names, not transcribed from the audio." : " The notes are a rough transcription."));
@@ -206,7 +208,7 @@
     <Popover triggerClass="btn about" label="About the piano roll" class="about-pop" align="end">
       {#snippet trigger()}<span aria-hidden="true">ⓘ</span>{/snippet}
       <p class="small">{#if source === "full" && poly}Notes are transcribed by Spotify's Basic Pitch, run in this browser ({full?.method}): every note it hears, with the notes below C3 shown as Bass and the rest as Notes. It is a general model, checked so far on one clean synthesized track only: expect wrong, missing and extra notes, and rough lengths.{:else if source === "full"}Melody and bass are read from the whole mix ({full?.method}). Rough: dense mixes make them hard to hear, and this has not been checked against real recordings.{:else}Melody and bass are a 4-bar phrase read from one section and folded into a loop, so they are not the song's notes bar by bar. {#if !full}This teardown was made before whole-track notes existed; analyse the track again to get them.{/if}{/if}
-        The purple outlined notes are suggested voicings: plain triads built from the detected chord names (major or minor only), not notes heard in the audio.{#if regions} Each chord starts where the analysis hears the harmony change, which can be inside a bar.{/if}
+        The grey outlined notes are suggested voicings: plain triads built from the detected chord names (major or minor only), not notes heard in the audio.{#if regions} Each chord starts where the analysis hears the harmony change, which can be inside a bar.{/if}
         {#if a.chords?.loop}Most repeated 4-bar chord loop: <b class="mono">{a.chords.loop.join(" · ")}</b> (heard {a.chords.loopCount}×).{/if}
         Scroll with Shift + wheel or by dragging, zoom with Ctrl/⌘ + wheel or the buttons. Use "Check by ear" to hear the parts over the song.</p>
     </Popover>
@@ -286,16 +288,16 @@
   .here { margin-left: auto; color: var(--tt-ink); font-size: .82rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .zoom { display: inline-flex; gap: 4px; }
   .sw { display: inline-block; width: 12px; height: 8px; border-radius: 2px; vertical-align: 0; }
-  .sw-mel { background: #ff7a1a; } .sw-bass { background: #5b9dff; }
-  .sw-ch { background: transparent; border: 1.2px solid #b9a2ff; box-sizing: border-box; }
-  .sw-pat { background: repeating-linear-gradient(45deg, #ff7a1a 0 2px, transparent 2px 4px); }
+  .sw-mel { background: var(--tt-part-notes); } .sw-bass { background: var(--tt-part-bass); }
+  .sw-ch { background: transparent; border: 1.2px solid var(--tt-part-chords); box-sizing: border-box; }
+  .sw-pat { background: repeating-linear-gradient(45deg, var(--tt-part-notes) 0 2px, transparent 2px 4px); }
   .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; color: var(--tt-ink-3); }
   .legend :global(.srcseg) { margin-left: auto; }
   .legend span { display: inline-flex; align-items: center; gap: 4px; }
   .pat { margin: 0; }
-  .lanes { height: clamp(220px, 38dvh, 460px); min-width: 0; --tl-ann-ink: #cdbfff; }
-  .lanes :global(.ann-item.shaky) { color: #f5c26b; }
-  .lanes :global(.ann-item.none) { color: #6d6c67; }
+  .lanes { height: clamp(220px, 38dvh, 460px); min-width: 0; --tl-ann-ink: var(--tt-ink-2); }
+  .lanes :global(.ann-item.shaky) { color: var(--tt-warn); }
+  .lanes :global(.ann-item.none) { color: var(--tt-ink-3); }
   .lanes :global(.ann-item.fixed) { text-decoration: underline dotted; }
   .fix { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
   .fix .close { margin-left: auto; }
@@ -313,7 +315,7 @@
   :global(.midi-pop .opt input) { margin: 3px 0 0; accent-color: var(--tt-accent); }
   :global(.midi-pop .opt.off) { color: var(--tt-ink-3); cursor: default; }
   :global(.midi-pop .why), :global(.midi-pop .hint) { display: block; font-style: normal; font-size: .74rem; color: var(--tt-ink-3); }
-  :global(.midi-pop .why) { color: #f0a58f; }
+  :global(.midi-pop .why) { color: var(--tt-warn); }
   :global(.midi-pop .dim) { color: var(--tt-ink-3); }
   :global(.midi-pop .dl) { justify-content: center; }
   :global(.srcseg .tt-seg-item) { height: 30px; font-size: .78rem; padding: 0 8px; }

@@ -20,5 +20,5 @@
 
 <style>
   .phbox { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 4; }
-  .ph { position: absolute; left: -1px; top: 0; bottom: 0; width: 2px; background: var(--tl-playhead, #ffb547); box-shadow: 0 0 0 1px rgb(0 0 0 / 0.55); will-change: transform; visibility: hidden; }
+  .ph { position: absolute; left: -1px; top: 0; bottom: 0; width: 2px; background: var(--tl-playhead, var(--tt-accent)); box-shadow: 0 0 0 1px rgb(251 252 248 / 0.9); will-change: transform; visibility: hidden; }
 </style>

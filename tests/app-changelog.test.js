@@ -25,7 +25,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
 
   // 2. the dialog
   await btn.click(); await p.waitForSelector("[data-changelog]");
-  const d = await p.evaluate(() => { const dlg = document.querySelector('.tt-dialog'); return { title: dlg.querySelector(".tt-dialog-title").innerText, sub: dlg.querySelector(".tt-dialog-sub").innerText, versions: [...dlg.querySelectorAll(".release")].map(r => [r.dataset.version, r.querySelector("time").getAttribute("datetime")]), items: dlg.querySelectorAll(".ritems li").length, current: dlg.querySelectorAll(".rv.current").length, sections: [...dlg.querySelectorAll(".rsec")].map(e => e.innerText) }; });
+  const d = await p.evaluate(() => { const dlg = document.querySelector('.tt-dialog'); return { title: dlg.querySelector(".tt-dialog-title").textContent, sub: dlg.querySelector(".tt-dialog-sub").innerText, versions: [...dlg.querySelectorAll(".release")].map(r => [r.dataset.version, r.querySelector("time").getAttribute("datetime")]), items: dlg.querySelectorAll(".ritems li").length, current: dlg.querySelectorAll(".rv.current").length, sections: [...dlg.querySelectorAll(".rsec")].map(e => e.innerText) }; });
   check(d.title === "Changelog" && d.sub === `You are on v${ver}`, `2: a dialog titled Changelog says which version you are on ("${d.sub}")`);
   check(JSON.stringify(d.versions) === JSON.stringify(heads) && d.items === nItems, `2: it lists every release in CHANGELOG.md with its date (${d.versions.map(v => v.join(" ")).join("; ")}) and all ${d.items} items`);
   check(d.current === 1 && d.sections.every(s => ["Features", "Improvements", "Fixes"].includes(s)) && d.sections.length >= 2, `2: the current version is marked, the sections are ${d.sections.join(", ")}`);

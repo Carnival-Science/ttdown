@@ -44,11 +44,11 @@
   .hrow { display: flex; gap: 6px; align-items: stretch; min-width: 0; }
   .h-open { flex: 1; min-width: 0; justify-content: flex-start; text-align: left; white-space: normal; }
   .x { flex: none; padding: 0 8px; font-size: 1.1rem; line-height: 1; color: var(--tt-ink-3); }
-  .x:hover, .x:focus-visible { color: #ff8a80; }
+  .x:hover, .x:focus-visible { color: var(--tt-bad); }
   .ask { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 1; }
   .q { flex: 1 1 100%; font-size: .85rem; color: var(--tt-ink-2); overflow-wrap: anywhere; }
-  .danger { border-color: #c0504a; color: #ff8a80; }
-  .clear { display: grid; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--tt-line, #2a2d35); }
+  .danger { border-color: var(--tt-bad); color: var(--tt-bad); }
+  .clear { display: grid; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--tt-line); }
   .clear .small { margin: 0; color: var(--tt-ink-3); }
   .clear .warn { color: var(--tt-ink-2); }
   .clearbtn { justify-self: start; }
