@@ -39,6 +39,8 @@ class Teardown {
   transcribing = $state(false);
   /** The model's notes for the audio on screen, in seconds (they do not depend on the grid, so a tempo or bar-1 correction relabels the same notes). */
   private bpNotes: TranscribedNote[] | null = null;
+  /** When the note model's notes replaced the quick draft on screen (ms since epoch; 0 = not this teardown): the piano roll says so briefly. */
+  notesUpgradedAt = $state(0);
   history = $state.raw<AnalysisResult[]>([]);
   /** The name in the toolbar: the optional name for the next analysis, and the name of the teardown on screen. */
   title = $state("");
@@ -91,7 +93,7 @@ class Teardown {
     try {
       const notes = await transcribe(buf, p => { if (!current()) return; this.progress = Math.round(p * 100); this.status = { text: `${ready} Transcribing the notes… ${Math.round(p * 100)}%`, err: false }; }, () => !current());
       if (!current()) return;
-      this.bpNotes = notes; this.useNotes();
+      this.bpNotes = notes; this.useNotes(); this.notesUpgradedAt = Date.now();
       this.status = { text: ready + " Notes transcribed with Basic Pitch.", err: false };
     } catch (e) {
       if (!current() || (e as Error)?.message === "stale") return;
@@ -115,7 +117,7 @@ class Teardown {
       this.buffer = bufferOf(a) || null;
       this.status = { text: `Teardown ready for “${a.title}”.`, err: false };
       const oldURL = this.audioURL; this.audioURL = newURL; adopted = true;
-      this.bpNotes = null; this.transcribing = false;
+      this.bpNotes = null; this.transcribing = false; this.notesUpgradedAt = 0;
       this.selected = 0; this.show(a); this.mountId++; this.analysedId++; this.save(a); this.ctl = null; this.running = false;
       if (oldURL) URL.revokeObjectURL(oldURL);
       void this.transcribeNotes(job);
