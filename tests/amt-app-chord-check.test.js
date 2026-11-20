@@ -2,7 +2,8 @@
 /* bench/amt/app-chord-check.js (research tool, not a gate): `score` reads the chords from a capture with this checkout's reader and a
  * baseline checkout's and scores them against a .lab truth; `capture` refuses an --out inside the repository or one that exists, before
  * starting anything. The capture here is built from tests/fixtures/pop127-basic-pitch-notes.json on pop127_Amaj's grid (no browser, no
- * model); the browser capture itself is not run in CI (it takes minutes per track). */
+ * model); the browser capture itself is not run in CI (it takes minutes per track), but its refusal of a bench build that is not of this
+ * checkout (another commit, uncommitted changes, other shared sources) is checked through buildProblems. */
 "use strict";
 const assert = require("node:assert/strict"), fs = require("node:fs"), os = require("node:os"), path = require("node:path"), { spawnSync } = require("node:child_process");
 const ROOT = path.resolve(__dirname, ".."), TOOL = path.join(ROOT, "bench", "amt", "app-chord-check.js");
@@ -39,5 +40,16 @@ try {
   refuses(/already exists/, "capture", "--audio", capFile, "--out", lab);
   assert.equal(fs.readFileSync(lab, "utf8"), labText, "the existing file is untouched"); checks++;
   refuses(/no audio file/, "capture", "--audio", path.join(tmp, "missing.wav"), "--out", path.join(tmp, "new.json"));
+  // capture serves app/dist/bench: it must be a build of THIS checkout as it stands, or the capture would be credited to code that did
+  // not make it (Codex review of 23831c9). buildProblems is the check capture runs before it starts anything.
+  const { buildProblems } = require(TOOL), sha = f => require("node:crypto").createHash("sha256").update(fs.readFileSync(path.join(ROOT, "src", f))).digest("hex");
+  const head = spawnSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).stdout.trim();
+  const good = { mode: "bench", gitSha: head, gitDirty: false, timemapSha256: sha("timemap.js"), timingStoreSha256: sha("timing-store.js"), engineSha256: sha("engine.js"), domainSha256: sha("domain.js") };
+  assert.deepEqual(buildProblems(good), [], "a clean bench build of this commit with the same sources is accepted"); checks++;
+  for (const [change, why] of [[{ gitSha: "0".repeat(40) }, /built from commit 0000000/], [{ gitDirty: true }, /uncommitted/], [{ mode: "production" }, /not the bench build/],
+    [{ domainSha256: "f".repeat(64) }, /src\/domain\.js differs/], [{ engineSha256: "f".repeat(64) }, /src\/engine\.js differs/], [{ timemapSha256: "f".repeat(64) }, /src\/timemap\.js differs/], [{ timingStoreSha256: "f".repeat(64) }, /src\/timing-store\.js differs/]]) {
+    const p = buildProblems({ ...good, ...change }); assert.ok(p.length === 1 && why.test(p[0]), `a build with ${JSON.stringify(change)} is refused (${p.join("; ")})`); checks++;
+  }
+  assert.deepEqual(buildProblems(null), ["no build manifest"]); checks++;
 } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 console.log(`amt app chord check tests passed (${checks})`);

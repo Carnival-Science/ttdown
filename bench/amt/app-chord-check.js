@@ -6,7 +6,9 @@
  *   node bench/amt/app-chord-check.js capture --audio "song.mp3" --out capture.json
  *     Runs the app's bench build (npm run app:build first) in Chromium on one audio file, with the note model on, and writes what the reading
  *     needs: the analysis' bar grid (tracked beats and downbeats, bar 1, tempo, duration), Basic Pitch's notes exactly as the app's worker
- *     returned them, the audio detector's chord regions, the chord regions the app showed, the audio's SHA-256 and the commit. --out must
+ *     returned them, the audio detector's chord regions, the chord regions the app showed, the audio's SHA-256 and the build that served
+ *     them. It refuses a bench build that is not of this checkout as it stands (another commit, uncommitted changes, or different
+ *     src/timemap, timing-store, engine or domain), checks the page's own identity against the build manifest, and records both. --out must
  *     be OUTSIDE the repository once links are resolved (a capture of real music is private material) and must not exist yet.
  *
  *   node bench/amt/app-chord-check.js score --capture capture.json (--lab truth.lab | --annotation ann.json) [--baseline-repo DIR]
@@ -32,6 +34,20 @@ function canonical(p) { let cur = path.resolve(p); const rest = [];
 function isInside(child, parent) { const norm = x => (process.platform === "win32" ? x.toLowerCase() : x), rel = path.relative(norm(parent), norm(child));
   return rel === "" || (!path.isAbsolute(rel) && rel.split(path.sep)[0] !== ".."); }
 
+/** Why a build manifest is NOT a build of this checkout as it stands ([] when it is): built from another commit, from uncommitted changes,
+ *  not the bench build, or with different shared sources (src/timemap.js, timing-store.js, engine.js, domain.js: the analysis and the chord
+ *  reader). A capture made from such a build would be credited to code that did not make it, so `capture` refuses it. */
+function buildProblems(manifest, root = ROOT) {
+  const out = [], head = git(root, ["rev-parse", "HEAD"]);
+  if (!manifest || typeof manifest !== "object") return ["no build manifest"];
+  if (manifest.mode !== "bench") out.push(`it is the ${manifest.mode} build, not the bench build`);
+  if (!head || manifest.gitSha !== head) out.push(`it was built from commit ${String(manifest.gitSha).slice(0, 7)}, and this checkout is at ${String(head).slice(0, 7)}`);
+  if (manifest.gitDirty !== false) out.push("it was built from uncommitted changes");
+  for (const [file, key] of [["timemap.js", "timemapSha256"], ["timing-store.js", "timingStoreSha256"], ["engine.js", "engineSha256"], ["domain.js", "domainSha256"]])
+    if (sha256(path.join(root, "src", file)) !== manifest[key]) out.push(`src/${file} differs from the one it was built with`);
+  return out;
+}
+
 async function capture(o) {
   if (!o["--audio"] || !o["--out"]) fail('usage: capture --audio "song.mp3" --out capture.json');
   const audio = path.resolve(o["--audio"]), out = path.resolve(o["--out"]);
@@ -41,12 +57,15 @@ async function capture(o) {
   if (fs.existsSync(out)) fail(`--out ${out} already exists; choose a new path (nothing is overwritten)`);
   if (!fs.existsSync(path.join(ROOT, "app", "dist", "bench", "index.html"))) fail("no bench build: run npm run app:build first");
   const pw = require("playwright"), { createTarget } = require("../lib/target");
-  const target = createTarget({ kind: "svelte", root: ROOT, build: "bench" }); await target.start();
+  const target = createTarget({ kind: "svelte", root: ROOT, build: "bench" }), stale = buildProblems(target.manifest);
+  if (stale.length) fail(`app/dist/bench is not a build of this checkout: ${stale.join("; ")}. Commit (or stash) your changes and rebuild with npm run app:build.`);
+  await target.start();
   const b = await pw.chromium.launch(); let rec;
   try {
     const p = await (await b.newContext({ viewport: { width: 1280, height: 860 } })).newPage(), errors = []; p.on("pageerror", e => errors.push(e.message));
     await p.addInitScript(() => { const w = window; w.__ttBasicPitch = true; const W = w.Worker; w.Worker = class extends W { constructor(...a) { super(...a); this.addEventListener("message", e => { if (e.data && (e.data.type === "done" || e.data.type === "error")) w.__bpDone = e.data; }); } }; });
     await p.goto(target.url()); await p.waitForTimeout(400);
+    const served = await target.verifyIdentity(p); // the page's own window.__build must be the build in the manifest checked above
     const t0 = Date.now(); await p.setInputFiles("#file", audio);
     await p.waitForFunction(() => /Transcribing|Couldn/.test(document.querySelector("#status").textContent), null, { timeout: 300000 });
     if (/Couldn/.test(await p.locator("#status").innerText())) throw new Error("the app could not analyse the file: " + await p.locator("#status").innerText());
@@ -56,7 +75,8 @@ async function capture(o) {
     await p.waitForFunction(() => !!window.__bpDone, null, { timeout: 3600000, polling: 2000 });
     const done = await p.evaluate(() => window.__bpDone); if (done.type !== "done") throw new Error("the note model failed: " + done.message);
     await p.waitForTimeout(500); const after = await pick();
-    rec = { kind: "app-chord-capture", version: 1, date: new Date().toISOString(), app: { commit: git(ROOT, ["rev-parse", "HEAD"]), modified: (git(ROOT, ["status", "--porcelain"]) || "").length > 0, build: "bench", browser: "chromium " + b.version() },
+    rec = { kind: "app-chord-capture", version: 2, date: new Date().toISOString(),
+      app: { served: { ...target.describe(), pageGitSha: served.gitSha, pageDomainSha256: served.domainSha256, identityVerified: true }, browser: "chromium " + b.version() },
       audio: { file: path.basename(audio), sha256: sha256(audio), bytes: fs.statSync(audio).size },
       analysis: { ...before, chordRegions: undefined }, notesModel: { backend: done.backend, notes: done.notes.length }, notes: done.notes,
       audioChordRegions: before.chordRegions, appChordRegions: after.chordRegions, seconds: { analysis: tAnalysis, total: (Date.now() - t0) / 1000 }, pageErrors: errors };
@@ -64,7 +84,7 @@ async function capture(o) {
   fs.mkdirSync(path.dirname(out), { recursive: true });
   if (isInside(canonical(out), fs.realpathSync.native(ROOT))) fail(`${out} resolves inside the repository; stopping`);
   fs.writeFileSync(out, JSON.stringify(rec) + "\n", { flag: "wx" });
-  console.log(`${rec.audio.file}: ${rec.notes.length} notes (${rec.notesModel.backend}), ${rec.seconds.total.toFixed(0)} s; grid ${rec.analysis.grid ? rec.analysis.grid.beats.length + " tracked beats" : "none"}; wrote ${out}`);
+  console.log(`${rec.audio.file}: ${rec.notes.length} notes (${rec.notesModel.backend}), ${rec.seconds.total.toFixed(0)} s; served build ${rec.app.served.buildGitSha.slice(0, 7)} (domain ${rec.app.served.domainSha256.slice(0, 8)}, identity verified); grid ${rec.analysis.grid ? rec.analysis.grid.beats.length + " tracked beats" : "none"}; wrote ${out}`);
 }
 
 const PC = { C: 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, F: 5, "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11 };
@@ -88,7 +108,8 @@ function score(o) {
   const sets = [["audio detector (captured)", cap.audioChordRegions && cap.audioChordRegions.regions], ["app as captured", cap.appChordRegions && cap.appChordRegions.regions]], readOut = [];
   for (const [name, R] of readers) { const a = { ...cap.analysis }, G = R.TM.forAnalysis(a); if (!G.tracked) fail(`the capture's grid is not tracked (${G.reason}); the app reads chords from notes only on a tracked grid`);
     const res = R.D.chordRegionsFromNotes(a, G, cap.notes); if (!res) fail(`${name}: the reader returned nothing`); readOut.push(JSON.stringify(res)); sets.push([`app reader, ${name} (${R.commit}${R.modified ? ", src modified" : ""})`, res.regions]); }
-  console.log(`capture ${cap.audio.file} (sha256 ${cap.audio.sha256.slice(0, 16)}…), ${cap.notes.length} notes, app ${String(cap.app.commit).slice(0, 7)}`);
+  const sv = cap.app && cap.app.served, from = sv ? `served by build ${String(sv.buildGitSha).slice(0, 7)} (domain ${String(sv.domainSha256).slice(0, 8)}${sv.identityVerified ? ", identity verified" : ""})` : "served build not recorded (version 1 capture)";
+  console.log(`capture ${cap.audio.file} (sha256 ${cap.audio.sha256.slice(0, 16)}…), ${cap.notes.length} notes, ${from}`);
   const pct = x => (100 * x).toFixed(1).padStart(6);
   if (o["--lab"]) {
     const lab = fs.readFileSync(o["--lab"], "utf8").trim().split(/\r?\n/).map(r => { const [a, b, l] = r.split("\t"); return { t0: +a, t1: +b, c: mm(l) }; });
@@ -102,6 +123,8 @@ function score(o) {
   if (readOut.length === 2) console.log(readOut[0] === readOut[1] ? "this checkout and the baseline read identical regions" : "this checkout and the baseline read DIFFERENT regions");
 }
 
+module.exports = { buildProblems };
+if (require.main !== module) return;
 const [cmd, ...rest] = process.argv.slice(2);
 if (cmd === "capture") capture(opts(rest, new Set(["--audio", "--out"]))).catch(e => fail(e.message));
 else if (cmd === "score") score(opts(rest, new Set(["--capture", "--lab", "--annotation", "--baseline-repo"])));
