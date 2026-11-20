@@ -159,6 +159,7 @@ class Teardown {
       if (cur.notFourFour) a.notFourFour = true;
       recordCorrection(a, correction.type === "bpm" ? { type: "bpm", from: cur.bpm, to: correction.to, recomputed: true } : { type: "downbeat", shift: correction.shift, recomputed: true });
       this.status = { text: `Analysed again at ${a.bpm} BPM. Chords and drum edits made before this were discarded.`, err: false };
+      if (correction.type === "bpm") { const was = (a.timingCorrections || []).find(c => c.type === "bpm")?.from; notify("info", `Analysed again at your tempo${was ? ` (detected: ${was} BPM)` : ""}. Bars, drums, chords and notes were rebuilt from the same audio; chord and drum edits made before were discarded.`); }
       this.buffer = bufferOf(a) || buf;
       // the same audio gives the same notes: relabel them on the new grid instead of running the model again
       if (this.bpNotes) (a as AnalysisResult & { transcription?: unknown }).transcription = domain.transcriptionFromNotes(a, gridOf(a), this.bpNotes, NOTES_METHOD);
