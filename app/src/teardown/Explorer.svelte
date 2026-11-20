@@ -263,7 +263,7 @@
                 {@const x = 1000 * l.start / dur + 0.6}
                 {@const w = Math.max(0.6, 1000 * (l.end - l.start) / dur - 1.2)}
                 {@const y = 100 - 100 * l.level}
-                <g fill={s ? sectionColor(s.label) : "#5a5f6e"} class:on={!!s && a.sections.indexOf(s) === sel}>
+                <g fill={s ? sectionColor(s.label) : "#A9B1A8"} class:on={!!s && a.sections.indexOf(s) === sel}>
                   <rect class="body" {x} width={w} {y} height={100 * l.level} /><rect class="cap" {x} width={w} {y} height="2.5" />
                 </g>
               {/each}
@@ -302,11 +302,11 @@
   .songmap { display: grid; gap: 6px; min-width: 0; }
   .map { position: relative; touch-action: pan-y; }
   .timeline {
-    position: relative; height: 112px; border-radius: 12px; overflow: hidden; background: var(--tt-inset);
-    box-shadow: inset 0 0 0 1px #000, inset 0 1px 0 rgb(255 255 255 / 0.03);
+    position: relative; height: 112px; border-radius: 0; overflow: hidden; background: var(--tt-panel);
+    box-shadow: inset 0 0 0 1px var(--tt-line-2);
   }
   .quiet .timeline { height: 64px; }
-  .seggap { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, #121318 0 5px, #17181d 5px 10px); }
+  .seggap { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, var(--tt-inset) 0 5px, var(--tt-step-off) 5px 10px); }
   .loud { position: absolute; inset: 28px 0 0 0; width: 100%; height: calc(100% - 28px); pointer-events: none; }
   .loud g { opacity: 0.55; transition: opacity var(--tt-ease); }
   .loud g.on { opacity: 1; }
@@ -316,7 +316,7 @@
   :global(.explorer .bands .seg) {
     position: absolute; top: 0; bottom: 0; display: block; padding: 0; border: 0; margin: 0; border-radius: 0; cursor: pointer;
     background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--tt-ink-2); text-align: left; min-width: 0; height: auto; filter: none; text-transform: none; letter-spacing: 0;
-    box-shadow: inset 1px 0 0 rgb(0 0 0 / 0.9), inset 0 3px 0 var(--c);
+    box-shadow: inset 1px 0 0 var(--tt-line-2), inset 0 3px 0 var(--c);
     transition: background-color var(--tt-ease), color var(--tt-ease);
   }
   :global(.explorer .bands .seg:hover) { background: color-mix(in srgb, var(--c) 24%, transparent); color: var(--tt-ink); }
@@ -334,15 +334,15 @@
   @container (max-width: 64px) { :global(.explorer .bands .seg .seglabel) { display: none; } }
 
   .map { --tl-playhead: var(--tt-lcd); }
-  .vpwin { position: absolute; top: 0; bottom: 0; border: 1.5px solid rgb(255 255 255 / .6); background: rgb(255 255 255 / .06); border-radius: 4px; pointer-events: none; z-index: 3; transition: left 120ms cubic-bezier(0.23, 1, 0.32, 1), width 120ms cubic-bezier(0.23, 1, 0.32, 1); }
+  .vpwin { position: absolute; top: 0; bottom: 0; border: 1.5px solid var(--tt-accent); background: var(--tt-accent-soft); border-radius: 0; pointer-events: none; z-index: 3; transition: left 120ms cubic-bezier(0.23, 1, 0.32, 1), width 120ms cubic-bezier(0.23, 1, 0.32, 1); }
   .vpwin.panning { transition: none; }
-  .vphandle { position: absolute; left: 50%; bottom: -1px; translate: -50% 0; width: max(28px, min(64px, 100%)); height: 14px; border-radius: 6px 6px 0 0; background: rgb(255 255 255 / .78); pointer-events: auto; cursor: ew-resize; touch-action: none; display: grid; place-items: center; }
-  .vphandle i { width: 16px; height: 4px; border-block: 1.5px solid #222; }
-  .vphandle:hover, .vpwin.panning .vphandle { background: #fff; }
+  .vphandle { position: absolute; left: 50%; bottom: -1px; translate: -50% 0; width: max(28px, min(64px, 100%)); height: 14px; border-radius: 0; background: var(--tt-accent); pointer-events: auto; cursor: ew-resize; touch-action: none; display: grid; place-items: center; }
+  .vphandle i { width: 16px; height: 4px; border-block: 1.5px solid var(--tt-accent-ink); }
+  .vphandle:hover, .vpwin.panning .vphandle { background: color-mix(in srgb, var(--tt-accent) 85%, black); }
   .vphandle:focus-visible { outline: 2px solid var(--tt-focus); outline-offset: 2px; }
   .map { cursor: pointer; }
   .map.scrubbing, .map.scrubbing :global(.seg) { cursor: ew-resize; }
-  :global(.explorer .bands .seg[data-playing]) { box-shadow: inset 1px 0 0 rgb(0 0 0 / 0.9), inset 0 3px 0 var(--c), inset 0 -4px 0 var(--tt-lcd); }
+  :global(.explorer .bands .seg[data-playing]) { box-shadow: inset 1px 0 0 var(--tt-line-2), inset 0 3px 0 var(--c), inset 0 -4px 0 var(--tt-lcd); }
   :global(.explorer .bands .seg[data-playing][data-checked]) { box-shadow: inset 0 0 0 2px var(--tt-ink), inset 0 5px 0 var(--c), inset 0 -5px 0 var(--tt-lcd); }
   :global(.explorer .bands .seg .nowmark) { color: var(--tt-lcd); }
   .posn { font: 500 .9rem var(--tt-font-body); color: var(--tt-ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -351,14 +351,14 @@
   .clock .total { margin-left: 4px; }
   .attach { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
   .readout {
-    position: absolute; top: calc(100% + 2px); translate: -50% 0; padding: 4px 8px; border-radius: 6px; white-space: pre; pointer-events: none;
+    position: absolute; top: calc(100% + 2px); translate: -50% 0; padding: 4px 8px; border-radius: 0; white-space: pre; pointer-events: none;
     background: var(--tt-ink); color: var(--tt-bg); font: 600 0.74rem/1.3 var(--tt-font-body); font-variant-numeric: tabular-nums;
-    box-shadow: 0 4px 14px rgb(0 0 0 / 0.45); z-index: 2;
+    box-shadow: var(--tt-shadow); z-index: 2;
   }
 
   /* The bar ruler is a TimeRuler: styled by its own component and by .barruler in components.css (scoped rules here cannot reach it). */
   .key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: var(--tt-fs-xs); color: var(--tt-ink-2); }
-  .key i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .key i { display: inline-block; width: 10px; height: 10px; border-radius: 0; margin-right: 6px; vertical-align: -1px; }
   .keyloud { display: inline-flex; align-items: center; gap: 6px; }
   .keyloud svg { width: 12px; height: 12px; fill: var(--tt-ink-2); }
 
@@ -387,13 +387,13 @@
   .clock b { color: var(--tt-ink); font-weight: 600; }
   .vol { display: inline-flex; align-items: center; gap: 2px; }
   .volslider { display: block; width: 88px; }
-  .iconbtn { width: var(--tt-tap); height: var(--tt-tap); display: grid; place-items: center; border: 0; border-radius: 10px; background: transparent; color: var(--tt-ink-2); cursor: pointer; }
+  .iconbtn { width: var(--tt-tap); height: var(--tt-tap); display: grid; place-items: center; border: 0; border-radius: 2px; background: transparent; color: var(--tt-ink-2); cursor: pointer; }
   .iconbtn:hover { color: var(--tt-ink); background: var(--tt-panel); }
-  .iconbtn[aria-pressed="true"] { color: var(--tt-warn); }
+  .iconbtn[aria-pressed="true"] { color: var(--tt-accent); }
   .iconbtn svg { width: 22px; height: 22px; fill: currentColor; }
   .iconbtn svg :global(.stroke) { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
-  .morebtn { margin-left: auto; height: var(--tt-tap); padding: 0 12px; border-radius: 10px; border: 1px solid var(--tt-line); background: var(--tt-chassis); color: var(--tt-ink-2); font: 600 .84rem var(--tt-font-body); cursor: pointer; }
-  .morebtn[aria-expanded="true"] { color: var(--tt-ink); border-color: #3a3d46; }
+  .morebtn { margin-left: auto; height: var(--tt-tap); padding: 0 12px; border-radius: 2px; border: 1px solid var(--tt-line-2); background: var(--tt-panel); color: var(--tt-ink-2); font: 600 .84rem var(--tt-font-body); cursor: pointer; }
+  .morebtn[aria-expanded="true"] { color: var(--tt-ink); border-color: var(--tt-ink); }
 
   .byear { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 
@@ -408,8 +408,8 @@
     .primary { width: 100%; gap: 6px; }
     .volslider { display: none; }
     .secondary {
-      position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 7; padding: 12px; border-radius: 12px; gap: 12px;
-      background: var(--tt-chassis); border: 1px solid var(--tt-line); box-shadow: 0 12px 28px rgb(0 0 0 / 0.5);
+      position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 7; padding: 12px; border-radius: 0; gap: 12px;
+      background: var(--tt-chassis); border: 1px solid var(--tt-ink); box-shadow: var(--tt-shadow);
     }
     .timeline { height: 84px; } .quiet .timeline { height: 56px; }
     .loud { inset: 24px 0 0 0; height: calc(100% - 24px); }

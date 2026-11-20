@@ -22,10 +22,11 @@
 </section>
 
 <style>
-  .dropzone { flex: 1; min-height: 0; display: grid; place-items: center; padding: 24px; border: 2px dashed #3a3d46; border-radius: 18px; background: var(--tt-panel); transition: border-color var(--tt-ease), background-color var(--tt-ease); }
+  .dropzone { flex: 1; min-height: 0; display: grid; place-items: center; padding: 24px; border: 1px dashed var(--tt-line-2); border-radius: 0; background: var(--tt-panel); transition: border-color var(--tt-ease), background-color var(--tt-ease); }
   :global(.app.dragging) .dropzone { border-color: var(--tt-accent); background: color-mix(in srgb, var(--tt-accent) 8%, var(--tt-panel)); }
   .inner { display: grid; gap: 12px; justify-items: center; text-align: center; max-width: 60ch; }
-  h2 { font-size: clamp(1.4rem, 3vw, 2rem); }
+  /* the headline sits on a band of the brand lime, like a highlighter on newsprint */
+  h2 { font: 800 clamp(1.6rem, 3.4vw, 2.4rem)/1.1 var(--tt-font-display); font-stretch: 78%; padding: 0 6px; background: var(--tt-lime-grad) left 88% / 100% 0.42em no-repeat; }
   .lede { margin: 0; display: flex; align-items: center; gap: 8px; color: var(--tt-ink-2); }
   .small { margin: 0; }
   .gets { color: var(--tt-ink-3); }

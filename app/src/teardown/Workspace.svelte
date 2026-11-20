@@ -51,7 +51,7 @@
   .ihead { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: none; width: 100%; }
   .folded .ihead { justify-content: center; }
   .ititle { font-size: 1rem; }
-  .fold { width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--tt-ink-2); cursor: pointer; }
+  .fold { width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 2px; background: transparent; color: var(--tt-ink-2); cursor: pointer; }
   .fold:hover { color: var(--tt-ink); background: var(--tt-chassis); }
   .fold:focus-visible { outline: 2px solid var(--tt-focus); outline-offset: 2px; }
   .fold svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -60,8 +60,8 @@
   .insp[hidden] { display: none; }
 
   .sheetbar {
-    position: sticky; bottom: 8px; z-index: 8; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; border-radius: 14px;
-    background: var(--tt-chassis); border: 1px solid #3a3d46; box-shadow: 0 10px 28px rgb(0 0 0 / 0.55);
+    position: sticky; bottom: 8px; z-index: 8; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; border-radius: 0;
+    background: var(--tt-chassis); border: 1px solid var(--tt-ink); box-shadow: var(--tt-shadow);
   }
   .summary { flex: 1; min-width: 0; font: 600 .82rem var(--tt-font-body); color: var(--tt-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
   .sheetbar .btn { min-height: var(--tt-tap); padding: 0 12px; }
