@@ -21,6 +21,7 @@ const TESTS = [
   "app-workspace.test.js",      // the analysis workspace: arrangement and editor stay put, findings and export as an inspector (wide) or a sheet (narrow)
   "app-transport.test.js",      // one transport and one playhead across the arrangement and the piano roll; follow, attach audio, variable tempo
   "app-pianoroll.test.js",      // one piano roll (melody, bass, suggested chords, chord strip, solo) and the arrangement as a scrubbing surface
+  "app-sweep.test.js",          // the shader sweep that reveals a finished analysis; none for a reopened teardown or under reduced motion
   "app-changelog.test.js",      // the version in the toolbar and the changelog dialog it opens
   "app-notes-responsive.test.js", // the page stays usable while the note model runs (worker, forced CPU backend)
   "app-basic-pitch.test.js",    // the note model (Basic Pitch) in the app: opt-in in the bench build, status, notes, roll labels, MIDI, saved data, fallback

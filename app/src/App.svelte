@@ -13,6 +13,7 @@
   import Workspace from "./teardown/Workspace.svelte";
   import Circles from "./lib/ui/art/Circles.svelte";
   import { workspace } from "./lib/state/workspace.svelte";
+  import { sweepReveal, stopSweep } from "./lib/ui/sweep";
 
   installTestHooks();
   $effect(() => mountNotes());
@@ -27,6 +28,9 @@
   const over = (e: DragEvent) => { if (hasFiles(e)) e.preventDefault(); };
   const leave = (e: DragEvent) => { if (hasFiles(e)) depth = Math.max(0, depth - 1); };
   $effect(() => { workspace.dragging = depth > 0; });
+  // A finished analysis develops onto the page behind a shader band (not a saved teardown being reopened).
+  let stage: HTMLElement | undefined = $state();
+  $effect(() => { if (teardown.analysedId > 0) void sweepReveal(stage); return stopSweep; });
   const drop = (e: DragEvent) => { if (!hasFiles(e)) return; e.preventDefault(); depth = 0; void teardown.analyzeFile(e.dataTransfer?.files[0]); };
 </script>
 
@@ -34,7 +38,7 @@
 
 <main class="app" class:dragging={depth > 0} data-timemap-schema={tm.schema} data-timemap-fingerprint={tm.fingerprint}>
   <Toolbar />
-  <div id="out" class="stage" class:has-result={!!teardown.result}>
+  <div id="out" class="stage" bind:this={stage} class:has-result={!!teardown.result}>
     {#if teardown.result}
       {#key teardown.mountId}
         <Workspace />

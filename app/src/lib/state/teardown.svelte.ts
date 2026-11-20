@@ -25,6 +25,8 @@ class Teardown {
   rev = $state(0);
   /** A new teardown on screen (a fresh analysis or a saved one opened): views start fresh. */
   mountId = $state(0);
+  /** Bumped only when an analysis finishes (not when a saved teardown is opened): the view plays its reveal sweep. */
+  analysedId = $state(0);
   /** Index of the selected section on the timeline. */
   selected = $state(0);
   audioURL = $state<string | null>(null);
@@ -114,7 +116,7 @@ class Teardown {
       this.status = { text: `Teardown ready for “${a.title}”.`, err: false };
       const oldURL = this.audioURL; this.audioURL = newURL; adopted = true;
       this.bpNotes = null; this.transcribing = false;
-      this.selected = 0; this.show(a); this.mountId++; this.save(a); this.ctl = null; this.running = false;
+      this.selected = 0; this.show(a); this.mountId++; this.analysedId++; this.save(a); this.ctl = null; this.running = false;
       if (oldURL) URL.revokeObjectURL(oldURL);
       void this.transcribeNotes(job);
     } catch (e) {
