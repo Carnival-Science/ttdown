@@ -31,8 +31,7 @@
   <Popover bind:open={recentOpen} triggerClass="btn recent" triggerId="recent-btn" label="Recent teardowns saved in this browser" keepMounted disabled={!teardown.history.length}
     id="hist-wrap" class="recent-pop" align="start">
     {#snippet trigger()}Recent{#if teardown.history.length} <span class="count">{teardown.history.length}</span>{/if}{/snippet}
-    <p class="small recent-head">Saved in this browser</p>
-    <div class="hist"><RecentList clearAll onopen={() => (recentOpen = false)} /></div>
+    <RecentList clearAll onopen={() => (recentOpen = false)} />
   </Popover>
 
   <div class="statusbar">
@@ -86,8 +85,7 @@
   :global(.help-pop) { width: min(380px, calc(100vw - 24px)); padding: 12px 16px; font-size: var(--tt-fs-sm); }
   :global(.help-pop p) { margin: 0 0 8px; }
   :global(.help-pop .help-title) { font-size: 1rem; margin: 0 0 8px; }
-  :global(.recent-pop) { width: min(420px, calc(100vw - 24px)); padding: 12px; }
-  :global(.recent-pop .hist) { display: grid; gap: 6px; max-height: 50dvh; overflow-y: auto; }
+  :global(.recent-pop) { width: min(400px, calc(100vw - 24px)); padding: 12px 8px 10px 8px; }
   
   .about { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 8px 0 0; font-size: var(--tt-fs-xs); }
   .about dt { color: var(--tt-ink-3); } .about dd { margin: 0; overflow-wrap: anywhere; }
