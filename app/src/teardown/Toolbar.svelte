@@ -13,6 +13,9 @@
   let recentOpen = $state(false);
   const tm = timeMapSelfCheck();
   const short = (s: string | null) => (s ? s.slice(0, 7) : "unknown");
+  // "Teardown ready for …" on its own is redundant once the workspace is on screen: it is still announced (role=status) but not shown.
+  // Anything more (the note model's progress, its result), errors and every other message stay visible.
+  const quiet = $derived(!teardown.running && !teardown.transcribing && !teardown.status.err && /^Teardown ready for “[^”]*”\.$/.test(teardown.status.text));
   const pick = (e: Event & { currentTarget: HTMLInputElement }) => { const f = e.currentTarget.files?.[0]; void teardown.analyzeFile(f); e.currentTarget.value = ""; };
 </script>
 
@@ -33,7 +36,7 @@
   </Popover>
 
   <div class="statusbar">
-    <p class={"status" + (teardown.status.err ? " err" : "")} id="status" role="status" title={teardown.status.text}>{teardown.status.text}</p>
+    <p class={"status" + (teardown.status.err ? " err" : "") + (quiet ? " quiet" : "")} id="status" role="status" title={teardown.status.text}>{teardown.status.text}</p>
   </div>
   <button type="button" class="btn" id="cancel" hidden={!teardown.running} title="Stop analysing this file (Esc)" onclick={() => teardown.cancel()}>Cancel</button>
 
@@ -46,6 +49,7 @@
     <p><span class="basis basis-unknown">Unknown</span> The analyzer can't tell, and says so instead of guessing.</p>
     <p class="small"><b>How reliable is it?</b> Teardown has so far been checked only on computer-generated songs with known answers. It has not been measured on real recordings, so treat every estimate as something to verify by ear. It follows one tempo and four beats per bar, and relative keys (such as A minor and C major) are easily confused.</p>
     <p class="small">Press any label to see what it means for that number.</p>
+    <p class="small" data-help-files><b>Your files.</b> MP3, WAV, M4A or FLAC, up to 8 minutes. A track is analysed in this browser and never uploaded.</p>
     <details class="about-build">
       <summary>About this build</summary>
       <dl class="about tt-mono" data-testid="build-info">
@@ -62,7 +66,7 @@
 </header>
 
 <style>
-  .toolbar { position: relative; display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--tt-chassis); border-bottom: 1px solid var(--tt-line-2); min-width: 0; }
+  .toolbar { position: relative; display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: color-mix(in srgb, var(--tt-chassis) 88%, transparent); border-bottom: 1px solid var(--tt-line); min-width: 0; }
   /* the wordmark: a compact bold sticker on the brand lime, with a hard early-web offset shadow */
   .brand { display: inline-flex; align-items: center; gap: 6px; margin: 0 10px 0 0; flex: none; color: var(--tt-ink); }
   .brand .word { font: 800 1.45rem/1 var(--tt-font-display); font-stretch: 68%; letter-spacing: -0.01em; }
@@ -75,6 +79,7 @@
   .statusbar { flex: 1; min-width: 0; }
   .status { margin: 0; color: var(--tt-ink-2); font-size: var(--tt-fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .status.err { color: var(--tt-bad); }
+  .status.quiet { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .toolbar :global(.help) { width: 38px; padding: 0; font-weight: 700; flex: none; }
   .toolbar .progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; background: transparent; border: 0; border-radius: 0; margin: 0; }
   .toolbar .progress :global(#prog) { width: 100%; height: 100%; background: var(--tt-accent); transform-origin: left center; transition: transform 160ms linear; }

@@ -33,10 +33,11 @@
   --tt-focus: var(--tt-cobalt);
   --tt-lime-deep: #5E8A2E;        /* lime dark enough to draw notes with on paper */
   --tt-lime-grad: linear-gradient(100deg, #C9E2A3 0%, var(--tt-lime) 45%, #7FB35A 100%);
-  /* parts in the piano roll */
-  --tt-part-notes: var(--tt-lime-deep);
-  --tt-part-bass: #2E3A33;
-  --tt-part-chords: #8C968D;
+  /* parts in the piano roll: transcribed notes in cobalt, bass in green, suggested chord voicings as violet outlines (three hues, so
+     the three kinds of material never read as one) */
+  --tt-part-notes: var(--tt-cobalt);
+  --tt-part-bass: #4E8A3E;
+  --tt-part-chords: #8A6BC9;
 
   /* type: a compact bold wordmark, a neutral grotesque for the interface, monospaced figures for anything measured */
   --tt-font-display: "Archivo Variable", "Archivo", "Arial Narrow", "Helvetica Neue", Helvetica, Arial, sans-serif;

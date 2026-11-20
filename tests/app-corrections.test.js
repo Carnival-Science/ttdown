@@ -46,7 +46,7 @@ const F = (pred, ref, tol = 0.07) => { const used = new Set(); let tp = 0; for (
     check(c.bpmConf === before.conf && c.bpmConf !== 99 && c.keyConf !== 99, `the measured confidence is kept (${c.bpmConf}), not replaced by a made-up 99`);
     await tab(p, "Piano roll"); await p.waitForTimeout(150);
     check(await staleCount(p) === 0 && await midiOpen(p) && await p.locator('[data-finding="tempo"] .basis-corrected').count() === 1, "no part of the page is out of date, MIDI (quantized included) can be downloaded, and the tempo is labelled as corrected");
-    check(await p.locator("#out .notice.info").count() === 1 && /detected: 87 BPM/.test(await p.locator("#out .notice.info").innerText()), "the page says it analysed again at the user's tempo and names the detected one");
+    check(await p.locator("#out .notice.info").count() === 0 && /Analysed again at your tempo.*detected: 87 BPM/.test(await p.locator(".tst-title").last().innerText()), "a toast (not a banner) says it analysed again at the user's tempo and names the detected one");
     // 7. survives a reload
     await p.reload(); await p.waitForTimeout(400); await p.click("#recent-btn"); await p.locator("#hist .h-open").first().click(); await p.waitForTimeout(400);
     const r = await full(p); check(Math.abs(r.bpm - 174) <= 1 && r.timingCorrections.length === 1 && F(r.__grid.beats, refB) >= 0.95 && await p.locator('[data-finding="tempo"] .basis-corrected').count() === 1, "after a reload the corrected analysis, its tracked beats and its record are all back");

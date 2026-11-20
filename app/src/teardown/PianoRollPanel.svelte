@@ -78,10 +78,17 @@
     const solo = (Object.keys(show) as Part[]).every(k => show[k] === (k === p));
     show = solo ? { hook: true, bass: true, chords: true } : { hook: p === "hook", bass: p === "bass", chords: p === "chords" };
   }
+  // While the note model (Basic Pitch) works on the whole track, the notes on screen are the quick analysis's rough draft, and so are the
+  // chords (they are re-read from the model's notes when it lands, PR 51): all of it is drawn faint and a strip above the roll says a
+  // better transcription is coming, with its progress. When it lands, the strip says so for a few seconds.
+  const drafting = $derived(teardown.transcribing);
+  let upgraded = $state(false);
+  $effect(() => { const t = teardown.notesUpgradedAt; if (!t) { upgraded = false; return; } const left = 6000 - (Date.now() - t); if (left <= 0) { upgraded = false; return; } upgraded = true; const id = setTimeout(() => (upgraded = false), left); return () => clearTimeout(id); });
+  const noteOpacity = $derived(drafting ? 0.38 : 1);
   const layers = $derived<RollLayer[]>([
-    { id: "chords", label: "Suggested chord voicings", notes: chordNotesAll, hidden: !show.chords, fill: "#8C968D", fillOpacity: 0, stroke: "#8C968D", strokeWidth: 1.2 },
-    { id: "bass", label: "Bass", notes: bassNotes, hidden: !show.bass, fill: "#2E3A33" },
-    { id: "hook", label: poly ? "Notes" : "Melody", notes: leadNotes, hidden: !show.hook, fill: "#5E8A2E" },
+    { id: "chords", label: "Suggested chord voicings", notes: chordNotesAll, hidden: !show.chords, fill: "#8A6BC9", fillOpacity: 0, stroke: drafting ? "#C4B4E4" : "#8A6BC9", strokeWidth: 1.2 },
+    { id: "bass", label: "Bass", notes: bassNotes, hidden: !show.bass, fill: "#4E8A3E", fillOpacity: noteOpacity },
+    { id: "hook", label: poly ? "Notes" : "Melody", notes: leadNotes, hidden: !show.hook, fill: "#526BCE", fillOpacity: noteOpacity },
   ]);
 
   // ---- chord strip and the correction it opens
@@ -208,7 +215,7 @@
     <Popover triggerClass="btn about" label="About the piano roll" class="about-pop" align="end">
       {#snippet trigger()}<span aria-hidden="true">ⓘ</span>{/snippet}
       <p class="small">{#if source === "full" && poly}Notes are transcribed by Spotify's Basic Pitch, run in this browser ({full?.method}): every note it hears, with the notes below C3 shown as Bass and the rest as Notes. It is a general model, checked so far on one clean synthesized track only: expect wrong, missing and extra notes, and rough lengths.{:else if source === "full"}Melody and bass are read from the whole mix ({full?.method}). Rough: dense mixes make them hard to hear, and this has not been checked against real recordings.{:else}Melody and bass are a 4-bar phrase read from one section and folded into a loop, so they are not the song's notes bar by bar. {#if !full}This teardown was made before whole-track notes existed; analyse the track again to get them.{/if}{/if}
-        The grey outlined notes are suggested voicings: plain triads built from the detected chord names (major or minor only), not notes heard in the audio.{#if regions} Each chord starts where the analysis hears the harmony change, which can be inside a bar.{/if}
+        The grey outlined notes are suggested voicings: plain triads built from the chord names (major or minor only), not notes heard in the audio. {#if a.chordRegions?.method === "chords-from-notes-v1"}The chord names are read from the transcribed notes above (checked on one piece only; where the notes are wrong the chords will be too).{:else}The chord names are detected from the audio.{/if}{#if regions} Each chord starts where the analysis hears the harmony change, which can be inside a bar.{/if}
         {#if a.chords?.loop}Most repeated 4-bar chord loop: <b class="mono">{a.chords.loop.join(" · ")}</b> (heard {a.chords.loopCount}×).{/if}
         Scroll with Shift + wheel or by dragging, zoom with Ctrl/⌘ + wheel or the buttons. Use "Check by ear" to hear the parts over the song.</p>
     </Popover>
@@ -250,6 +257,19 @@
     <p>No melody, bass or chords could be read reliably. <Basis kind="unknown" /></p>
   {:else}
     {#if source === "pattern" && where}<p class="small pat">Representative pattern: 4 bars read from bars {where.from}–{where.to}, shown where it was read. <button type="button" class="btn" onclick={() => view.reveal(where.t, 0.05)}>Go to bars {where.from}–{where.to}</button></p>{/if}
+    {#if drafting}
+      <div class="draft" role="status" data-draft>
+        <span class="dmark" aria-hidden="true"></span>
+        <p><b>These notes and chords are a quick draft.</b> A more accurate transcription of the whole track is running in this browser and will replace them automatically.</p>
+        <span class="dpct mono" aria-label={`${teardown.progress}% done`}>{teardown.progress}%</span>
+        <span class="dbar" aria-hidden="true"><i style:transform={`scaleX(${Math.max(0.02, teardown.progress / 100)})`}></i></span>
+      </div>
+    {:else if upgraded}
+      <div class="draft done" role="status" data-notes-updated>
+        <span class="dmark" aria-hidden="true"></span>
+        <p><b>Notes and chords updated.</b> The notes are now transcribed from the whole track by Basic Pitch, and the chords are read from them.</p>
+      </div>
+    {/if}
     <div class="lanes" bind:clientWidth={rulerW} data-source={source} data-vp-start={view.start.toFixed(3)} data-vp-span={view.span.toFixed(3)} data-follow={view.follow ? "1" : "0"}>
       <MultiRoll viewport={view} clock={transport.clock} {layers} annotations={strip} {lines} {ticks} pitchName={noteName} label="Piano roll" empty="No notes in this stretch"
         onseek={playable ? (t => seek(t)) : undefined} />
@@ -295,7 +315,21 @@
   .legend :global(.srcseg) { margin-left: auto; }
   .legend span { display: inline-flex; align-items: center; gap: 4px; }
   .pat { margin: 0; }
-  .lanes { height: clamp(220px, 38dvh, 460px); min-width: 0; --tl-ann-ink: var(--tt-ink-2); }
+  /* the roll takes what the window leaves after the transport, the song map and the tabs (about 400 px), never less than 260 px */
+  /* the draft strip: cobalt (it is about state, not data), one line, the progress as a hairline along its bottom */
+  .draft { position: relative; display: flex; align-items: center; gap: 10px; margin: 0; padding: 8px 12px 10px; background: color-mix(in srgb, var(--tt-cobalt) 9%, var(--tt-panel)); color: var(--tt-ink); font-size: var(--tt-fs-sm); overflow: hidden; animation: draft-in 260ms cubic-bezier(.23, 1, .32, 1); }
+  .draft p { margin: 0; flex: 1; min-width: 0; }
+  .draft b { font-weight: 600; }
+  .dmark { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--tt-cobalt); animation: draft-pulse 1.6s ease-in-out infinite; }
+  .dpct { flex: none; font-variant-numeric: tabular-nums; color: var(--tt-cobalt); font-weight: 600; }
+  .dbar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: color-mix(in srgb, var(--tt-cobalt) 18%, transparent); }
+  .dbar i { display: block; height: 100%; background: var(--tt-cobalt); transform-origin: left center; transition: transform 300ms linear; }
+  .draft.done { background: color-mix(in srgb, var(--tt-good) 10%, var(--tt-panel)); }
+  .draft.done .dmark { background: var(--tt-good); animation: none; }
+  @keyframes draft-in { from { opacity: 0; translate: 0 -4px; } }
+  @keyframes draft-pulse { 50% { opacity: .35; } }
+  @media (prefers-reduced-motion: reduce) { .draft, .dmark { animation: none; } .dbar i { transition: none; } }
+  .lanes { height: clamp(260px, calc(100dvh - 400px), 900px); min-width: 0; --tl-ann-ink: var(--tt-ink-2); }
   .lanes :global(.ann-item.shaky) { color: var(--tt-warn); }
   .lanes :global(.ann-item.none) { color: var(--tt-ink-3); }
   .lanes :global(.ann-item.fixed) { text-decoration: underline dotted; }

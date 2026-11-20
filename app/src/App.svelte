@@ -14,6 +14,7 @@
   import DropVeil from "./teardown/DropVeil.svelte";
   import { workspace } from "./lib/state/workspace.svelte";
   import { sweepReveal, stopSweep } from "./lib/ui/sweep";
+  import Scene, { type SceneState } from "./lib/ui/art/Scene.svelte";
 
   installTestHooks();
   $effect(() => mountNotes());
@@ -25,7 +26,7 @@
   let depth = $state(0);
   const hasFiles = (e: DragEvent) => !!e.dataTransfer && [...e.dataTransfer.types].includes("Files");
   const enter = (e: DragEvent) => { if (!hasFiles(e)) return; e.preventDefault(); if (depth === 0) { px = e.clientX; py = e.clientY; } depth++; };
-  // where the pointer is during a drag, so the drop veil's discs can follow it
+  // where the pointer is during a drag, so the discs can follow it
   let px = $state(0), py = $state(0);
   const over = (e: DragEvent) => { if (!hasFiles(e)) return; e.preventDefault(); px = e.clientX; py = e.clientY; };
   const leave = (e: DragEvent) => { if (hasFiles(e)) depth = Math.max(0, depth - 1); };
@@ -33,11 +34,15 @@
   // A finished analysis develops onto the page behind a shader band (not a saved teardown being reopened).
   let stage: HTMLElement | undefined = $state();
   $effect(() => { if (teardown.analysedId > 0) void sweepReveal(stage); return stopSweep; });
+  // ONE scene of discs for the whole session; the state only changes its depth of field (lib/ui/art/Scene.svelte). A teardown on screen keeps
+  // the wash behind it even while a new file is analysed, so nothing moves behind the work.
+  const scene = $derived<SceneState>(depth > 0 ? "drop" : teardown.result ? "workspace" : teardown.running ? "analyse" : "idle");
   const drop = (e: DragEvent) => { if (!hasFiles(e)) return; e.preventDefault(); depth = 0; void teardown.analyzeFile(e.dataTransfer?.files[0]); };
 </script>
 
 <svelte:window ondragenter={enter} ondragover={over} ondragleave={leave} ondrop={drop} />
 
+<Scene state={scene} x={px} y={py} lean={workspace.motifHover} />
 <main class="app" class:dragging={depth > 0} data-timemap-schema={tm.schema} data-timemap-fingerprint={tm.fingerprint}>
   <Toolbar />
   <div id="out" class="stage" bind:this={stage} class:has-result={!!teardown.result}>
@@ -49,5 +54,5 @@
       <DropZone />
     {/if}
   </div>
-  {#if depth > 0}<DropVeil x={px} y={py} />{/if}
+  {#if depth > 0}<DropVeil />{/if}
 </main>

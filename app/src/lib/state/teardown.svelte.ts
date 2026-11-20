@@ -39,6 +39,8 @@ class Teardown {
   transcribing = $state(false);
   /** The model's notes for the audio on screen, in seconds (they do not depend on the grid, so a tempo or bar-1 correction relabels the same notes). */
   private bpNotes: TranscribedNote[] | null = null;
+  /** When the note model's notes replaced the quick draft on screen (ms since epoch; 0 = not this teardown): the piano roll says so briefly. */
+  notesUpgradedAt = $state(0);
   history = $state.raw<AnalysisResult[]>([]);
   /** The name in the toolbar: the optional name for the next analysis, and the name of the teardown on screen. */
   title = $state("");
@@ -80,7 +82,8 @@ class Teardown {
   private useNotes() {
     if (!this.bpNotes) return;
     const notes = this.bpNotes;
-    this.replace(n => { (n as AnalysisResult & { transcription?: unknown }).transcription = domain.transcriptionFromNotes(n, gridOf(n), notes, NOTES_METHOD); });
+    this.replace(n => { const x = n as AnalysisResult & { transcription?: unknown; chordRegions?: unknown }; x.transcription = domain.transcriptionFromNotes(n, gridOf(n), notes, NOTES_METHOD);
+      const cr = domain.chordRegionsFromNotes(n, gridOf(n), notes); if (cr) x.chordRegions = cr; }); // chords are read from these notes (docs/SYMBOLIC_CHORDS.md); the audio detector's stay when there is nothing to read
   }
   /** Run the note model on the audio on screen, in the background; the quick analysis stays on screen and usable. Falls back to it, saying so, if the model fails. */
   private async transcribeNotes(job: number) {
@@ -91,7 +94,7 @@ class Teardown {
     try {
       const notes = await transcribe(buf, p => { if (!current()) return; this.progress = Math.round(p * 100); this.status = { text: `${ready} Transcribing the notes… ${Math.round(p * 100)}%`, err: false }; }, () => !current());
       if (!current()) return;
-      this.bpNotes = notes; this.useNotes();
+      this.bpNotes = notes; this.useNotes(); this.notesUpgradedAt = Date.now();
       this.status = { text: ready + " Notes transcribed with Basic Pitch.", err: false };
     } catch (e) {
       if (!current() || (e as Error)?.message === "stale") return;
@@ -115,7 +118,7 @@ class Teardown {
       this.buffer = bufferOf(a) || null;
       this.status = { text: `Teardown ready for “${a.title}”.`, err: false };
       const oldURL = this.audioURL; this.audioURL = newURL; adopted = true;
-      this.bpNotes = null; this.transcribing = false;
+      this.bpNotes = null; this.transcribing = false; this.notesUpgradedAt = 0;
       this.selected = 0; this.show(a); this.mountId++; this.analysedId++; this.save(a); this.ctl = null; this.running = false;
       if (oldURL) URL.revokeObjectURL(oldURL);
       void this.transcribeNotes(job);
@@ -159,9 +162,11 @@ class Teardown {
       if (cur.notFourFour) a.notFourFour = true;
       recordCorrection(a, correction.type === "bpm" ? { type: "bpm", from: cur.bpm, to: correction.to, recomputed: true } : { type: "downbeat", shift: correction.shift, recomputed: true });
       this.status = { text: `Analysed again at ${a.bpm} BPM. Chords and drum edits made before this were discarded.`, err: false };
+      if (correction.type === "bpm") { const was = (a.timingCorrections || []).find(c => c.type === "bpm")?.from; notify("info", `Analysed again at your tempo${was ? ` (detected: ${was} BPM)` : ""}. Bars, drums, chords and notes were rebuilt from the same audio; chord and drum edits made before were discarded.`); }
       this.buffer = bufferOf(a) || buf;
       // the same audio gives the same notes: relabel them on the new grid instead of running the model again
-      if (this.bpNotes) (a as AnalysisResult & { transcription?: unknown }).transcription = domain.transcriptionFromNotes(a, gridOf(a), this.bpNotes, NOTES_METHOD);
+      if (this.bpNotes) { const x = a as AnalysisResult & { transcription?: unknown; chordRegions?: unknown }; x.transcription = domain.transcriptionFromNotes(a, gridOf(a), this.bpNotes, NOTES_METHOD);
+        const cr = domain.chordRegionsFromNotes(a, gridOf(a), this.bpNotes); if (cr) x.chordRegions = cr; }
       this.show(a); this.save(a); this.ctl = null; this.running = false;
       void this.transcribeNotes(job);
       return true;

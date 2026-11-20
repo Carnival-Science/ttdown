@@ -6,8 +6,9 @@
 // without WebGL, or when another sweep is already running. Nothing here knows about Svelte.
 import { accentChain, createShader, playSweep, type ShaderController, type SweepHandle } from "glimm";
 
-/** Brand gradient: lime into cobalt through a pale mid, so the band reads as the mark's colours, not a rainbow. */
-const PALETTE = accentChain(["#A7CB79", "#C9DDB0", "#526BCE"]);
+/** The discs' own lime and sage: the band reads as the circles washing across into the workspace (Scene's "workspace" state runs at the
+ *  same time and pace), one gesture rather than two competing transitions. */
+const PALETTE = accentChain(["#A9CF7A", "#C9DDB0", "#8FC3A6"]);
 const SWEEP_MS = 900;
 /** glimm travels a full-window band from -0.2 to 1.2 of the width (its overscan for a full-bleed canvas). */
 const OVERSCAN = 0.2;
@@ -54,7 +55,7 @@ export function sweepReveal(target: HTMLElement | null | undefined): Promise<voi
     active.raf = requestAnimationFrame(reveal);
   };
   target.style.clipPath = "inset(0 100% 0 0)";
-  const handle = playSweep(ctrl, { sweepMs: SWEEP_MS, outroMs: 200, easing: "easeInOutCubic", peakAlpha: 0.9 });
+  const handle = playSweep(ctrl, { sweepMs: SWEEP_MS, outroMs: 200, easing: "easeInOutCubic", peakAlpha: 0.75 });
   active = { ctrl, handle, canvas, target, raf: requestAnimationFrame(reveal) };
   // The content must never stay hidden: the sweep's own end, or a safety timeout if frames stop (a background tab), both finish it.
   const safety = setTimeout(finish, SWEEP_MS + 1200);
