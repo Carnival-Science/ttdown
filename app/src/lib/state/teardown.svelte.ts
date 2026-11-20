@@ -101,7 +101,7 @@ class Teardown {
   async analyzeFile(file: File | undefined | null) {
     if (!file) return;
     if (this.ctl) this.ctl.abort();
-    const job = ++this.job, ctl = this.ctl = new AbortController(); this.running = true;
+    const job = ++this.job, ctl = this.ctl = new AbortController(); this.running = true; this.transcribing = false; // a newer run supersedes (and stops) the note model; the old run's finally no longer clears the flag
     const current = () => job === this.job;
     const newURL = URL.createObjectURL(file); let adopted = false;
     this.status = { text: this.status.text, err: false };
@@ -144,7 +144,7 @@ class Teardown {
     const cur = this.result, buf = this.buffer; if (!cur || !buf) return false;
     const forced = forcedOf({ timingCorrections: [...(cur.timingCorrections || []), { ...correction, source: "user", at: "" }] });
     if (this.ctl) this.ctl.abort();
-    const job = ++this.job, ctl = this.ctl = new AbortController(); this.running = true;
+    const job = ++this.job, ctl = this.ctl = new AbortController(); this.running = true; this.transcribing = false; // a newer run supersedes (and stops) the note model; the old run's finally no longer clears the flag
     const current = () => job === this.job;
     this.status = { text: forced.bpm ? `Analysing again at ${forced.bpm} BPM…` : "Analysing again with bar 1 moved…", err: false }; this.progress = 0;
     try {

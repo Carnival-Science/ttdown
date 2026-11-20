@@ -20,7 +20,7 @@ The library defaults, the same as the Python package's: onset threshold 0.5, fra
 ## Measured
 
 - **Same notes as the research run:** on the paired render *more please* the in-app result is 679 notes (544 Notes, 135 Bass), onset F1 83.5% (P 78.1, R 89.8), both pickup notes found, identical to the Python run in PR #43.
-- **Time (headless Chromium, software WebGL, no GPU):** 1:33 of audio: 67 s with the WebGL backend, 150 s with the CPU backend. A 70 s synthetic track: 52 s. The page stays usable (about 5 s of main-thread work in total, in several blocks) because the teardown is shown first. **Real browsers with a GPU should be much faster, but I have not measured one.**
+- **Time (headless Chromium, no GPU):** 1:33 of audio takes about 76 s on the CPU backend, which is what the worker uses. The model runs in a Web Worker, so the page stays usable the whole time (`tests/app-notes-responsive.test.js`: a click is served within 200 ms; with the model on the page's own thread the same click timed out after 10 s). Before the worker, the CPU backend blocked the page for 70 s in one task, which is what failed the Firefox journey in CI (PR 45). The WebGL backend is **not used**: inside the worker it stalled at 5% for over 8 minutes in headless Chromium (software GL). It can be forced with `window.__ttBpBackend = "webgl"`. **A real GPU would likely be faster, but I have not measured one.**
 - **Size:** the app's main chunk is unchanged; the tf.js chunk (1.0 MB) and the model (0.9 MB) load only when a track is transcribed.
 
 ## Not verified
