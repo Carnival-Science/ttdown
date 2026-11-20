@@ -16,6 +16,7 @@ The first numbered release: the Svelte app (replacing the single-file page) with
 - This changelog, and the version number in the toolbar. (#45)
 
 ### Improvements
+- Tracks without percussion, such as a solo piano piece, say "No drums found" and hide the drum tools, instead of showing a made-up drum pattern. It measures how much of the sound is percussive; a very quiet drum part can be missed, and it does not detect vocals. (#57)
 - Chords are read from the transcribed notes when they are there, which follows arpeggios far better than hearing them in the audio; major and minor chords only, and the roll says where the chord names came from. On one test piece the chord's root is right 88% of the time (the audio reading: 64%), but it finds fewer of the short chord changes at the start. (#44, #51)
 - A new light look: paper, ink, lime and cobalt, with halftone circles, rings that show each analysis stage, a timeline view that glides to a section, and a confirmation when a teardown is saved. (#46)
 - Whole-track MIDI keeps the pickup notes before bar 1. (#41)
