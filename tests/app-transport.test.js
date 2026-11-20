@@ -103,13 +103,14 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
     check(await p.locator(".lanes").getAttribute("data-source") === "pattern" && /Representative pattern: 4 bars read from bars/.test(await p.locator(".proll").innerText()), "7: without whole-track notes the roll shows the representative pattern and say where it was read");
     check(await p.locator('.proll .phead button:has-text("MIDI")').count() === 1, "7: the roll has one MIDI menu");
     await inject(p); await p.waitForTimeout(300);
-    check(await p.locator(".lanes").getAttribute("data-source") === "full" && await p.locator('.proll [role="radio"]:has-text("Representative pattern")').count() === 1, "7: with whole-track notes they are the default, and the pattern is one toggle away");
+    await p.click('[aria-label="About the piano roll"]');
+    check(await p.locator(".lanes").getAttribute("data-source") === "full" && await p.locator('[role="radio"]:has-text("Representative pattern")').count() === 1, "7: with whole-track notes they are the default, and the pattern is one switch away (in the About popover)"); await p.keyboard.press("Escape");
     const x0 = await p.evaluate(() => { const l = window.__td.transcription.lead[0]; return l.on; });
     const first = await p.evaluate(() => { const r = document.querySelector('.lanes g[data-layer="hook"] rect'); return +r.getAttribute("x"); });
     const [vs, sp, w] = await p.evaluate(() => { const l = document.querySelector(".lanes"); return [+l.dataset.vpStart, +l.dataset.vpSpan, document.querySelector(".lanes .phbox").getBoundingClientRect().width]; });
     const want = ((x0 - vs) / sp) * w;
     check(Math.abs(first - want) < 3, `7: the first note is drawn at its real time (${first.toFixed(1)} px, wanted ${want.toFixed(1)} px for ${x0.toFixed(2)} s)`);
-    await p.click('.proll [role="radio"]:has-text("Representative pattern")'); await p.waitForTimeout(250);
+    await p.click('[aria-label="About the piano roll"]'); await p.click('[role="radio"]:has-text("Representative pattern")'); await p.waitForTimeout(250);
     check(await p.locator(".lanes").getAttribute("data-source") === "pattern", "7: the toggle switches to the representative pattern");
     await p.context().close(); }
 

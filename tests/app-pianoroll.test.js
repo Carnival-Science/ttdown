@@ -1,7 +1,7 @@
 // ONE piano roll and a scrubbable arrangement.
 //   1. the section editor has two tabs, Piano roll (first, and open by default) and Rhythm; the roll is ONE keyboard, pitch axis, time axis and playhead for all parts
 //   2. melody (cobalt) and bass (green) are filled; the suggested chord voicings are hollow solid outlines (not heard in
-//      the audio); the legend says "Transcribed notes · Suggested chord voicings" (+ "Representative pattern" when that is shown)
+//      the audio); there is no legend strip (the part toggles name the parts); the representative pattern is switched in the About popover
 //   3. a checkbox per part hides or shows it; Alt/Option-click shows only that part, and again brings the others back
 //   4. the chord strip names each bar's chord; the one under the playhead is marked and matches the bar.beat · chord readout, also while
 //      playing; clicking a chord opens the correction, which records the change like before

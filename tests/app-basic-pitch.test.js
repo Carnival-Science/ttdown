@@ -3,7 +3,7 @@
 //   2. opted in (window.__ttBasicPitch): the teardown is ready first, then the notes are transcribed (status says so), and a.transcription is
 //      the model's: polyphonic, named method, notes inside the audio, each with bar, beat, length and section; bass below C3, the rest Notes
 //      and the chord regions are the ones read from those notes (chords-from-notes-v1)
-//   3. the roll names them Notes (not Melody), the legend and the label say Basic Pitch, and the roll draws them
+//   3. the roll names them Notes (not Melody), the label says Basic Pitch, and the roll draws them
 //   4. the MIDI export: "Notes" and "Bass" files hold exactly those notes (original timing), all parts names its tracks Notes and Bass
 //   5. a saved teardown keeps them: reload, open from Recent, no audio, the roll still shows Notes
 //   6. if the model cannot load (blocked), the engine's notes stay, the page says so in a toast, and nothing else breaks
