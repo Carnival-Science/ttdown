@@ -13,9 +13,9 @@
   let recentOpen = $state(false);
   const tm = timeMapSelfCheck();
   const short = (s: string | null) => (s ? s.slice(0, 7) : "unknown");
-  // "Teardown ready for …" is redundant once the workspace is on screen: it is still announced (role=status) but not shown. Progress,
-  // errors and every other message stay visible.
-  const quiet = $derived(!teardown.running && !teardown.status.err && /^Teardown ready/.test(teardown.status.text));
+  // "Teardown ready for …" on its own is redundant once the workspace is on screen: it is still announced (role=status) but not shown.
+  // Anything more (the note model's progress, its result), errors and every other message stay visible.
+  const quiet = $derived(!teardown.running && !teardown.transcribing && !teardown.status.err && /^Teardown ready for “[^”]*”\.$/.test(teardown.status.text));
   const pick = (e: Event & { currentTarget: HTMLInputElement }) => { const f = e.currentTarget.files?.[0]; void teardown.analyzeFile(f); e.currentTarget.value = ""; };
 </script>
 

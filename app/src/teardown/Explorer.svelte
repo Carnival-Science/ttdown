@@ -201,8 +201,9 @@
             {:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" /></svg>{/if}
           </button>
           <button type="button" class="iconbtn stop" aria-label="Stop (back to the start)" title="Stop: back to the start" onclick={stop}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="1.5" /></svg></button>
-          <span class="clock"><b>{fmtT(now)}</b><span class="total"> / {fmtT(dur)}</span></span>
-          <span class="posn" title="Bar and beat from the tracked beats"><span class="plabel">Bar </span><b>{pos ? `${pos.bar}.${Math.floor(pos.beat)}` : "–"}</b></span>
+          <!-- two readouts, each its own unit: a small label over a figure. Time is where you are of how long; Bar is bar.beat on the tracked grid -->
+          <span class="ro clock" title="Time: where you are, of the track's length"><span class="rlabel plabel">Time</span><span class="rfig"><b>{fmtT(now)}</b><span class="total">/ {fmtT(dur)}</span></span></span>
+          <span class="ro posn" title="Bar and beat, from the tracked beats"><span class="rlabel plabel">Bar · beat</span><span class="rfig"><b>{#if pos}{pos.bar}<span class="beat">.{Math.floor(pos.beat)}</span>{:else}–{/if}</b></span></span>
           <span class="vol">
             <button type="button" class="iconbtn" id="mute" aria-pressed={audio.vol.muted} aria-label="Mute" onclick={() => audio.toggleMute()}>
               {#if audio.vol.muted}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" /><path d="m16 9 5 6m0-6-5 6" class="stroke" /></svg>
@@ -347,10 +348,15 @@
   :global(.explorer .bands .seg[data-playing]) { box-shadow: inset 1px 0 0 var(--tt-line-2), inset 0 3px 0 var(--c), inset 0 -4px 0 var(--tt-lcd); }
   :global(.explorer .bands .seg[data-playing][data-checked]) { box-shadow: inset 1px 0 0 var(--tt-line-2), inset 0 5px 0 var(--c), inset 0 -4px 0 var(--tt-lcd); }
   :global(.explorer .bands .seg .nowmark) { color: var(--tt-lcd); }
-  .posn { font: 500 .9rem var(--tt-font-body); color: var(--tt-ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .posn b { color: var(--tt-ink); font-weight: 600; }
-  .posn .plabel { margin-right: 4px; }
-  .clock .total { margin-left: 4px; }
+  /* readouts: a small label over a monospaced figure, a hairline between them, so time and bar never read as one run of text */
+  .ro { display: inline-grid; grid-template-rows: auto auto; align-content: center; gap: 1px; padding: 0 12px; white-space: nowrap; line-height: 1; }
+  .ro + .ro { border-left: 1px solid var(--tt-line-2); }
+  .rlabel { font: 500 .62rem/1 var(--tt-font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--tt-ink-3); }
+  .rfig { font: 500 .95rem/1.1 var(--tt-font-mono); font-variant-numeric: tabular-nums; color: var(--tt-ink-3); letter-spacing: -0.01em; }
+  .rfig b { color: var(--tt-ink); font-weight: 600; }
+  .clock .total { margin-left: 0.5ch; }
+  .posn .beat { color: var(--tt-ink-3); font-weight: 500; }
+  .posn .rfig { min-width: 6ch; }
   .attach { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
   .readout {
     position: absolute; top: calc(100% + 2px); translate: -50% 0; padding: 4px 8px; border-radius: 0; white-space: pre; pointer-events: none;
@@ -396,8 +402,7 @@
   .play:active { transform: scale(0.96); }
   .play:focus-visible, .iconbtn:focus-visible, .morebtn:focus-visible { outline: 2px solid var(--tt-focus); outline-offset: 3px; }
   .play svg { width: 20px; height: 20px; fill: currentColor; }
-  .clock { font: 500 0.92rem var(--tt-font-body); font-variant-numeric: tabular-nums; color: var(--tt-ink-3); white-space: nowrap; }
-  .clock b { color: var(--tt-ink); font-weight: 600; }
+
   .vol { display: inline-flex; align-items: center; gap: 2px; }
   .volslider { display: block; width: 88px; }
   .iconbtn { width: var(--tt-tap); height: var(--tt-tap); display: grid; place-items: center; border: 0; border-radius: 2px; background: transparent; color: var(--tt-ink-2); cursor: pointer; }
@@ -430,7 +435,8 @@
     .key { gap: 4px 12px; font-size: .7rem; }
   }
   @media (max-width: 480px) {
-    .clock .total, .posn .plabel { display: none; }
+    .clock .total { display: none; }
+    .ro { padding: 0 8px; }
   }
   @media (min-width: 1180px) and (max-height: 820px) {
     .top { gap: 6px; }
