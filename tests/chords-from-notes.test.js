@@ -6,8 +6,11 @@
  *   5. chordSpans (what the roll, readout and chord MIDI use) follows the regions, and a corrected bar still wins
  *   6. a pedal bass (an A1 808 on the key root under A F#m D E, as in test-songs/pop127_Amaj.wav) is not taken as every chord's root:
  *      F#m is read from its bar line at several tempos and bar-1 offsets (before the pedal guard it was read as A, or a beat late)
- *   7. Basic Pitch's own notes for the first 8 bars of pop127_Amaj (tests/fixtures/pop127-basic-pitch-notes.json) read A F#m D E twice
+ *   7. Basic Pitch's own notes for the first 8 bars of pop127_Amaj (tests/fixtures/pop127-basic-pitch-notes.json): every chord bar starts
+ *      on its bar line with its chord, F#m in bars 2 and 6 (before the guard they were A)
  *   8. a moving bass is read exactly as before the pedal guard (the regions match those of the reader at c41a590, byte for byte)
+ *   9. a chord change inside the bar with the bass moving too (A for 2.5 beats over A, F#m for 1.5 beats over F#, every bar, at 120 BPM) is
+ *      not a pedal: both chords are read in every bar, as without the guard (PR #59 review; the first guard read F#m from bar 1 on)
  * Synthetic notes only; the real-music numbers are in docs/SYMBOLIC_CHORDS.md. */
 "use strict";
 const TM = require("../src/timemap"), TS = require("../src/timing-store"), eng = require("../src/engine")({ TimeMap: TM }), D = require("../src/domain")({ TimingStore: TS, engine: eng });
@@ -48,7 +51,8 @@ for (const [bpm, fd] of VARIANTS) {
 }
 { const fx = JSON.parse(require("node:fs").readFileSync(require("node:path").join(__dirname, "fixtures", "pop127-basic-pitch-notes.json"), "utf8")), { a, G } = song(127, 0);
   const s = said(D.chordRegionsFromNotes(a, G, fx.notes));
-  check(fx.notes.length === 122 && s.join(" | ") === "0.0 A | 1.0 F#m | 2.0 D | 3.0 E | 4.0 A | 5.0 F#m | 6.0 D | 7.0 E", `7: Basic Pitch's notes of pop127_Amaj read A F#m D E twice, on the bar lines: ${s.join(" | ")}`); }
+  const starts = ["0.0 A", "1.0 F#m", "2.0 D", "3.0 E", "5.0 F#m", "6.0 D", "7.0 E"]; // bar 5's A may start before its bar line (the E bar's last 8ths), as it does without the guard
+  check(fx.notes.length === 122 && starts.every(x => s.includes(x)) && !s.some(x => /^[15]\.\d+ A$/.test(x)), `7: Basic Pitch's notes of pop127_Amaj: each chord on its bar line, F#m in bars 2 and 6: ${s.join(" | ")}`); }
 // 8: the same progression over a moving bass (the root for 3 beats, then the fifth): sha256 of the regions as the reader at c41a590 gave them
 const BEFORE = { "127/0": "7f43b6dfcb5d6da6", "127/0.5": "2e1d72c192351955", "127/0.25": "87f546b9010ea6c3", "120/0": "e6978733a48dcd15", "100/0": "f4c34e43a15a72af" };
 for (const [bpm, fd] of VARIANTS) {
@@ -58,5 +62,13 @@ for (const [bpm, fd] of VARIANTS) {
   const r = D.chordRegionsFromNotes(a, G, notes), h = crypto.createHash("sha256").update(JSON.stringify(r)).digest("hex").slice(0, 16);
   const chords = r.regions.filter(x => x.c !== "–").map(x => x.c).join(" ");
   check(h === BEFORE[`${bpm}/${fd}`] && chords === "A F#m D E A F#m D E", `8: a moving bass reads exactly as before the pedal guard (${bpm} BPM, bar 1 at ${fd} s; ${h}): ${chords}`);
+}
+// 9: an intra-bar change with the bass moving with it is not a pedal (PR #59 review). The bass is lowest on A for 5 of each bar's 8ths and
+// on F# for 3, so "the most frequent lowest note" alone took it for an A pedal and read F#m from 1 s to the end.
+for (const [bA, bF] of [[45, 42], [33, 30]]) {
+  const { a, G } = song(120, 0, 4), notes = [];
+  for (let b = 0; b < 4; b++) { const t0 = b * 2, tc = t0 + 1.25; [57, 61, 64, bA].forEach(m => notes.push({ on: t0, off: tc, midi: m })); [54, 57, 61, bF].forEach(m => notes.push({ on: tc, off: t0 + 2, midi: m })); }
+  const r = D.chordRegionsFromNotes(a, G, notes), seq = r.regions.filter(x => x.c !== "–").map(x => `${x.bar}:${x.c}`).join(" ");
+  check(seq === "0:A 0:F#m 1:A 1:F#m 2:A 2:F#m 3:A 3:F#m", `9: A then F#m inside every bar, bass ${bA} -> ${bF}, both chords read in each bar: ${said(r).join(" | ")}`);
 }
 console.log(`chords-from-notes tests: ${pass} passed, ${fail} failed`); if (fail) process.exit(1);

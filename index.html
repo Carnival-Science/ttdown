@@ -2204,13 +2204,15 @@ function chordRegionsFromNotes(a, G, notes) {
     if (!steps.length) return null;
     const n = steps.length, K = CFN_CH.length + 1, NC = CFN_CH.length, srt = notes.filter(x => x.off > x.on).sort((p, q) => p.on - q.on);
     // Pedal guard (#26): a bass note held while the harmony above it changes (a pedal, such as an 808 on the key's root) is not each chord's
-    // root. A bar is a pedal bar when the pitch class that is most often the lowest sounding note at its 8ths is also that of every
-    // neighbouring bar that has notes (one neighbour at the ends, at least one); there the lowest-note root bonus is not given. Nothing else
-    // changes, so where the lowest note moves between bars the reading is the same as without the guard.
-    const lowPc = st => { let low = null; for (const x of srt) { if (x.on >= st.t1) break; if (x.off > st.t0 && (low === null || x.midi < low)) low = x.midi; } return low === null ? null : ((low % 12) + 12) % 12; };
+    // root. A bar is a pedal bar when its lowest bass note (below C3, the bass split above) has ONE pitch class at every 8th that has a bass
+    // note, and that pitch class is also the most frequent one in each neighbouring bar (a neighbour with no bass notes, or a tie, rules it
+    // out; the first and last bars need only their one neighbour); there the lowest-note root bonus is not given. A bass that moves inside
+    // the bar (A then F#, a change on beat 3.5) is never a pedal, and where the bass moves between bars the reading is the same as without
+    // the guard.
+    const lowPc = st => { let low = null; for (const x of srt) { if (x.on >= st.t1) break; if (x.midi < 48 && x.off > st.t0 && (low === null || x.midi < low)) low = x.midi; } return low === null ? null : ((low % 12) + 12) % 12; };
     const barLow = new Map(); for (const st of steps) { const c = barLow.get(st.b) || new Array(12).fill(0), l = lowPc(st); if (l !== null) c[l]++; barLow.set(st.b, c); }
     const domLow = b => { const c = barLow.get(b); if (!c) return undefined; let k = 0; for (let i = 1; i < 12; i++) if (c[i] > c[k]) k = i; return c[k] > 0 && c.filter(v => v === c[k]).length === 1 ? k : null; };
-    const pedalBar = b => { const d = domLow(b), p = domLow(b - 1), q = domLow(b + 1); return d != null && (p !== undefined || q !== undefined) && (p === undefined || p === d) && (q === undefined || q === d); };
+    const pedalBar = b => { const d = domLow(b), p = domLow(b - 1), q = domLow(b + 1); return d != null && barLow.get(b).filter(v => v > 0).length === 1 && (p !== undefined || q !== undefined) && (p === undefined || p === d) && (q === undefined || q === d); };
     for (const st of steps) st.pedal = pedalBar(st.b);
     const emit = steps.map(st => {
       const lo = st.t0 - CFN.win * st.beat, hi = st.t1 + CFN.win * st.beat, w = new Array(12).fill(0); let low = null, tot = 0;
