@@ -78,15 +78,15 @@
     const solo = (Object.keys(show) as Part[]).every(k => show[k] === (k === p));
     show = solo ? { hook: true, bass: true, chords: true } : { hook: p === "hook", bass: p === "bass", chords: p === "chords" };
   }
-  // While the note model (Basic Pitch) works on the whole track, the notes on screen are the quick analysis's rough draft: they are drawn
-  // faint and a strip above the roll says a better transcription is coming, with its progress. When it lands, the strip says so for a
-  // few seconds. Chords are not affected (they come from the chord analysis either way).
+  // While the note model (Basic Pitch) works on the whole track, the notes on screen are the quick analysis's rough draft, and so are the
+  // chords (they are re-read from the model's notes when it lands, PR 51): all of it is drawn faint and a strip above the roll says a
+  // better transcription is coming, with its progress. When it lands, the strip says so for a few seconds.
   const drafting = $derived(teardown.transcribing);
   let upgraded = $state(false);
   $effect(() => { const t = teardown.notesUpgradedAt; if (!t) { upgraded = false; return; } const left = 6000 - (Date.now() - t); if (left <= 0) { upgraded = false; return; } upgraded = true; const id = setTimeout(() => (upgraded = false), left); return () => clearTimeout(id); });
   const noteOpacity = $derived(drafting ? 0.38 : 1);
   const layers = $derived<RollLayer[]>([
-    { id: "chords", label: "Suggested chord voicings", notes: chordNotesAll, hidden: !show.chords, fill: "#8A6BC9", fillOpacity: 0, stroke: "#8A6BC9", strokeWidth: 1.2 },
+    { id: "chords", label: "Suggested chord voicings", notes: chordNotesAll, hidden: !show.chords, fill: "#8A6BC9", fillOpacity: 0, stroke: drafting ? "#C4B4E4" : "#8A6BC9", strokeWidth: 1.2 },
     { id: "bass", label: "Bass", notes: bassNotes, hidden: !show.bass, fill: "#4E8A3E", fillOpacity: noteOpacity },
     { id: "hook", label: poly ? "Notes" : "Melody", notes: leadNotes, hidden: !show.hook, fill: "#526BCE", fillOpacity: noteOpacity },
   ]);
@@ -260,14 +260,14 @@
     {#if drafting}
       <div class="draft" role="status" data-draft>
         <span class="dmark" aria-hidden="true"></span>
-        <p><b>These notes are a quick draft.</b> A more accurate transcription of the whole track is running in this browser and will replace them automatically.</p>
+        <p><b>These notes and chords are a quick draft.</b> A more accurate transcription of the whole track is running in this browser and will replace them automatically.</p>
         <span class="dpct mono" aria-label={`${teardown.progress}% done`}>{teardown.progress}%</span>
         <span class="dbar" aria-hidden="true"><i style:transform={`scaleX(${Math.max(0.02, teardown.progress / 100)})`}></i></span>
       </div>
     {:else if upgraded}
       <div class="draft done" role="status" data-notes-updated>
         <span class="dmark" aria-hidden="true"></span>
-        <p><b>Notes updated.</b> These are now transcribed from the whole track by Basic Pitch.</p>
+        <p><b>Notes and chords updated.</b> The notes are now transcribed from the whole track by Basic Pitch, and the chords are read from them.</p>
       </div>
     {/if}
     <div class="lanes" bind:clientWidth={rulerW} data-source={source} data-vp-start={view.start.toFixed(3)} data-vp-span={view.span.toFixed(3)} data-follow={view.follow ? "1" : "0"}>
