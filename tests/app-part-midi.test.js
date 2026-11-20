@@ -97,7 +97,7 @@ fs.mkdirSync(OUT, { recursive: true });
     check(await p.locator("#explorer [data-drumless]").count() === 0 && await tabBtn(p, "Rhythm").count() === 1, `${f}: a track with drums keeps the Rhythm tab and shows no drumless notice`);
     // an older teardown (no whole-track notes): the roll shows the representative pattern, and Melody writes exactly that 4-bar phrase
     await p.evaluate(() => window.__tdReplace(y => { delete y.transcription; })); await p.waitForTimeout(300);
-    check(await p.locator(".lanes").getAttribute("data-source") === "pattern" && /Representative pattern/.test(await p.locator("[data-legend]").innerText()), `${f}: without whole-track notes the roll shows the representative pattern, and the legend says so`);
+    check(await p.locator(".lanes").getAttribute("data-source") === "pattern" && /Representative pattern/.test(await p.locator(".pat").innerText()), `${f}: without whole-track notes the roll shows the representative pattern, and says so`);
     await menu(p);
     if (!(await modes(p)).original.disabled) {
       await choose(p, "timing", "original");

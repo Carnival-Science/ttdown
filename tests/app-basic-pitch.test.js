@@ -3,7 +3,7 @@
 //   2. opted in (window.__ttBasicPitch): the teardown is ready first, then the notes are transcribed (status says so), and a.transcription is
 //      the model's: polyphonic, named method, notes inside the audio, each with bar, beat, length and section; bass below C3, the rest Notes
 //      and the chord regions are the ones read from those notes (chords-from-notes-v1)
-//   3. the roll names them Notes (not Melody), the legend and the label say Basic Pitch, and the roll draws them
+//   3. the roll names them Notes (not Melody), the label says Basic Pitch, and the roll draws them
 //   4. the MIDI export: "Notes" and "Bass" files hold exactly those notes (original timing), all parts names its tracks Notes and Bass
 //   5. a saved teardown keeps them: reload, open from Recent, no audio, the roll still shows Notes
 //   6. if the model cannot load (blocked), the engine's notes stay, the page says so in a toast, and nothing else breaks
@@ -60,7 +60,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
 
   // ---- 3. the roll
   await p.click('.detail [role="tab"]:has-text("Piano roll")'); await p.waitForSelector(".mroll .track"); await p.waitForTimeout(300);
-  const roll = await p.evaluate(() => ({ legend: document.querySelector("[data-legend]").innerText, toggles: [...document.querySelectorAll("[data-part-toggle]")].map(e => e.closest("label").innerText.trim()), rects: document.querySelectorAll('.mroll g[data-layer="hook"] rect').length, bass: document.querySelectorAll('.mroll g[data-layer="bass"] rect').length, text: document.querySelector(".proll").innerText }));
+  const roll = await p.evaluate(() => ({ toggles: [...document.querySelectorAll("[data-part-toggle]")].map(e => e.closest("label").innerText.trim()), rects: document.querySelectorAll('.mroll g[data-layer="hook"] rect').length, bass: document.querySelectorAll('.mroll g[data-layer="bass"] rect').length, text: document.querySelector(".proll").innerText }));
   check(roll.toggles.some(t => /^Notes\b/.test(t)) && !roll.toggles.some(t => /Melody/.test(t)), `3: the part is called Notes, not Melody (${roll.toggles.join(" | ")})`);
   check(roll.rects > 0 && roll.bass > 0, `3: the roll draws them (${roll.rects} Notes, ${roll.bass} Bass rectangles in view)`);
   await p.click(".phead .about"); await p.waitForTimeout(150); const about = await p.locator(".about-pop").innerText(); await p.keyboard.press("Escape");
