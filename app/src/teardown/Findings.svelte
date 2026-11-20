@@ -128,7 +128,7 @@
   .big { font-size: 1.45rem; }
   .findings :global(.btn) { min-height: 36px; padding: 0 12px; font-size: .84rem; }
   .findings :global(.isel) { min-height: 36px; }
-  .chip { padding: 1px 8px; border-radius: 999px; border: 1px solid var(--tt-line); color: var(--tt-ink-2); }
+  .chip { padding: 1px 6px; border-radius: 2px; border: 1px solid var(--tt-line); color: var(--tt-ink-2); }
   .chip.warn { border-color: color-mix(in srgb, var(--tt-warn) 55%, transparent); color: var(--tt-warn); }
   .row.tight { gap: 6px; flex-wrap: wrap; }
   .bpmin { width: 76px; }

@@ -103,10 +103,10 @@
     <div class="track" role="img" aria-label={label} bind:clientWidth={width} bind:clientHeight={height} onpointerdown={pd} onpointermove={pm} onpointerup={pu} onpointercancel={pu}>
       {#if width && height}
         <svg {width} {height} aria-hidden="true">
-          {#each keys as m (m)}<rect x="0" y={(range.hi - m) * rh} {width} height={rh} fill={black(m) ? "#121317" : "#1a1c22"} />{/each}
-          {#each grid as g (g.t)}<line x1={x(g.t)} x2={x(g.t)} y1="0" y2={height} stroke={g.major ? "#4a4d57" : "#2a2d35"} stroke-width={g.major ? 1.2 : 0.6} />{/each}
+          {#each keys as m (m)}<rect x="0" y={(range.hi - m) * rh} {width} height={rh} fill={black(m) ? "#EDF0E9" : "#FBFCF8"} />{/each}
+          {#each grid as g (g.t)}<line x1={x(g.t)} x2={x(g.t)} y1="0" y2={height} stroke={g.major ? "#B4BDB3" : "#DCE2DB"} stroke-width={g.major ? 1 : 0.6} />{/each}
           {#each drawn as d (d.l.id)}
-            <g data-layer={d.l.id} fill={d.l.fill ?? "#ff7a1a"} fill-opacity={d.l.fillOpacity ?? 1} stroke={d.l.stroke ?? "none"} stroke-width={d.l.stroke ? (d.l.strokeWidth ?? 1.2) : 0} stroke-dasharray={d.l.dash}>
+            <g data-layer={d.l.id} fill={d.l.fill ?? "#5E8A2E"} fill-opacity={d.l.fillOpacity ?? 1} stroke={d.l.stroke ?? "none"} stroke-width={d.l.stroke ? (d.l.strokeWidth ?? 1.2) : 0} stroke-dasharray={d.l.dash}>
               {#each d.notes as n, i (i)}
                 {@const w = Math.max(2, x(n.end) - x(n.start) - 1)}
                 <rect x={x(n.start) + 0.5} y={(range.hi - n.pitch) * rh + 0.5} width={w} height={Math.max(1, rh - 1)} rx="1.5" opacity={n.level == null ? 1 : 0.5 + 0.5 * n.level} />
@@ -123,33 +123,33 @@
 </div>
 
 <style>
-  .mroll { position: relative; display: flex; flex-direction: column; min-height: 0; min-width: 0; height: 100%; background: #0d0e11; border: 1px solid #000; border-radius: 8px; overflow: hidden; --tl-ink: #8a8983; }
+  .mroll { position: relative; display: flex; flex-direction: column; min-height: 0; min-width: 0; height: 100%; background: var(--tt-panel); border: 1px solid var(--tt-line-2); border-radius: 0; overflow: hidden; --tl-ink: var(--tt-ink-3); }
   .mr-row { display: grid; grid-template-columns: var(--tl-gutter) minmax(0, 1fr); min-width: 0; }
-  .ruler-row { flex: none; border-bottom: 1px solid #2a2d35; background: #111216; }
-  .corner { background: #111216; }
-  .ann-row { flex: none; height: 24px; border-bottom: 1px solid #2a2d35; background: #111216; }
-  .alabel { font: 600 .72rem/24px var(--tt-font-body, sans-serif); color: #8a8983; padding-left: 8px; overflow: hidden; }
+  .ruler-row { flex: none; border-bottom: 1px solid var(--tt-line); background: var(--tt-chassis); }
+  .corner { background: var(--tt-chassis); }
+  .ann-row { flex: none; height: 24px; border-bottom: 1px solid var(--tt-line); background: var(--tt-panel); }
+  .alabel { font: 600 .68rem/24px var(--tt-font-body, sans-serif); color: var(--tt-ink-3); padding-left: 6px; overflow: hidden; }
   .ann { position: relative; min-width: 0; overflow: hidden; }
   .ann-item {
-    position: absolute; top: 2px; bottom: 2px; min-width: 0; padding: 0 4px; margin: 0; border: 0; border-left: 1px solid #2f323b; border-radius: 3px;
-    background: transparent; color: var(--tl-ann-ink, #c9b8ff); font: 600 .72rem/20px var(--tt-font-body, sans-serif); text-align: left; white-space: nowrap; overflow: hidden; cursor: pointer;
+    position: absolute; top: 2px; bottom: 2px; min-width: 0; padding: 0 4px; margin: 0; border: 0; border-left: 1px solid var(--tt-line-2); border-radius: 0;
+    background: transparent; color: var(--tl-ann-ink, var(--tt-ink-2)); font: 600 .72rem/20px var(--tt-font-body, sans-serif); text-align: left; white-space: nowrap; overflow: hidden; cursor: pointer;
     transition: background-color 120ms, color 120ms;
   }
   .ann-item:disabled { cursor: default; }
-  .ann-item:not(:disabled):hover { background: rgb(255 255 255 / .07); color: #fff; }
-  .ann-item.playing { background: var(--tl-ann-playing, rgb(167 139 250 / .32)); color: #fff; }
-  .ann-item.selected { box-shadow: inset 0 0 0 1.5px var(--tl-ann-selected, #e9e3ff); }
-  .ann-item:focus-visible { outline: 2px solid var(--tl-focus, #8fb8ff); outline-offset: -2px; z-index: 1; }
+  .ann-item:not(:disabled):hover { background: var(--tt-inset); color: var(--tt-ink); }
+  .ann-item.playing { background: var(--tl-ann-playing, var(--tt-accent-soft)); color: var(--tt-accent); }
+  .ann-item.selected { box-shadow: inset 0 0 0 1.5px var(--tl-ann-selected, var(--tt-ink)); }
+  .ann-item:focus-visible { outline: 2px solid var(--tl-focus, var(--tt-focus)); outline-offset: -2px; z-index: 1; }
   .body-row { position: relative; flex: 1; min-height: 0; }
-  .keys { position: relative; overflow: hidden; background: #1a1c22; border-right: 1px solid #000; }
-  .keys span { position: absolute; left: 0; right: 0; background: #d9d7cf; border-bottom: 1px solid #9c9a92; }
-  .keys span.black { background: #24262d; right: 30%; border-bottom-color: #000; }
-  .keys i { position: absolute; right: 3px; top: 0; font: 600 .56rem var(--tt-font-mono, monospace); font-style: normal; color: #3c3d42; white-space: nowrap; }
-  .keys span.black i { color: #b3b2ab; right: -40%; }
+  .keys { position: relative; overflow: hidden; background: #FFFFFF; border-right: 1px solid var(--tt-line-2); }
+  .keys span { position: absolute; left: 0; right: 0; background: #FFFFFF; border-bottom: 1px solid var(--tt-line); }
+  .keys span.black { background: #3A443E; right: 42%; border-bottom-color: #3A443E; }
+  .keys i { position: absolute; right: 3px; top: 0; font: 600 .56rem var(--tt-font-mono, monospace); font-style: normal; color: var(--tt-ink-3); white-space: nowrap; }
+  .keys span.black i { color: var(--tt-ink-3); right: -46%; }
   .track { position: relative; min-width: 0; min-height: 0; overflow: hidden; touch-action: pan-y; cursor: grab; }
   .track:active { cursor: grabbing; }
   svg { display: block; }
-  .none { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 0 12px; text-align: center; color: #7e7d77; font-size: .8rem; pointer-events: none; }
+  .none { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 0 12px; text-align: center; color: var(--tt-ink-3); font-size: .8rem; pointer-events: none; }
   .phover { position: absolute; top: 0; bottom: 0; left: var(--tl-gutter); right: 0; pointer-events: none; }
   :global(.mroll-ruler) { min-width: 0; }
 </style>

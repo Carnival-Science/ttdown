@@ -28,10 +28,10 @@
 </Popover>
 
 <style>
-  :global(.basis) { display: inline-block; cursor: help; background: transparent;  font: 600 0.68rem var(--tt-font-mono); letter-spacing: .04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; vertical-align: middle; }
-  :global(.basis-measured) { color: var(--tt-good); border-color: color-mix(in srgb, var(--tt-good) 55%, transparent); }
-  :global(.basis-estimated) { color: var(--tt-lcd); border-color: color-mix(in srgb, var(--tt-lcd) 55%, transparent); }
-  :global(.basis-assumed) { color: var(--tt-cool); border-color: color-mix(in srgb, var(--tt-cool) 55%, transparent); }
+  :global(.basis) { display: inline-block; cursor: help; background: transparent;  font: 600 0.68rem var(--tt-font-mono); letter-spacing: .04em; text-transform: uppercase; padding: 1px 6px; border-radius: 2px; border: 1px solid; white-space: nowrap; vertical-align: middle; }
+  :global(.basis-measured) { color: var(--tt-good); border-color: color-mix(in srgb, var(--tt-good) 50%, transparent); background: color-mix(in srgb, var(--tt-lime) 14%, transparent); }
+  :global(.basis-estimated) { color: #7A5A12; border-color: color-mix(in srgb, #7A5A12 50%, transparent); background: color-mix(in srgb, #C9A64B 10%, transparent); }
+  :global(.basis-assumed) { color: #4F5E6B; border-color: color-mix(in srgb, #4F5E6B 50%, transparent); }
   :global(.basis-unknown) { color: var(--tt-ink-3); border-color: var(--tt-line); border-style: dashed; }
   :global(.basis-corrected) { color: var(--tt-accent); border-color: color-mix(in srgb, var(--tt-accent) 60%, transparent); }
   :global(.basis-stale) { color: var(--tt-warn); border-color: color-mix(in srgb, var(--tt-warn) 60%, transparent); border-style: dashed; }

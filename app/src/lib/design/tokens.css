@@ -1,59 +1,78 @@
 /* Teardown design tokens. TTdown owns these; components.css and UI SDK parts are styled from them, never the reverse.
-   Colours and type are carried over from the legacy page so both apps look like one product during the migration. Fonts are
+   Paper / ink / lime / cobalt (2026-11-19); the legacy page keeps its own dark look. Fonts are
    self-hosted (main.ts). The Display menu changes --tt-fs, --tt-accent and --tt-lcd at runtime. */
 :root {
-  /* colour */
-  --tt-bg: #121317;
-  --tt-chassis: #1a1c21;
-  --tt-panel: #1e2026;
-  --tt-inset: #0d0e11;
-  --tt-ink: #ecebe6;
-  --tt-ink-2: #b3b2ab;
-  --tt-ink-3: #7e7d77;
-  --tt-line: #2c2f37;
-  --tt-accent: #ff7a1a;
-  --tt-accent-ink: #1a0c02;
-  --tt-lcd: #ffb547;
-  --tt-cool: #79a8ff;
-  --tt-good: #5cd492;
-  --tt-warn: #f2c14e;
-  --tt-step-off: #24262d;
-  --tt-focus: #8fb8ff;
+  /* Paper, ink, lime and cobalt: a musical instrument set as an early-web editorial page.
+     White and silver are the working surface, fine grey rules carry grids and technical detail, lime (with its gradient) is the
+     brand, and cobalt is reserved for what you act on: controls, selection and playback. Data colours (parts, sections) stay
+     quieter than cobalt so the active state always reads first. */
+  --tt-paper: #F7F8F2;
+  --tt-grid: #DCE2DB;
+  --tt-ink-0: #1B211D;
+  --tt-lime: #A7CB79;
+  --tt-cobalt: #526BCE;
 
-  /* type */
-  --tt-font-display: "Archivo Variable", "Archivo", "Arial Narrow", system-ui, sans-serif;
-  --tt-font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
-  --tt-font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
-  --tt-fs: 16px;
+  --tt-bg: var(--tt-paper);
+  --tt-chassis: #EEF0E9;          /* silver: the toolbar and control strips */
+  --tt-panel: #FBFCF8;            /* a sheet of paper on the desk */
+  --tt-inset: #F2F4EE;            /* wells: the song map, the roll */
+  --tt-ink: var(--tt-ink-0);
+  --tt-ink-2: #4A534D;
+  --tt-ink-3: #78817A;
+  --tt-line: var(--tt-grid);
+  --tt-line-2: #C3CBC2;           /* a firmer rule: control borders, bar lines */
+  --tt-accent: var(--tt-cobalt);
+  --tt-accent-ink: #FFFFFF;
+  --tt-accent-soft: color-mix(in srgb, var(--tt-cobalt) 12%, transparent);
+  --tt-lcd: var(--tt-cobalt);     /* playback: the playhead and the playing section */
+  --tt-cool: var(--tt-cobalt);
+  --tt-good: #3F7A34;
+  --tt-warn: #9A6A00;
+  --tt-bad: #B3261E;
+  --tt-step-off: #E6EAE3;
+  --tt-focus: var(--tt-cobalt);
+  --tt-lime-deep: #5E8A2E;        /* lime dark enough to draw notes with on paper */
+  --tt-lime-grad: linear-gradient(100deg, #C9E2A3 0%, var(--tt-lime) 45%, #7FB35A 100%);
+  /* parts in the piano roll */
+  --tt-part-notes: var(--tt-lime-deep);
+  --tt-part-bass: #2E3A33;
+  --tt-part-chords: #8C968D;
+
+  /* type: a compact bold wordmark, a neutral grotesque for the interface, monospaced figures for anything measured */
+  --tt-font-display: "Archivo Variable", "Archivo", "Arial Narrow", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --tt-font-body: "Helvetica Neue", Helvetica, Arial, "Nimbus Sans", "Liberation Sans", sans-serif;
+  --tt-font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --tt-fs: 15px;
   --tt-fs-sm: 0.88rem;
   --tt-fs-xs: 0.76rem;
 
-  /* space, shape, motion */
+  /* space, shape, motion: square corners and hairlines */
   --tt-gutter: 16px;
   --tt-gap: 16px;
-  --tt-radius: 16px;
-  --tt-radius-sm: 9px;
+  --tt-radius: 2px;
+  --tt-radius-sm: 2px;
   --tt-max: 1060px;
   --tt-tap: 44px;
   --tt-ease: 160ms ease;
   --tt-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --tt-shadow: 0 1px 0 rgb(27 33 29 / 0.04), 0 8px 24px rgb(27 33 29 / 0.10);
 
   /* ui-sdk's default stylesheet (web.css) themed from TTdown's tokens, so its parts look like the rest of the app */
-  --ui-background: var(--tt-inset);
+  --ui-background: var(--tt-panel);
   --ui-foreground: var(--tt-ink);
-  --ui-muted: #24262d;
+  --ui-muted: var(--tt-inset);
   --ui-muted-foreground: var(--tt-ink-2);
   --ui-border: var(--tt-line);
-  --ui-input: #3a3d46;
+  --ui-input: var(--tt-line-2);
   --ui-primary: var(--tt-accent);
   --ui-primary-foreground: var(--tt-accent-ink);
   --ui-ring: var(--tt-focus);
   --ui-ring-border: var(--tt-focus);
-  --ui-radius: 8px;
+  --ui-radius: 2px;
   --ui-font-sans: var(--tt-font-body);
   --ui-font-mono: var(--tt-font-mono);
   --ui-font-size: 0.86rem;
 
-  color-scheme: dark;
+  color-scheme: light;
 }
 @media (prefers-reduced-motion: reduce) { :root { --tt-ease: 0ms linear; } }

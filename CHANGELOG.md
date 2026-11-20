@@ -16,6 +16,7 @@ The first numbered release: the Svelte app (replacing the single-file page) with
 - This changelog, and the version number in the toolbar. (#45)
 
 ### Improvements
+- A new light look: paper, ink, lime and cobalt, with halftone circles, rings that show each analysis stage, a timeline view that glides to a section, and a confirmation when a teardown is saved. (#46)
 - Whole-track MIDI keeps the pickup notes before bar 1. (#41)
 - Steady tracks keep a constant tempo instead of being called variable.
 - Bar 1 lands on the first chord of music without drums, and the beats no longer slide onto the off-beats.

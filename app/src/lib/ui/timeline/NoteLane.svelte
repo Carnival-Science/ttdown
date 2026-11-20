@@ -5,7 +5,7 @@
   import type { TimeViewport } from "./viewport.svelte";
   export interface LaneNote { start: number; end: number; pitch: number; level?: number; mark?: boolean }
   export interface GridLine { t: number; major?: boolean }
-  let { notes, viewport, lines = () => [], pitchName = (p: number) => String(p), label, color = "#ff7a1a", markColor = "#79a8ff", empty = "" }: {
+  let { notes, viewport, lines = () => [], pitchName = (p: number) => String(p), label, color = "#5E8A2E", markColor = "#526BCE", empty = "" }: {
     notes: LaneNote[]; viewport: TimeViewport; lines?: (start: number, end: number) => GridLine[]; pitchName?: (p: number) => string;
     label: string; color?: string; markColor?: string; empty?: string;
   } = $props();
@@ -32,8 +32,8 @@
   <div class="track" bind:clientWidth={width} bind:clientHeight={height}>
     {#if width && height}
       <svg {width} {height} aria-hidden="true">
-        {#each keys as m (m)}<rect x="0" y={(range.hi - m) * rh} {width} height={rh} fill={black(m) ? "#14151a" : "#1b1d23"} />{/each}
-        {#each grid as g (g.t)}<line x1={x(g.t)} x2={x(g.t)} y1="0" y2={height} stroke={g.major ? "#4a4d57" : "#2c2f37"} stroke-width={g.major ? 1.2 : 0.6} />{/each}
+        {#each keys as m (m)}<rect x="0" y={(range.hi - m) * rh} {width} height={rh} fill={black(m) ? "#EDF0E9" : "#FBFCF8"} />{/each}
+        {#each grid as g (g.t)}<line x1={x(g.t)} x2={x(g.t)} y1="0" y2={height} stroke={g.major ? "#B4BDB3" : "#DCE2DB"} stroke-width={g.major ? 1.2 : 0.6} />{/each}
         {#each shown as n, i (i)}
           <rect x={x(n.start) + 0.5} y={(range.hi - n.pitch) * rh + 0.5} width={Math.max(2, x(n.end) - x(n.start) - 1)} height={Math.max(1, rh - 1)} rx="1.5"
             fill={n.mark ? markColor : color} opacity={n.level == null ? 1 : 0.45 + 0.55 * n.level} />
@@ -45,10 +45,10 @@
 </div>
 
 <style>
-  .lane { position: relative; display: grid; grid-template-columns: var(--tl-gutter, 40px) minmax(0, 1fr); min-height: 0; height: 100%; background: #0d0e11; border: 1px solid #000; border-radius: 8px; overflow: hidden; }
-  .gutter { position: relative; font: 500 .62rem var(--tt-font-mono, monospace); color: #b3b2ab; }
+  .lane { position: relative; display: grid; grid-template-columns: var(--tl-gutter, 40px) minmax(0, 1fr); min-height: 0; height: 100%; background: var(--tt-panel); border: 1px solid var(--tt-line-2); border-radius: 0; overflow: hidden; }
+  .gutter { position: relative; font: 500 .62rem var(--tt-font-mono, monospace); color: var(--tt-ink-3); }
   .gutter span { position: absolute; left: 3px; white-space: nowrap; }
   .track { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
   svg { display: block; }
-  .none { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 0 12px; text-align: center; color: #7e7d77; font-size: .8rem; pointer-events: none; }
+  .none { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 0 12px; text-align: center; color: var(--tt-ink-3); font-size: .8rem; pointer-events: none; }
 </style>

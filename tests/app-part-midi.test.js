@@ -21,7 +21,7 @@ fs.mkdirSync(OUT, { recursive: true });
   const open = async () => { const p = await b.newPage({ viewport: { width: 1200, height: 950 }, acceptDownloads: true }); await p.context().grantPermissions(["clipboard-read", "clipboard-write"]).catch(() => {}); p.on("pageerror", e => errs.push(String(e))); await p.goto(`${URL}index.html`); await p.waitForTimeout(300); return p; };
   const analyse = async (p, file) => { await p.setInputFiles("#file", file); await p.waitForFunction(() => /ready|Couldn/.test(document.querySelector("#status").textContent), null, { timeout: 120000 }); await p.waitForTimeout(300); };
   const tabBtn = (p, name) => p.locator(`#explorer [role="tab"]:has-text("${name}")`);
-  const menu = async p => { if (!(await p.locator(".midi-pop").count())) { await p.click(".phead .midi"); await p.waitForTimeout(200); } return p.locator(".midi-pop"); };
+  const menu = async p => { if (!(await p.locator(".midi-pop[data-open]").count())) { await p.click(".phead .midi"); await p.waitForTimeout(200); } return p.locator(".midi-pop"); };
   const choose = async (p, name, value) => { const m = await menu(p); await m.locator(`input[name="midi-${name}"][value="${value}"]`).check(); await p.waitForTimeout(80); };
   const modes = p => p.evaluate(() => Object.fromEntries([...document.querySelectorAll('.midi-pop input[name="midi-timing"]')].map(i => [i.value, { disabled: i.disabled, checked: i.checked, why: (i.closest("label").querySelector(".why") || {}).textContent || "" }])));
   const dl = p => p.locator(".midi-pop .dl");
