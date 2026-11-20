@@ -19,7 +19,7 @@
 <svelte:document onkeydown={e => { if (e.key === "Escape" && teardown.running) teardown.cancel(); }} />
 
 <header class="toolbar">
-  <h1 class="brand">Teardown</h1>
+  <h1 class="brand"><svg class="mark" viewBox="0 0 40 28" aria-hidden="true"><circle cx="13" cy="14" r="11" fill="#8EBF5E" /><circle cx="25" cy="11" r="10" fill="#7FB38F" /><circle cx="22" cy="19" r="8" fill="#5E9A6A" /></svg><span class="word">teardown</span></h1>
   <input type="file" id="file" class="sr-only" tabindex="-1" bind:this={fileEl} accept="audio/*,.mp3,.wav,.m4a,.flac,.ogg,.aac" onchange={pick}>
   <button type="button" class="btn primary open" onclick={() => fileEl.click()}>Open track</button>
   <input type="text" id="title" class="name" placeholder="Name (optional)" aria-label="Name of the track" maxlength="80" bind:value={teardown.title}
@@ -64,8 +64,11 @@
 <style>
   .toolbar { position: relative; display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--tt-chassis); border-bottom: 1px solid var(--tt-line-2); min-width: 0; }
   /* the wordmark: a compact bold sticker on the brand lime, with a hard early-web offset shadow */
-  .brand { font: 800 1.25rem/1 var(--tt-font-display); font-stretch: 72%; text-transform: uppercase; letter-spacing: .01em; margin: 0 10px 0 0; padding: 5px 9px 4px;
-    color: var(--tt-ink); background: var(--tt-lime-grad); border: 1px solid var(--tt-ink); box-shadow: 2px 2px 0 var(--tt-ink); flex: none; }
+  .brand { display: inline-flex; align-items: center; gap: 6px; margin: 0 10px 0 0; flex: none; color: var(--tt-ink); }
+  .brand .word { font: 800 1.45rem/1 var(--tt-font-display); font-stretch: 68%; letter-spacing: -0.01em; }
+  .brand .mark { width: 34px; height: 24px; }
+  .brand .mark circle { mix-blend-mode: multiply; opacity: .8; transform-box: fill-box; transform-origin: center; transition: translate 600ms cubic-bezier(.23, 1, .32, 1); }
+  .brand:hover .mark circle:nth-child(1) { translate: -2px 1px; } .brand:hover .mark circle:nth-child(2) { translate: 2px -1px; } .brand:hover .mark circle:nth-child(3) { translate: 1px 2px; }
   .toolbar :global(.btn) { min-height: 38px; }
   .name { width: 220px; flex: none; min-height: 38px; }
   .count { margin-left: 4px; padding: 0 5px; border-radius: 2px; background: var(--tt-ink); color: var(--tt-panel); font-size: .72rem; }

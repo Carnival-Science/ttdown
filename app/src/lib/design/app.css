@@ -86,7 +86,8 @@
 .app { display: flex; flex-direction: column; min-height: 100dvh; min-width: 0; }
 .stage { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 12px var(--tt-gutter) 24px; }
 .dropveil { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgb(247 248 242 / .82); pointer-events: none; }
-.dropveil p { margin: 0; padding: 16px 28px; border-radius: 0; border: 2px dashed var(--tt-accent); background: var(--tt-panel); font: 800 1.3rem var(--tt-font-display); font-stretch: 80%; }
+.dropveil .veilart { position: absolute; width: min(520px, 70vw); aspect-ratio: 4 / 3; }
+.dropveil p { position: relative; margin: 0; padding: 16px 28px; border-radius: 0; border: 2px dashed var(--tt-accent); background: var(--tt-panel); font: 800 1.3rem var(--tt-font-display); font-stretch: 80%; }
 /* Wide: the window never scrolls. Only the inspector and an editor do. (Below 560px of height it falls back to scrolling.) */
 @media (min-width: 1180px) {
   .app { height: 100dvh; min-height: 560px; }
@@ -116,3 +117,14 @@
 .tt-pop[data-align="end"] { transform-origin: top right; }
 @starting-style { .tt-pop { opacity: 0; transform: scale(0.97); } }
 @media (prefers-reduced-motion: reduce) { .tt-pop { transition: opacity 120ms ease; } @starting-style { .tt-pop { transform: none; } } }
+
+/* ---- the save confirmation (lib/ui/confirm.ts) ---- */
+.tt-confirm { position: fixed; z-index: 90; width: 60px; height: 60px; margin: -30px 0 0 -30px; pointer-events: none; }
+.tt-confirm svg { overflow: visible; }
+.tt-confirm .o { fill: none; stroke: var(--tt-cobalt); stroke-width: 1.5; animation: tt-ring 700ms cubic-bezier(.23, 1, .32, 1) forwards; }
+.tt-confirm .i { fill: var(--tt-lime); opacity: .9; animation: tt-dot 700ms cubic-bezier(.23, 1, .32, 1) forwards; }
+.tt-confirm .t { fill: none; stroke: var(--tt-ink); stroke-width: 2; stroke-linecap: square; stroke-dasharray: 20; stroke-dashoffset: 20; animation: tt-tick 420ms 80ms ease-out forwards, tt-fade 300ms 480ms ease forwards; }
+@keyframes tt-ring { from { r: 8; opacity: 1; } to { r: 28; opacity: 0; } }
+@keyframes tt-dot { 0% { r: 0; } 40% { r: 11; } 100% { r: 11; opacity: 0; } }
+@keyframes tt-tick { to { stroke-dashoffset: 0; } }
+@keyframes tt-fade { to { opacity: 0; } }

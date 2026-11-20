@@ -130,14 +130,14 @@
     try { mapEl.releasePointerCapture(e.pointerId); } catch { /* released */ }
     if (p.scrub) return;
     const i = sectionIndexAt(p.t); if (i >= 0) teardown.selected = i;
-    if (!playable) { view.reveal(p.t, 0.1); return; }
+    if (!playable) { view.glideTo(p.t, 0.1); return; }
     if (i >= 0 && tools && tools.loopSel !== "" && tools.loopSel !== "here") tools.setLoop(String(i));
-    seekTo(p.t); if (!view.contains(p.t)) view.reveal(p.t, 0.1);
+    seekTo(p.t); if (!view.contains(p.t)) view.glideTo(p.t, 0.1);
   }
-  function fitSection(e: MouseEvent) { const i = sectionIndexAt(tAt(e)), s = a.sections[i]; if (!s) return; view.follow = false; view.jump(Math.max(0, s.start), Math.min(dur, s.end) - Math.max(0, s.start)); }
+  function fitSection(e: MouseEvent) { const i = sectionIndexAt(tAt(e)), s = a.sections[i]; if (!s) return; view.follow = false; view.glide(Math.max(0, s.start), Math.min(dur, s.end) - Math.max(0, s.start)); }
   function pick(i: number) {
     teardown.selected = i; const s = a.sections[i]; if (!s) return;
-    view.reveal(Math.max(0, s.start), 0.1);
+    view.glideTo(Math.max(0, s.start), 0.1);
     if (!playable) return;
     if (tools && tools.loopSel !== "" && tools.loopSel !== "here") tools.setLoop(String(i)); else player.seek(Math.max(0, s.start));
   }
@@ -196,7 +196,7 @@
       <audio src={teardown.audioURL} bind:this={audioEl} preload="auto"></audio>
       <div class="transport playerbar" class:wide={workspace.wide}>
         <div class="primary">
-          <button type="button" class="play" aria-label={paused ? "Play" : "Pause"} onclick={togglePlay}>
+          <button type="button" class="play" class:on={!paused} aria-label={paused ? "Play" : "Pause"} onclick={togglePlay}>
             {#if paused}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" /></svg>
             {:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" /></svg>{/if}
           </button>
@@ -380,6 +380,12 @@
     background: var(--tt-accent); color: var(--tt-accent-ink); transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1), filter var(--tt-ease);
   }
   .play:hover { filter: brightness(1.08); }
+  /* while it plays, a fine ring breathes around the button: the one bit of motion during playback, and it never moves anything you use */
+  .play { position: relative; }
+  .play::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; border: 1px solid var(--tt-accent); opacity: 0; pointer-events: none; }
+  .play.on::after { animation: tt-breathe 2.4s ease-in-out infinite; }
+  @keyframes tt-breathe { 0%, 100% { opacity: .15; transform: scale(1); } 50% { opacity: .55; transform: scale(1.08); } }
+  @media (prefers-reduced-motion: reduce) { .play.on::after { animation: none; opacity: .4; } }
   .play:active { transform: scale(0.96); }
   .play:focus-visible, .iconbtn:focus-visible, .morebtn:focus-visible { outline: 2px solid var(--tt-focus); outline-offset: 3px; }
   .play svg { width: 20px; height: 20px; fill: currentColor; }

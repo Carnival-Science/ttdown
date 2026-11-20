@@ -11,6 +11,7 @@
   import { bufferOf } from "../lib/engine";
   import { TimingStore } from "../lib/persistence/timing";
   import { saveFile, safeName } from "../lib/files/download";
+  import { confirmAt } from "../lib/ui/confirm";
   import { notify, pending } from "../lib/ui/toast";
 
   const { zipStore, songMidiFiles, alignedWav, exportGate } = domain as any;
@@ -32,8 +33,8 @@
   const buffer = $derived(bufferOf(a));
   const base = $derived(safeName(a.title, "song"));
   async function run(fn: () => Promise<string>, busy?: string) {
-    const say = busy ? pending(busy) : notify;
-    try { say("success", await fn()); } catch (e) { say("error", "Couldn't save the file" + ((e as Error)?.message ? ": " + (e as Error).message.slice(0, 80) : ".")); }
+    const say = busy ? pending(busy) : notify, from = document.activeElement;
+    try { say("success", await fn()); confirmAt(from); } catch (e) { say("error", "Couldn't save the file" + ((e as Error)?.message ? ": " + (e as Error).message.slice(0, 80) : ".")); }
   }
   const data = () => run(async () => { await saveFile(`${base} - analysis.json`, JSON.stringify(TimingStore.forStorage(a), null, 1), "application/json"); return "Saved the analysis data, including the tracked beat times."; });
   const midi = () => run(async () => {

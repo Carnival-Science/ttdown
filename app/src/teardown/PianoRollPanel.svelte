@@ -22,6 +22,7 @@
   import Segmented from "../lib/ui/Segmented.svelte";
   import Popover from "../lib/ui/Popover.svelte";
   import MultiRoll from "../lib/ui/timeline/MultiRoll.svelte";
+  import { confirmAt } from "../lib/ui/confirm";
   import type { RollLayer, AnnotationLane, Annotation, LaneNote } from "../lib/ui/timeline/MultiRoll.svelte";
 
   let { index }: { index: number } = $props();
@@ -170,6 +171,7 @@
       if (!m) { notify("warning", "There is nothing to write for this part in that range."); return; }
       // the all-parts file is already named after the track
       await saveFile(part === "all" ? m.name.replace(/[\\/:*?"<>|]+/g, "") : `${base} - ${m.name}`, m.data, "audio/midi"); menuOpen = false;
+      confirmAt(document.querySelector(".phead .midi"));
       const rt = m.refTempo != null ? Math.round(m.refTempo * 10) / 10 : refTempo;
       const how = t === "quantized" ? `snapped to the 16th-note grid at ${Math.round((exportState.gate.tempo || a.bpm) * 10) / 10} BPM, not the original timing` : t === "tempo-map" ? "following the song's tempo map" : `with the original timing${rt ? `; it plays in time at ${rt} BPM (set your DAW to it, or import the file's tempo)` : ""}`;
       notify("success", `Saved, ${how}.` + (part === "chords" || part === "all" ? " Chords are suggested voicings built from the detected chord names, not transcribed from the audio." : " The notes are a rough transcription."));

@@ -16,6 +16,8 @@ class Workspace {
   more = $state(false);
   /** The help popover (how to read the labels, accuracy, build) is open: the toolbar's ? and the inspector's accuracy line both open it. */
   helpOpen = $state(false);
+  /** A file is being dragged over the window (the art gathers towards it). */
+  dragging = $state(false);
   /** The bar grid the person confirmed for export, as tdId|fingerprint. */
   confirmedFor = $state("");
   get wide() { return wideQuery.current; }

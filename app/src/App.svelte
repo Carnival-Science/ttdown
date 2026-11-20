@@ -11,6 +11,8 @@
   import Toolbar from "./teardown/Toolbar.svelte";
   import DropZone from "./teardown/DropZone.svelte";
   import Workspace from "./teardown/Workspace.svelte";
+  import Circles from "./lib/ui/art/Circles.svelte";
+  import { workspace } from "./lib/state/workspace.svelte";
 
   installTestHooks();
   $effect(() => mountNotes());
@@ -24,6 +26,7 @@
   const enter = (e: DragEvent) => { if (!hasFiles(e)) return; e.preventDefault(); depth++; };
   const over = (e: DragEvent) => { if (hasFiles(e)) e.preventDefault(); };
   const leave = (e: DragEvent) => { if (hasFiles(e)) depth = Math.max(0, depth - 1); };
+  $effect(() => { workspace.dragging = depth > 0; });
   const drop = (e: DragEvent) => { if (!hasFiles(e)) return; e.preventDefault(); depth = 0; void teardown.analyzeFile(e.dataTransfer?.files[0]); };
 </script>
 
@@ -40,5 +43,5 @@
       <DropZone />
     {/if}
   </div>
-  {#if depth > 0}<div class="dropveil" aria-hidden="true"><p>Drop to analyse</p></div>{/if}
+  {#if depth > 0}<div class="dropveil" aria-hidden="true"><div class="veilart"><Circles mode="converge" /></div><p>Drop to analyse</p></div>{/if}
 </main>

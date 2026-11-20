@@ -118,7 +118,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   // ---- 8. "Whole track" chords are every bar, not the selected section (a review found the panel passed the section)
   { await p.locator("#explorer .seg").nth(1).click(); await p.waitForTimeout(250);
     const dlTo = async tag => { const [d] = await Promise.all([p.waitForEvent("download"), p.locator(".midi-pop .dl").click()]); const f = path.join(os.tmpdir(), `pr_${tag}_${Date.now()}.mid`); await d.saveAs(f); return decodeMidi(fs.readFileSync(f)); };
-    const pick = async (name, v) => { if (!(await p.locator(".midi-pop").count())) { await p.click(".phead .midi"); await p.waitForTimeout(200); } await p.locator(`.midi-pop input[name="midi-${name}"][value="${v}"]`).check(); await p.waitForTimeout(80); };
+    const pick = async (name, v) => { if (!(await p.locator(".midi-pop[data-open]").count())) { await p.click(".phead .midi"); await p.waitForTimeout(200); } await p.locator(`.midi-pop input[name="midi-${name}"][value="${v}"]`).check(); await p.waitForTimeout(80); };
     // quantized is where the selected section used to leak in; it needs the bar lines confirmed in Export first
     await p.keyboard.press("Escape"); await p.waitForTimeout(100);
     await p.locator('#exports input[type=checkbox]').nth(0).check(); await p.locator('#exports input[type=checkbox]').nth(1).check(); await p.locator('#exports button:has-text("Confirm and unlock")').click(); await p.waitForTimeout(250);
