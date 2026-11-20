@@ -84,7 +84,21 @@ refuses(/1 note-on\(s\) never closed and 0 note-off/, "--ref", refMid, "--offset
 refuses(/0 note-on\(s\) never closed and 1 note-off/, "--ref", refMid, "--offset", "0", write("stray.mid", [...note(960, 480), [1920, [0x80, 62, 0]]]));
 refuses(/never closed/, "--ref", write("ref-open.mid", [[960, [0x90, 60, 100]]]), "--offset", "0", estMid);
 refuses(/zero-length note/, "--ref", refMid, "--offset", "0", write("zero.mid", note(960, 0)));
-refuses(/outside the repository/, "--ref", refMid, "--offset", "0", "--out", path.join(ROOT, "bench", "out", "amt.json"), estMid);
+// The PR #54 review (P1): the check must see through links, and a name beginning with ".." is inside the repo, not a step up.
+const tag = `${process.pid}-${Date.now()}`, links = [];
+const link = (name, target) => { const l = path.join(tmp, name); fs.symlinkSync(target, l, process.platform === "win32" ? "junction" : "dir"); links.push(l); return l; };
+const dotName = path.join(ROOT, `..amt-${tag}`), viaLink = path.join(ROOT, "bench", "out", `amt-link-${tag}.json`), missing = path.join(ROOT, "bench", "out", `amt-missing-${tag}`);
+const plain = path.join(ROOT, "bench", "out", `amt-${tag}.json`);
+try {
+  refuses(/outside the repository/, "--ref", refMid, "--offset", "0", "--out", plain, estMid);
+  refuses(/outside the repository/, "--ref", refMid, "--offset", "0", "--out", path.join(link("to-repo", ROOT), "bench", "out", path.basename(viaLink)), estMid);
+  refuses(/outside the repository/, "--ref", refMid, "--offset", "0", "--out", path.join(dotName, "x.json"), estMid);
+  refuses(/outside the repository|cannot resolve/, "--ref", refMid, "--offset", "0", "--out", path.join(link("dangling", missing), "x.json"), estMid);
+  ok(() => { for (const f of [plain, viaLink, dotName, missing]) assert.ok(!fs.existsSync(f), `nothing written inside the repo: ${f}`); });
+} finally {
+  for (const f of [dotName, missing]) fs.rmSync(f, { recursive: true, force: true }); fs.rmSync(viaLink, { force: true }); fs.rmSync(plain, { force: true });
+  for (const l of links) { try { fs.unlinkSync(l); } catch { fs.rmdirSync(l); } } // remove the links themselves, never their targets
+}
 ok(() => {
   const out = path.join(tmp, "report", "scores.json"), r = run("--ref", refMid, "--offset", "0", "--bar1", "1", "--bpm", "120", "--split", "2,3", "--out", out, estMid);
   assert.equal(r.status, 0, r.stdout + r.stderr);

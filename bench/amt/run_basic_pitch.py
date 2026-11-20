@@ -21,7 +21,7 @@ SHA-256 and note count, and the timings, kept apart:
   processing_s       each setting's run afterwards (each also reads and resamples the audio)
 Timings are wall-clock on whatever machine ran it (recorded as platform), from one run each: not a benchmark.
 """
-import hashlib, importlib.metadata as md, inspect, json, pathlib, platform, subprocess, sys, time
+import hashlib, importlib.metadata as md, inspect, json, os, pathlib, platform, subprocess, sys, time
 from datetime import datetime, timezone
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -42,8 +42,11 @@ def sha256(path):
 
 
 def inside(child, parent):
-    c, p = (str(x).lower() if sys.platform == "win32" else str(x) for x in (child, parent))
-    return c == p or c.startswith(p.rstrip("\\/") + ("\\" if sys.platform == "win32" else "/"))
+    """True when child is parent or below it. Both are resolved through symlinks and junctions (os.path.realpath) and compared by whole
+    path parts, so a name beginning with ".." is inside, not a step up."""
+    c, p = (os.path.normcase(os.path.realpath(x)) for x in (child, parent))
+    try: return os.path.commonpath([c, p]) == p
+    except ValueError: return False                  # different drives
 
 
 def git(*args):
@@ -64,6 +67,7 @@ def main(argv):
     if inside(out, ROOT): refuse(f"the output directory must be outside the repository ({ROOT}): it holds results from private material")
     if out.exists() and (not out.is_dir() or any(out.iterdir())): refuse(f"{out} already exists and is not an empty directory; choose a new one (nothing is overwritten)")
     out.mkdir(parents=True, exist_ok=True)
+    if inside(out, ROOT): refuse(f"{out} resolves inside the repository ({ROOT}); stopping")   # again, now that it exists
 
     from basic_pitch import ICASSP_2022_MODEL_PATH                  # imported only after the checks, so they work without the package
     from basic_pitch.inference import Model, predict

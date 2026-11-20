@@ -36,6 +36,19 @@ refuses(/no audio file/, path.join(tmp, "missing.wav"), path.join(tmp, "out-miss
 const inRepo = path.join(ROOT, "bench", "out", `amt-run-test-${process.pid}-${Date.now()}`);
 try { refuses(/outside the repository/, audio, inRepo); assert.ok(!fs.existsSync(inRepo), "nothing created inside the repo"); checks++; }
 finally { fs.rmSync(inRepo, { recursive: true, force: true }); }
+// Through a link into the repo, a name beginning with "..", and a dangling link into the repo: all refused, nothing created.
+const tag = `${process.pid}-${Date.now()}`, links = [];
+const link = (name, target) => { const l = path.join(tmp, name); fs.symlinkSync(target, l, process.platform === "win32" ? "junction" : "dir"); links.push(l); return l; };
+const dotName = path.join(ROOT, `..amt-run-${tag}`), viaLink = path.join(ROOT, "bench", "out", `amt-run-link-${tag}`), missing = path.join(ROOT, "bench", "out", `amt-run-missing-${tag}`);
+try {
+  refuses(/outside the repository/, audio, path.join(link("to-repo", ROOT), "bench", "out", path.basename(viaLink)));
+  refuses(/outside the repository/, audio, dotName);
+  refuses(/outside the repository/, audio, path.join(link("dangling", missing), "run"));
+  for (const f of [viaLink, dotName, missing]) assert.ok(!fs.existsSync(f), `nothing created inside the repo: ${f}`); checks++;
+} finally {
+  for (const f of [viaLink, dotName, missing]) fs.rmSync(f, { recursive: true, force: true });
+  for (const l of links) { try { fs.unlinkSync(l); } catch { fs.rmdirSync(l); } }
+}
 const busy = path.join(tmp, "busy"); fs.mkdirSync(busy); fs.writeFileSync(path.join(busy, "bp_default.mid"), "earlier result");
 refuses(/already exists and is not an empty directory/, audio, busy); assert.equal(fs.readFileSync(path.join(busy, "bp_default.mid"), "utf8"), "earlier result"); checks++;
 refuses(/not an empty directory/, audio, path.join(busy, "bp_default.mid"));

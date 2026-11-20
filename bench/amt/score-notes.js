@@ -16,7 +16,7 @@
  *
  * Inputs are checked: a MIDI file with a note-on that never ends or a note-off that ends nothing is REJECTED (its notes cannot be scored
  * as written), as are zero-length notes. Every input file is listed with its SHA-256, and the scorer's commit is recorded. --out writes the
- * same results as JSON; the path must be OUTSIDE the repository (private material stays out of it) and must not exist yet. */
+ * same results as JSON; the path must be OUTSIDE the repository once every symlink is resolved (private material stays out of it) and must not exist yet. */
 "use strict";
 const fs = require("node:fs"), path = require("node:path"), crypto = require("node:crypto"), { spawnSync } = require("node:child_process");
 const { decodeMidi, tickToSec } = require("../../tests/lib/smf");
@@ -51,11 +51,31 @@ function parseArgs(argv) {
   let out = null;
   if (o["--out"]) {
     out = path.resolve(o["--out"]);
-    const rel = path.relative(process.platform === "win32" ? ROOT.toLowerCase() : ROOT, process.platform === "win32" ? out.toLowerCase() : out);
-    if (!rel || (!rel.startsWith("..") && !path.isAbsolute(rel))) fail(`--out must be outside the repository (${ROOT}): results describe private material`);
+    checkOutside(out);
     if (fs.existsSync(out)) fail(`--out ${out} already exists; choose a new path (nothing is overwritten)`);
   }
   return { ref: o["--ref"], offset, regions, out, files };
+}
+
+/** The real location of a path that may not exist yet: the deepest part that exists (a dangling link counts) is resolved through every
+ *  symlink and junction, and the parts below it, which do not exist and so cannot be links, are appended. Throws if a link cannot be resolved. */
+function canonical(p) {
+  let cur = path.resolve(p); const rest = [];
+  for (;;) {
+    try { fs.lstatSync(cur); break; } catch (e) { if (e.code !== "ENOENT") throw e; }
+    const up = path.dirname(cur); if (up === cur) break; rest.unshift(path.basename(cur)); cur = up;
+  }
+  return path.join(fs.realpathSync.native(cur), ...rest);
+}
+/** True when `child` is `parent` or below it, compared by whole path parts ("..notes" is a name inside, not a step up). */
+function isInside(child, parent) {
+  const norm = x => (process.platform === "win32" ? x.toLowerCase() : x), rel = path.relative(norm(parent), norm(child));
+  return rel === "" || (!path.isAbsolute(rel) && rel.split(path.sep)[0] !== "..");
+}
+function checkOutside(p) {
+  let real, root;
+  try { real = canonical(p); root = fs.realpathSync.native(ROOT); } catch (e) { fail(`cannot resolve --out ${p} (${e.message}); refusing rather than risk writing inside the repository`); }
+  if (isInside(real, root)) fail(`--out must be outside the repository (${root}): results describe private material (${p} resolves to ${real})`);
 }
 
 const sha256 = buf => crypto.createHash("sha256").update(buf).digest("hex");
@@ -109,6 +129,7 @@ function main() {
   }
   if (opt.out) {
     fs.mkdirSync(path.dirname(opt.out), { recursive: true });
+    checkOutside(opt.out);                          // again, now that its folders exist
     fs.writeFileSync(opt.out, JSON.stringify(report, (k, v) => (v === Infinity ? "Infinity" : v === -Infinity ? "-Infinity" : v), 2) + "\n", { flag: "wx" });
     console.log(`wrote ${opt.out}`);
   }
