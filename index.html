@@ -2187,7 +2187,8 @@ function songMidiFiles(a, opts) {
    (teardowns analysed before it existed): callers then fall back to the representative pattern and say so. */
 /* Chords READ FROM NOTES (docs/SYMBOLIC_CHORDS.md; the default chord source once the notes of a polyphonic model are there): a chord at every
    8th note of the bar grid, from the notes sounding in a one-beat window around it (an arpeggio's notes all count for the chord they
-   outline; notes below C3 count more), one Viterbi pass with a cost per change (higher off the beat), equal neighbours merged. Same
+   outline; notes below C3 count more, and the lowest note is favoured as the root except over a pedal bass), one Viterbi pass with a
+   cost per change (higher off the beat), equal neighbours merged. Same
    region format as the audio detector's chordRegions ({ t0, t1, bar, beat, endBar, endBeat, c }), so everything that shows or writes
    chords follows. Major and minor triads only, like the audio detector, because every consumer builds triads from the name; the research
    reader (bench/amt/symbolic-chords.js) also knows sevenths and sus chords. Constants are the research reader's, not tuned on anything
@@ -2202,12 +2203,23 @@ function chordRegionsFromNotes(a, G, notes) {
       for (let i = 0; i < 8; i++) { const t0 = s0 + i * (s1 - s0) / 8, t1 = s0 + (i + 1) * (s1 - s0) / 8; if (t1 <= 0.02 || t0 >= dur - 0.02) continue; steps.push({ b, i, t0: Math.max(0, t0), t1: Math.min(dur, t1), beat: (s1 - s0) / 4 }); } }
     if (!steps.length) return null;
     const n = steps.length, K = CFN_CH.length + 1, NC = CFN_CH.length, srt = notes.filter(x => x.off > x.on).sort((p, q) => p.on - q.on);
+    // Pedal guard (#26): a bass note held while the harmony above it changes (a pedal, such as an 808 on the key's root) is not each chord's
+    // root. A bar is a pedal bar when its lowest bass note (below C3, the bass split above) has ONE pitch class at every 8th that has a bass
+    // note, and that pitch class is also the most frequent one in each neighbouring bar (a neighbour with no bass notes, or a tie, rules it
+    // out; the first and last bars need only their one neighbour); there the lowest-note root bonus is not given. A bass that moves inside
+    // the bar (A then F#, a change on beat 3.5) is never a pedal, and where the bass moves between bars the reading is the same as without
+    // the guard.
+    const lowPc = st => { let low = null; for (const x of srt) { if (x.on >= st.t1) break; if (x.midi < 48 && x.off > st.t0 && (low === null || x.midi < low)) low = x.midi; } return low === null ? null : ((low % 12) + 12) % 12; };
+    const barLow = new Map(); for (const st of steps) { const c = barLow.get(st.b) || new Array(12).fill(0), l = lowPc(st); if (l !== null) c[l]++; barLow.set(st.b, c); }
+    const domLow = b => { const c = barLow.get(b); if (!c) return undefined; let k = 0; for (let i = 1; i < 12; i++) if (c[i] > c[k]) k = i; return c[k] > 0 && c.filter(v => v === c[k]).length === 1 ? k : null; };
+    const pedalBar = b => { const d = domLow(b), p = domLow(b - 1), q = domLow(b + 1); return d != null && barLow.get(b).filter(v => v > 0).length === 1 && (p !== undefined || q !== undefined) && (p === undefined || p === d) && (q === undefined || q === d); };
+    for (const st of steps) st.pedal = pedalBar(st.b);
     const emit = steps.map(st => {
       const lo = st.t0 - CFN.win * st.beat, hi = st.t1 + CFN.win * st.beat, w = new Array(12).fill(0); let low = null, tot = 0;
       for (const x of srt) { if (x.on >= hi) break; const o = Math.min(x.off, hi) - Math.max(x.on, lo); if (o <= 0) continue; const wt = o * (x.midi < 48 ? CFN.bassW : 1); w[((x.midi % 12) + 12) % 12] += wt; tot += wt;
         if (x.on < st.t1 && x.off > st.t0 && (low === null || x.midi < low)) low = x.midi; }
       const e = new Float64Array(K); if (tot < CFN.minW) { e.fill(-2); e[NC] = 0; return e; }
-      CFN_CH.forEach((c, k) => { let on = 0, off = 0; w.forEach((v, pc) => { if (c.tones.includes(pc)) on += v; else off += v; }); e[k] = (on - CFN.other * off) / tot + (low != null && ((low % 12) + 12) % 12 === c.root ? CFN.rootBass : 0); });
+      CFN_CH.forEach((c, k) => { let on = 0, off = 0; w.forEach((v, pc) => { if (c.tones.includes(pc)) on += v; else off += v; }); e[k] = (on - CFN.other * off) / tot + (!st.pedal && low != null && ((low % 12) + 12) % 12 === c.root ? CFN.rootBass : 0); });
       e[NC] = CFN.nc; return e;
     });
     const back = Array.from({ length: n }, () => new Int16Array(K)); let prev = Float64Array.from(emit[0]);
