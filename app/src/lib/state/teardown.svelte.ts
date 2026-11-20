@@ -80,7 +80,8 @@ class Teardown {
   private useNotes() {
     if (!this.bpNotes) return;
     const notes = this.bpNotes;
-    this.replace(n => { (n as AnalysisResult & { transcription?: unknown }).transcription = domain.transcriptionFromNotes(n, gridOf(n), notes, NOTES_METHOD); });
+    this.replace(n => { const x = n as AnalysisResult & { transcription?: unknown; chordRegions?: unknown }; x.transcription = domain.transcriptionFromNotes(n, gridOf(n), notes, NOTES_METHOD);
+      const cr = domain.chordRegionsFromNotes(n, gridOf(n), notes); if (cr) x.chordRegions = cr; }); // chords are read from these notes (docs/SYMBOLIC_CHORDS.md); the audio detector's stay when there is nothing to read
   }
   /** Run the note model on the audio on screen, in the background; the quick analysis stays on screen and usable. Falls back to it, saying so, if the model fails. */
   private async transcribeNotes(job: number) {
@@ -162,7 +163,8 @@ class Teardown {
       if (correction.type === "bpm") { const was = (a.timingCorrections || []).find(c => c.type === "bpm")?.from; notify("info", `Analysed again at your tempo${was ? ` (detected: ${was} BPM)` : ""}. Bars, drums, chords and notes were rebuilt from the same audio; chord and drum edits made before were discarded.`); }
       this.buffer = bufferOf(a) || buf;
       // the same audio gives the same notes: relabel them on the new grid instead of running the model again
-      if (this.bpNotes) (a as AnalysisResult & { transcription?: unknown }).transcription = domain.transcriptionFromNotes(a, gridOf(a), this.bpNotes, NOTES_METHOD);
+      if (this.bpNotes) { const x = a as AnalysisResult & { transcription?: unknown; chordRegions?: unknown }; x.transcription = domain.transcriptionFromNotes(a, gridOf(a), this.bpNotes, NOTES_METHOD);
+        const cr = domain.chordRegionsFromNotes(a, gridOf(a), this.bpNotes); if (cr) x.chordRegions = cr; }
       this.show(a); this.save(a); this.ctl = null; this.running = false;
       void this.transcribeNotes(job);
       return true;
