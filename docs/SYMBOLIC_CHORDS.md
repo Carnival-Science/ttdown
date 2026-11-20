@@ -86,6 +86,8 @@ node bench/amt/compare-chords.js --ref "more please.mid" --offset -8.571 --bar1 
 
 **Differences from the research reader:** major and minor triads only (the audio detector's vocabulary), because every consumer builds triads from the chord name; sevenths, sus and diminished chords are not offered yet. Constants are the prototype's, unchanged and untuned.
 
+**Pedal guard (2026-11-20):** in a bar whose most frequent lowest note (by pitch class) is also its neighbours', the lowest-note root bonus is not given, because a held bass under changing chords (such as an 808 on the key's root) is not each chord's root. Without it, `test-songs/pop127_Amaj` read its F#m bars as A (chord accuracy 75% in the app, against 99.8% for the audio detector). Where the lowest note moves between bars the reading is byte-for-byte unchanged (`tests/chords-from-notes.test.js`, check 8). The before/after on the synthetic songs and the reproduction commands are in the PR; `bench/amt/app-chord-check.js` scores the app's reader from two checkouts on the same captured notes. Not yet re-measured on *more please*.
+
 **Measured on *more please*** (Basic Pitch notes from the app, the engine's own grid, the same annotation as above: a development reference the owner has not signed off, and the piece the reader was set up on, so this flatters it):
 
 | Range | Reading | Root | + triad | Change F1 (P / R) | Regions per bar |
