@@ -119,6 +119,8 @@
 @media (prefers-reduced-motion: reduce) { .tt-pop { transition: opacity 120ms ease; } @starting-style { .tt-pop { transform: none; } } }
 
 /* ---- the save confirmation (lib/ui/confirm.ts) ---- */
+/* The reveal sweep's WebGL band (lib/ui/sweep.ts): full window, above the page, never takes a click. */
+.tt-sweep { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 80; pointer-events: none; }
 .tt-confirm { position: fixed; z-index: 90; width: 60px; height: 60px; margin: -30px 0 0 -30px; pointer-events: none; }
 .tt-confirm svg { overflow: visible; }
 .tt-confirm .o { fill: none; stroke: var(--tt-cobalt); stroke-width: 1.5; animation: tt-ring 700ms cubic-bezier(.23, 1, .32, 1) forwards; }
