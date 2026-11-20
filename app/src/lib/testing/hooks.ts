@@ -7,11 +7,13 @@
 //   window.__sn(a)            songNotes(a): the exported note times
 //   window.__analysisStats    { checkpoints, aborted } from the engine
 //   window.__loop             active loop range (defined by the player tools)
+//   window.__bpInfo           { backend, ms } of the last note-model run; window.__ttBasicPitch = true turns the model on in this build, window.__ttBpBackend forces "cpu" or "webgl"
 //   window.TimeMap            canonical TimeMap module
 // Production builds expose none of these (no decoded audio through globals).
 import { TimeMap } from "../timemap";
 import { engine } from "../engine";
 import { domain } from "../domain";
+import { info as bpInfo } from "../audio/basic-pitch";
 
 declare const __TEST_HOOKS__: boolean;
 export const TEST_HOOKS: boolean = __TEST_HOOKS__;
@@ -24,4 +26,5 @@ export function installTestHooks(): void {
   def("__td", { value: undefined, writable: true }); // assigned by the teardown state each time a teardown is shown
   def("__sn", { value: (a: unknown) => domain.songNotes(a) });
   def("__analysisStats", { value: engine.ANALYSIS_STATS });
+  def("__bpInfo", { get: () => bpInfo });
 }

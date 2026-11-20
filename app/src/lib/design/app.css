@@ -92,6 +92,14 @@
   .app { height: 100dvh; min-height: 560px; }
   .stage { padding: 8px 12px 12px; overflow: hidden; }
 }
+/* ---- dialog (the changelog) ---- */
+.tt-dialog-backdrop { background: rgb(0 0 0 / 0.6); }
+.tt-dialog { background: var(--tt-panel); color: var(--tt-ink); border: 1px solid #3a3d46; border-radius: 16px; width: min(46rem, calc(100vw - 24px)); max-height: min(86dvh, 760px); display: flex; flex-direction: column; gap: 16px; padding: 24px; overflow: hidden; }
+.tt-dialog .tt-dialog-head { display: flex; align-items: baseline; gap: 16px; flex: none; }
+.tt-dialog .tt-dialog-title { font: 700 1.05rem var(--tt-font-display); margin: 0; }
+.tt-dialog .tt-dialog-sub { color: var(--tt-ink-3); font-size: var(--tt-fs-sm); flex: 1; }
+.tt-dialog .tt-dialog-close { min-height: var(--tt-tap); padding: 0 12px; border-radius: 10px; border: 1px solid var(--tt-line); background: var(--tt-chassis); color: var(--tt-ink); cursor: pointer; margin-left: auto; }
+.tt-dialog .tt-dialog-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 /* ---- sheet (narrow screens) ---- */
 .tt-sheet-backdrop { background: rgb(0 0 0 / 0.6); }
 .tt-sheet { background: var(--tt-panel); color: var(--tt-ink); border-color: #3a3d46; max-width: 40rem; height: auto; max-height: min(86dvh, 720px); gap: 8px; padding: 8px 16px 16px; }
