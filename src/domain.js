@@ -477,6 +477,40 @@ function songMidiFiles(a, opts) {
 /* The full-track transcription (engine transcribeTrack: notes at their real positions, a.transcription) of one part, as 16th steps
    counted from bar startBar, for bars [startBar, endBar). A note that runs past endBar is cut there. null when the analysis has none
    (teardowns analysed before it existed): callers then fall back to the representative pattern and say so. */
+/* Chords READ FROM NOTES (docs/SYMBOLIC_CHORDS.md; the default chord source once the notes of a polyphonic model are there): a chord at every
+   8th note of the bar grid, from the notes sounding in a one-beat window around it (an arpeggio's notes all count for the chord they
+   outline; notes below C3 count more), one Viterbi pass with a cost per change (higher off the beat), equal neighbours merged. Same
+   region format as the audio detector's chordRegions ({ t0, t1, bar, beat, endBar, endBeat, c }), so everything that shows or writes
+   chords follows. Major and minor triads only, like the audio detector, because every consumer builds triads from the name; the research
+   reader (bench/amt/symbolic-chords.js) also knows sevenths and sus chords. Constants are the research reader's, not tuned on anything
+   since. notes: [{ on, off, midi }] in audio seconds; G = TimeMap.forAnalysis(a). Returns null when there is nothing to read. */
+const CFN = { win: 0.5, other: 0.5, rootBass: 0.35, change: 0.9, offbeat: 0.5, nc: 0.25, minW: 0.05, bassW: 1.6 };
+const CFN_CH = []; for (let r = 0; r < 12; r++) for (const m of [0, 1]) CFN_CH.push({ name: NAMES[r] + (m ? "m" : ""), root: r, tones: [r, (r + (m ? 3 : 4)) % 12, (r + 7) % 12] });
+function chordRegionsFromNotes(a, G, notes) {
+  try {
+    const nBars = a.nBars || Math.floor(a.duration / a.barSec); if (!G || !G.tracked || !(nBars > 0) || !notes || !notes.length) return null;
+    const steps = [], dur = a.duration;
+    for (let b = -1; b < nBars; b++) { const s0 = G.barStart(b), s1 = G.barStart(b + 1); if (!(s1 > 0) || !(s0 < dur)) continue;
+      for (let i = 0; i < 8; i++) { const t0 = s0 + i * (s1 - s0) / 8, t1 = s0 + (i + 1) * (s1 - s0) / 8; if (t1 <= 0.02 || t0 >= dur - 0.02) continue; steps.push({ b, i, t0: Math.max(0, t0), t1: Math.min(dur, t1), beat: (s1 - s0) / 4 }); } }
+    if (!steps.length) return null;
+    const n = steps.length, K = CFN_CH.length + 1, NC = CFN_CH.length, srt = notes.filter(x => x.off > x.on).sort((p, q) => p.on - q.on);
+    const emit = steps.map(st => {
+      const lo = st.t0 - CFN.win * st.beat, hi = st.t1 + CFN.win * st.beat, w = new Array(12).fill(0); let low = null, tot = 0;
+      for (const x of srt) { if (x.on >= hi) break; const o = Math.min(x.off, hi) - Math.max(x.on, lo); if (o <= 0) continue; const wt = o * (x.midi < 48 ? CFN.bassW : 1); w[((x.midi % 12) + 12) % 12] += wt; tot += wt;
+        if (x.on < st.t1 && x.off > st.t0 && (low === null || x.midi < low)) low = x.midi; }
+      const e = new Float64Array(K); if (tot < CFN.minW) { e.fill(-2); e[NC] = 0; return e; }
+      CFN_CH.forEach((c, k) => { let on = 0, off = 0; w.forEach((v, pc) => { if (c.tones.includes(pc)) on += v; else off += v; }); e[k] = (on - CFN.other * off) / tot + (low != null && ((low % 12) + 12) % 12 === c.root ? CFN.rootBass : 0); });
+      e[NC] = CFN.nc; return e;
+    });
+    const back = Array.from({ length: n }, () => new Int16Array(K)); let prev = Float64Array.from(emit[0]);
+    for (let q = 1; q < n; q++) { const cost = CFN.change + (steps[q].i % 2 ? CFN.offbeat : 0), cur = new Float64Array(K); let bk = 0; for (let k = 1; k < K; k++) if (prev[k] > prev[bk]) bk = k;
+      for (let k = 0; k < K; k++) { const stay = prev[k], sw = prev[bk] - cost; if (stay >= sw || bk === k) { cur[k] = stay + emit[q][k]; back[q][k] = k; } else { cur[k] = sw + emit[q][k]; back[q][k] = bk; } } prev = cur; }
+    let k = 0; for (let j = 1; j < K; j++) if (prev[j] > prev[k]) k = j; const path = new Array(n); for (let q = n - 1; q >= 0; q--) { path[q] = k; k = back[q][k]; }
+    const out = []; path.forEach((k, q) => { const c = k === NC ? "–" : CFN_CH[k].name, st = steps[q], last = out[out.length - 1], endBar = st.i === 7 ? st.b + 1 : st.b, endBeat = st.i === 7 ? 0 : (st.i + 1) / 2;
+      if (last && last.c === c && Math.abs(last.t1 - st.t0) < 1e-6) { last.t1 = st.t1; last.endBar = endBar; last.endBeat = endBeat; } else out.push({ t0: st.t0, t1: st.t1, bar: st.b, beat: st.i / 2, endBar, endBeat, c }); });
+    return { method: "chords-from-notes-v1", regions: out.map(r => ({ t0: +r.t0.toFixed(3), t1: +r.t1.toFixed(3), bar: r.bar, beat: r.beat, endBar: r.endBar, endBeat: r.endBeat, c: r.c })) };
+  } catch (e) { return null; }
+}
 /* The chords in time (docs/CHORDS.md): the analyzer's chord REGIONS (chordRegions, chords-v2: a chord where it changes, which need not be a
    bar line) when the teardown has them, else one chord per bar (chords.bars, saved teardowns from before regions). A bar the person
    corrected (a "chord" correction) shows their chord for that whole bar. Each span: { bar, s, e (16th steps from bar 1; end exclusive;
@@ -1168,5 +1202,5 @@ const EXAMPLE = {
   sections: [{ label: "Intro", startBar: 0, bars: 16 }, { label: "Build", startBar: 16, bars: 8 }, { label: "Drop", startBar: 24, bars: 32 }, { label: "Breakdown", startBar: 56, bars: 16 }, { label: "Build", startBar: 72, bars: 8 }, { label: "Drop", startBar: 80, bars: 24 }, { label: "Outro", startBar: 104, bars: 15 }].map(s => Object.assign(s, { start: +(s.startBar * 1.92).toFixed(1), end: +((s.startBar + s.bars) * 1.92).toFixed(1) })),
   barSec: 1.92, nBars: 119, balance: [17, 33, 19, 15, 10, 6], width: 0.31, loudRms: -8.9, crest: 8.2, peakDb: -0.3
 };
-return Object.freeze({ transcriptionFromNotes, chordSpans, transcribedSteps, partMidi, midiModes, allPartsMidi, smfFile, refTempo, chordNamesText, noDrumsFound, exportGate, recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
+return Object.freeze({ transcriptionFromNotes, chordRegionsFromNotes, chordSpans, transcribedSteps, partMidi, midiModes, allPartsMidi, smfFile, refTempo, chordNamesText, noDrumsFound, exportGate, recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
 });
