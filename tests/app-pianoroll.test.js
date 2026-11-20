@@ -153,7 +153,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   await p.locator(".vphandle").focus(); await p.keyboard.press("ArrowLeft"); await p.waitForTimeout(100);
   check((await vp()).start < v1.start, "6: the handle also moves with the arrow keys");
   const s1 = td.sections[1], sx = map.x + map.width * ((s1.start + s1.end) / 2 / td.dur);
-  await p.mouse.dblclick(sx, y); await p.waitForTimeout(250); const v2 = await vp();
+  await p.mouse.dblclick(sx, y); await p.waitForTimeout(600); /* the view glides there (0.3 s) */ const v2 = await vp();
   check(Math.abs(v2.start - s1.start) < 0.1 && Math.abs(v2.span - (s1.end - s1.start)) < 0.1, `6: a double-click fits that section in the piano roll (${v2.start.toFixed(1)}–${(v2.start + v2.span).toFixed(1)} s for ${s1.start.toFixed(1)}–${s1.end.toFixed(1)})`);
   const sc = await p.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1);
   check(sc, "the page still does not scroll at 1280×720");
