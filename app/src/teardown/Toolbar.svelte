@@ -7,6 +7,7 @@
   import { timeMapSelfCheck } from "../lib/timemap";
   import Popover from "../lib/ui/Popover.svelte";
   import RecentList from "./RecentList.svelte";
+  import Changelog from "./Changelog.svelte";
 
   let fileEl: HTMLInputElement;
   let recentOpen = $state(false);
@@ -56,6 +57,7 @@
       </dl>
     </details>
   </Popover>
+  <Changelog />
   {#if teardown.running || teardown.transcribing}<div class="progress" aria-hidden="true"><div id="prog" style:transform={`scaleX(${teardown.progress / 100})`}></div></div>{:else}<div class="progress" aria-hidden="true"><div id="prog" style:transform="scaleX(0)"></div></div>{/if}
 </header>
 
