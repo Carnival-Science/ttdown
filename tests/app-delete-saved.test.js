@@ -69,16 +69,18 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   await p.locator("[data-clear-all]").click(); await p.locator("[data-clear-yes]").click(); await p.waitForTimeout(200);
   check(await raw(p) === null && await p.locator("#recent-btn").isDisabled(), "4: Yes removes them from storage (the key is gone) and Recent empties");
   await p.reload(); await p.waitForTimeout(500);
-  check(await raw(p) === null && await p.locator("#empty").isVisible() && await p.locator("#empty .recents").count() === 0, "4: after a reload there is nothing saved and no Recent chips");
+  check(await raw(p) === null && await p.locator("#empty").isVisible() && await p.locator("#recent-btn").isDisabled(), "4: after a reload there is nothing saved and Recent is off");
 
-  // ---- empty-state chips: the same delete, the same confirmation
+  // ---- the empty stage has no Recent chips of its own (Recent lives in the toolbar): one delete, from the toolbar, with the same confirmation
   await p.evaluate(([k, rec]) => localStorage.setItem(k, JSON.stringify([{ ...rec, title: "Chip one" }, { ...rec, title: "Chip two" }])), [HK, rec]);
   await p.reload(); await p.waitForTimeout(500);
-  check(await p.locator("#empty .recents [data-delete]").count() === 2, "6: the empty-state Recent chips each have a delete button");
-  await p.locator('#empty [data-delete][aria-label="Delete Chip one"]').click();
-  check(await p.locator("#empty [data-delete-yes]").count() === 1 && (await store(p)).length === 2, "6: it asks first");
-  await p.locator("#empty [data-delete-yes]").click(); await p.waitForTimeout(200);
-  check(JSON.stringify(await store(p)) === '["Chip two"]' && await p.locator("#empty .recents .h-open").count() === 1, "6: Yes removes just that one from storage and the chips");
+  check(await p.locator("#empty [data-delete], #empty .h-open").count() === 0, "6: the empty stage shows no Recent list of its own");
+  await p.click("#recent-btn"); await p.waitForTimeout(200);
+  check(await p.locator(".recent-pop [data-delete]").count() === 2, "6: Recent in the toolbar lists both, each with a delete button");
+  await p.locator('.recent-pop [data-delete][aria-label="Delete Chip one"]').click();
+  check(await p.locator(".recent-pop [data-delete-yes]").count() === 1 && (await store(p)).length === 2, "6: it asks first");
+  await p.locator(".recent-pop [data-delete-yes]").click(); await p.waitForTimeout(200);
+  check(JSON.stringify(await store(p)) === '["Chip two"]' && await p.locator(".recent-pop .h-open").count() === 1, "6: Yes removes just that one from storage and the list");
   console.log(errs.length ? "errors " + JSON.stringify(errs) : "errors []"); clearTimeout(guard); await b.close();
   console.log(`app delete tests ${failed ? "FAILED" : "passed"} (${n})`); process.exit(failed ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

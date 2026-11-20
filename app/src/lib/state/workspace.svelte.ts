@@ -17,6 +17,8 @@ class Workspace {
   helpOpen = $state(false);
   /** A file is being dragged over the window (the art gathers towards it). */
   dragging = $state(false);
+  /** The pointer (or focus) is on the entrance motif, which opens a file: the discs draw in a little. */
+  motifHover = $state(false);
   get wide() { return wideQuery.current; }
   openSheet() { this.sheet = true; }
 }

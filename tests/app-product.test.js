@@ -22,7 +22,9 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   // empty state
   let p = await open();
   check(await p.locator("#out .stat, #out .basis, #out [data-finding]").count() === 0 && await p.evaluate(() => window.__td === undefined), "before a track is analysed no numbers are shown (no example teardown)");
-  check(/you'll get/i.test(await p.locator("#empty").innerText()) && /never uploaded/.test(await p.locator("#empty").innerText()) && /drop a track here/i.test(await p.locator("#empty").innerText()), "the empty state is a drop zone that says what to expect and that audio stays in the browser");
+  check(/drop a track/i.test(await p.locator("#empty h2").innerText()) && await p.locator('#empty button.motif[aria-label^="Open a track"]').count() === 1, "the empty state is the motif: one line (“Drop a track.”) and the motif itself opens a file");
+  check(/never uploaded/.test(await p.locator('[data-help-files]').textContent()) && /8 minutes/.test(await p.locator('[data-help-files]').textContent()), "formats and that audio stays in the browser are in the help menu");
+  { const [chooser] = await Promise.all([p.waitForEvent("filechooser", { timeout: 3000 }), p.locator("#empty button.motif").click()]); check(!!chooser, "clicking the motif opens the file chooser"); }
 
   // a real analysis
   await analyse(p, path.join(SONGS, "sections120.mp3"));

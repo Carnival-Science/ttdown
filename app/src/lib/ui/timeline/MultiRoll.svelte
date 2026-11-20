@@ -44,7 +44,13 @@
   const drawn = $derived(shownLayers.map(l => ({ l, notes: visible(l.notes) })));
   const nothing = $derived(drawn.every(d => !d.notes.length));
   const grid = $derived(lines(viewport.start, viewport.end));
-  const label1 = (m: number) => used.has(m) ? rh >= 7 : ((m % 12) + 12) % 12 === 0 && rh * 2 >= 9;
+  // every C carries its octave name (C2, C3…) as long as the rows are not packed tighter than 3 px; other used white keys get a name when
+  // a row is tall enough to hold it without touching the next (black keys are too narrow to carry one)
+  const label1 = (m: number) => ((m % 12) + 12) % 12 === 0 ? rh >= 3 : used.has(m) && !black(m) && rh >= 11;
+
+  // a chord name is written only where its region is wide enough to hold it; a narrower region keeps its name for hover and assistive tech
+  const annW = $derived(Math.max(1, width));
+  const fits = (it: Annotation) => { const px = ((Math.min(it.end, viewport.end) - Math.max(it.start, viewport.start)) / viewport.span) * annW; return px >= it.text.length * 6.6 + 10; };
 
   // annotation items in view, placed in percent of the span; the one under the playhead is marked (state changes only when it changes)
   const pct = (t: number) => (100 * (t - viewport.start) / viewport.span).toFixed(3) + "%";
@@ -88,7 +94,8 @@
           <button type="button" class={"ann-item" + (it.tone ? " " + it.tone : "")} class:playing={on} class:selected={ln.selected === it.key}
             style:left={pct(Math.max(it.start, viewport.start))} style:width={`calc(${pct(Math.min(it.end, viewport.end))} - ${pct(Math.max(it.start, viewport.start))})`}
             title={it.title ?? it.text} aria-current={on ? "time" : undefined} aria-pressed={ln.onpick ? ln.selected === it.key : undefined} {...it.attrs}
-            onclick={() => ln.onpick?.(it)} disabled={!ln.onpick}>{it.text}</button>
+            aria-label={it.text} data-full={it.text} class:tight={!fits(it)}
+            onclick={() => ln.onpick?.(it)} disabled={!ln.onpick}>{#if fits(it)}{it.text}{/if}</button>
         {/each}
       </div>
     </div>
@@ -96,7 +103,7 @@
   <div class="mr-row body-row">
     <div class="keys" aria-hidden="true">
       {#each keys as m (m)}
-        <span class:black={black(m)} style:top={(range.hi - m) * rh + "px"} style:height={rh + "px"}>{#if label1(m)}<i style:line-height={rh + "px"}>{pitchName(m)}</i>{/if}</span>
+        <span class:black={black(m)} style:top={(range.hi - m) * rh + "px"} style:height={rh + "px"}>{#if label1(m)}<i>{pitchName(m)}</i>{/if}</span>
       {/each}
     </div>
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -123,19 +130,25 @@
 </div>
 
 <style>
-  .mroll { position: relative; display: flex; flex-direction: column; min-height: 0; min-width: 0; height: 100%; background: var(--tt-panel); border: 1px solid var(--tt-line-2); border-radius: 0; overflow: hidden; --tl-ink: var(--tt-ink-3); }
+  .mroll { position: relative; display: flex; flex-direction: column; min-height: 0; min-width: 0; height: 100%; background: var(--tt-panel); border: 1px solid var(--tt-line); border-radius: 0; overflow: hidden; --tl-ink: var(--tt-ink-3); }
   .mr-row { display: grid; grid-template-columns: var(--tl-gutter) minmax(0, 1fr); min-width: 0; }
   .ruler-row { flex: none; border-bottom: 1px solid var(--tt-line); background: var(--tt-chassis); }
   .corner { background: var(--tt-chassis); }
   .ann-row { flex: none; height: 24px; border-bottom: 1px solid var(--tt-line); background: var(--tt-panel); }
   .alabel { font: 600 .68rem/24px var(--tt-font-body, sans-serif); color: var(--tt-ink-3); padding-left: 6px; overflow: hidden; }
-  .ann { position: relative; min-width: 0; overflow: hidden; }
+  .ann { position: relative; min-width: 0; overflow: visible; z-index: 2; }
+  .ann-row { overflow: visible; }
   .ann-item {
     position: absolute; top: 2px; bottom: 2px; min-width: 0; padding: 0 4px; margin: 0; border: 0; border-left: 1px solid var(--tt-line-2); border-radius: 0;
-    background: transparent; color: var(--tl-ann-ink, var(--tt-ink-2)); font: 600 .72rem/20px var(--tt-font-body, sans-serif); text-align: left; white-space: nowrap; overflow: hidden; cursor: pointer;
+    background: transparent; color: var(--tl-ann-ink, var(--tt-ink-2)); font: 500 .72rem/20px var(--tt-font-body, sans-serif); text-align: left; white-space: nowrap; overflow: visible; cursor: pointer;
     transition: background-color 120ms, color 120ms;
   }
   .ann-item:disabled { cursor: default; }
+  /* a region too narrow for its name: hovering (or focusing) it shows the full chord in a small label above the lane */
+  .ann-item.tight:hover::after, .ann-item.tight:focus-visible::after {
+    content: attr(data-full); position: absolute; left: 50%; bottom: calc(100% + 2px); translate: -50% 0; padding: 2px 6px; z-index: 5; pointer-events: none;
+    background: var(--tt-ink); color: var(--tt-bg); font: 500 .72rem/1.4 var(--tt-font-body, sans-serif); white-space: nowrap;
+  }
   .ann-item:not(:disabled):hover { background: var(--tt-inset); color: var(--tt-ink); }
   .ann-item.playing { background: var(--tl-ann-playing, var(--tt-accent-soft)); color: var(--tt-accent); }
   .ann-item.selected { box-shadow: inset 0 0 0 1.5px var(--tl-ann-selected, var(--tt-ink)); }
@@ -144,7 +157,8 @@
   .keys { position: relative; overflow: hidden; background: #FFFFFF; border-right: 1px solid var(--tt-line-2); }
   .keys span { position: absolute; left: 0; right: 0; background: #FFFFFF; border-bottom: 1px solid var(--tt-line); }
   .keys span.black { background: #3A443E; right: 42%; border-bottom-color: #3A443E; }
-  .keys i { position: absolute; right: 3px; top: 0; font: 600 .56rem var(--tt-font-mono, monospace); font-style: normal; color: var(--tt-ink-3); white-space: nowrap; }
+  .keys i { position: absolute; right: 3px; bottom: 0; font: 500 .58rem/1 var(--tt-font-mono, monospace); font-style: normal; color: var(--tt-ink-2); white-space: nowrap; }
+  .keys span { overflow: visible; }
   .keys span.black i { color: var(--tt-ink-3); right: -46%; }
   .track { position: relative; min-width: 0; min-height: 0; overflow: hidden; touch-action: pan-y; cursor: grab; }
   .track:active { cursor: grabbing; }

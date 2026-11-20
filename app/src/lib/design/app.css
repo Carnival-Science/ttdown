@@ -61,16 +61,16 @@
 .tt-slider[data-dragging] .tt-slider-thumb { scale: 1.15; }
 .tt-slider .tt-slider-thumb:has(:focus-visible) { outline: 2px solid var(--tt-focus); outline-offset: 2px; }
 
-.tt-seg { position: relative; display: inline-flex; padding: 2px; gap: 2px; border-radius: 2px; background: var(--tt-panel); box-shadow: inset 0 0 0 1px var(--tt-line-2); }
-.tt-seg .tt-seg-item { flex: 0 0 auto; white-space: nowrap; position: relative; z-index: 1; height: 36px; min-width: 44px; padding: 0 12px; border: 0; border-radius: 1px; background: transparent; color: var(--tt-ink-2); font: 600 .82rem var(--tt-font-body); cursor: pointer; transition: color var(--tt-ease); }
+.tt-seg { position: relative; display: inline-flex; padding: 2px; gap: 2px; border-radius: 2px; background: color-mix(in srgb, var(--tt-ink) 5%, transparent); }
+.tt-seg .tt-seg-item { flex: 0 0 auto; white-space: nowrap; position: relative; z-index: 1; height: 36px; min-width: 44px; padding: 0 12px; border: 0; border-radius: 1px; background: transparent; color: var(--tt-ink-2); font: 500 .82rem var(--tt-font-body); cursor: pointer; transition: color var(--tt-ease); }
 .tt-seg .tt-seg-item:hover { color: var(--tt-ink); }
 .tt-seg .tt-seg-item[data-checked] { color: var(--tt-accent-ink); }
 .tt-seg .tt-seg-item:focus-visible { outline: 2px solid var(--tt-focus); outline-offset: 1px; }
 .tt-seg .tt-seg-indicator { position: absolute; z-index: 0; border-radius: 1px; background: var(--tt-accent); transition: left 200ms cubic-bezier(.23, 1, .32, 1), width 200ms cubic-bezier(.23, 1, .32, 1); }
 @media (prefers-reduced-motion: reduce) { .tt-seg .tt-seg-indicator { transition: none; } }
 
-.tt-toggle { height: 36px; padding: 0 12px; border-radius: 2px; border: 1px solid var(--tt-line-2); background: var(--tt-panel); color: var(--tt-ink-2); font: 600 .84rem var(--tt-font-body); cursor: pointer; transition: background-color var(--tt-ease), color var(--tt-ease), border-color var(--tt-ease); }
-.tt-toggle:hover:not(:disabled) { color: var(--tt-ink); border-color: var(--tt-ink); }
+.tt-toggle { height: 36px; padding: 0 12px; border-radius: 2px; border: 1px solid transparent; background: color-mix(in srgb, var(--tt-ink) 5%, transparent); color: var(--tt-ink-2); font: 500 .84rem var(--tt-font-body); cursor: pointer; transition: background-color var(--tt-ease), color var(--tt-ease), border-color var(--tt-ease); }
+.tt-toggle:hover:not(:disabled) { color: var(--tt-ink); background: color-mix(in srgb, var(--tt-ink) 10%, transparent); }
 .tt-toggle[data-pressed] { background: var(--tt-ink); border-color: var(--tt-ink); color: var(--tt-bg); }
 .tt-toggle.cool[data-pressed] { background: var(--tt-cool); border-color: var(--tt-cool); color: var(--tt-accent-ink); }
 .tt-toggle:disabled, .tt-toggle[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
@@ -90,6 +90,16 @@
   .app { height: 100dvh; min-height: 560px; }
   .stage { padding: 8px 12px 12px; overflow: hidden; }
 }
+/* ---- the one line of copy over the discs (DropZone, DropVeil): large, white, condensed, in the overlap ---- */
+.tt-line {
+  margin: 0; padding: 0 16px; max-width: 14ch; text-align: center; color: #FFFFFF; text-wrap: balance;
+  font: 800 clamp(2.4rem, 7.2vmin, 5.4rem)/0.98 var(--tt-font-display); font-stretch: 68%; letter-spacing: -0.02em;
+  text-shadow: 0 1px 2px rgb(27 33 29 / 0.14), 0 0 28px rgb(27 33 29 / 0.20);
+  animation: tt-line-in 520ms cubic-bezier(.23, 1, .32, 1) both;
+}
+@keyframes tt-line-in { from { opacity: 0; translate: 0 6px; filter: blur(3px); } }
+@media (prefers-reduced-motion: reduce) { .tt-line { animation: none; } }
+
 /* ---- dialog (the changelog) ---- */
 .tt-dialog-backdrop { background: rgb(27 33 29 / 0.28); }
 .tt-dialog { background: var(--tt-panel); color: var(--tt-ink); border: 1px solid var(--tt-ink); border-radius: 0; box-shadow: var(--tt-shadow); width: min(46rem, calc(100vw - 24px)); max-height: min(86dvh, 760px); display: flex; flex-direction: column; gap: 16px; padding: 24px; overflow: hidden; }
