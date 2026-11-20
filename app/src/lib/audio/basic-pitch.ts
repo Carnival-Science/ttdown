@@ -20,27 +20,24 @@ export async function toModelAudio(buffer: AudioBuffer): Promise<Float32Array> {
 
 /** What the last run used (shown nowhere; tests and measurements read it through window.__bpInfo in the bench build). */
 export const info: { backend: string | null; ms: number | null } = { backend: null, ms: null };
-let cached: Promise<any> | null = null;
-function load() {
-  if (!cached) cached = (async () => {
-    const [bp, tf] = await Promise.all([import("@spotify/basic-pitch"), import("@tensorflow/tfjs")]);
-    const forced = (window as any).__ttBpBackend as string | undefined; // research and tests only: force "cpu" or "webgl"
-    if (forced) await tf.setBackend(forced);
-    await tf.ready(); info.backend = tf.getBackend();
-    const url = new URL("models/basic-pitch/model.json", document.baseURI).href;
-    return { bp, tf, model: new bp.BasicPitch(url) };
-  })().catch(e => { cached = null; throw e; });
-  return cached;
-}
 
-/** Transcribe a decoded track. `onProgress` gets 0..1; `isStale` is polled so a superseded run stops early. Throws on failure (the caller falls back). */
+/** Transcribe a decoded track in a Web Worker, so the page stays usable while the model runs (on the CPU backend one batch can block a
+ *  thread for many seconds). `onProgress` gets 0..1; `isStale` is polled so a superseded run is cancelled: the worker is terminated. Throws on failure (the caller falls back). */
 export async function transcribe(buffer: AudioBuffer, onProgress: (p: number) => void, isStale: () => boolean = () => false): Promise<TranscribedNote[]> {
   onProgress(0); const t0 = performance.now();
-  const { bp, model } = await load(); if (isStale()) return [];
   const audio = await toModelAudio(buffer); if (isStale()) return [];
-  const frames: number[][] = [], onsets: number[][] = [];
-  await model.evaluateModel(audio, (f: number[][], o: number[][]) => { frames.push(...f); onsets.push(...o); }, (p: number) => { if (isStale()) throw new Error("stale"); onProgress(0.05 + 0.85 * p); });
-  const ev = bp.noteFramesToTime(bp.outputToNotesPoly(frames, onsets, BASIC_PITCH.onsetThreshold, BASIC_PITCH.frameThreshold, BASIC_PITCH.minNoteFrames, true, null, null, true, BASIC_PITCH.energyTolerance));
-  onProgress(1); info.ms = Math.round(performance.now() - t0);
-  return ev.map((n: any) => ({ on: n.startTimeSeconds, off: n.startTimeSeconds + n.durationSeconds, midi: n.pitchMidi, vel: Math.max(1, Math.min(127, Math.round(n.amplitude * 127))) })).sort((a: TranscribedNote, b: TranscribedNote) => a.on - b.on || a.midi - b.midi);
+  const url = new URL("models/basic-pitch/model.json", document.baseURI).href, forced = (window as any).__ttBpBackend as string | undefined; // forced: research and tests only ("cpu" or "webgl")
+  const worker = new Worker(new URL("./basic-pitch.worker.ts", import.meta.url), { type: "module" });
+  return new Promise<TranscribedNote[]>((resolve, reject) => {
+    const done = (f: () => void) => { clearInterval(poll); worker.terminate(); f(); };
+    const poll = setInterval(() => { if (isStale()) done(() => reject(new Error("stale"))); }, 200);
+    worker.onmessage = (e: MessageEvent) => {
+      const m = e.data;
+      if (m.type === "progress") onProgress(m.p);
+      else if (m.type === "done") done(() => { info.backend = m.backend; info.ms = Math.round(performance.now() - t0); onProgress(1); resolve(m.notes); });
+      else if (m.type === "error") done(() => reject(new Error(m.message)));
+    };
+    worker.onerror = e => done(() => reject(new Error(e.message || "the note model's worker failed")));
+    worker.postMessage({ audio, url, forced, settings: BASIC_PITCH }, [audio.buffer]);
+  });
 }

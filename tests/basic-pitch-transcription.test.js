@@ -45,4 +45,8 @@ ok(/Notes bars 1-2/.test(q.name) && qd.notes.length === 3, `a range in quantized
 // without the polyphonic flag the old labels are unchanged
 const old = Object.assign({}, a, { transcription: Object.assign({}, T, { polyphonic: undefined }) });
 ok(/Melody entire track/.test(D.partMidi(old, "hook", { timing: "original", grid: G, tempo: 120 }).name), "an engine (melody + bass) transcription keeps the Melody label");
+// the full-song package (the quantized zip) names the parts for what they are when the notes came from Basic Pitch: Bass and Notes, never 808 and Hook
+{ const names = D.songMidiFiles(a, {}).map(f => f.name), txt = D.songMidiFiles(a, {}).map(f => Buffer.from(f.data).toString("latin1")).join("\n");
+  ok(!names.some(n => /808|Hook/.test(n)), `full-song package: no 808 or Hook in the file names (${names.join(", ")})`);
+  ok(names.some(n => /^6 Notes \(rough\)/.test(n)) && /Basic Pitch/.test(txt), "full-song package: the notes file is called Notes and says Basic Pitch"); }
 console.log(`basic pitch transcription tests passed (${pass})`);
