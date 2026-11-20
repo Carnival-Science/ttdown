@@ -272,7 +272,7 @@
       {#if full}<Segmented class="srcseg" label="Which notes" items={[{ value: "full", label: "Full track" }, { value: "pattern", label: "Representative pattern" }]} value={source} onchange={v => (want = v as "full" | "pattern")} />{/if}
     </div>
     {#if missing.length}<p class="small missing">Not found: {missing.join(", ")}. <Basis kind="unknown" note="The analyzer could not read these reliably from the mix, so nothing is drawn for them." /></p>{/if}
-    {#if exportState.lockedWhy}<p class="small">Quantized MIDI is locked: {exportState.lockedWhy} <a href="#exports">Go to Export</a></p>{/if}
+    {#if exportState.lockedWhy}<p class="small">Quantized MIDI is unavailable: {exportState.lockedWhy}</p>{/if}
   {/if}
 </div>
 

@@ -21,10 +21,10 @@
   const playable = $derived(!!teardown.audioURL);
   const stale = $derived(staleReasons(a) as string[]);
   const why = $derived(stale.includes("tempo") ? "you corrected the tempo and the audio isn't here to analyse again" : "you said this track isn't in 4/4, which the analyzer can't read");
-  const ALL_TABS = [{ value: "rhythm", label: "Rhythm" }, { value: "roll", label: "Piano roll" }];
+  const ALL_TABS = [{ value: "roll", label: "Piano roll" }, { value: "rhythm", label: "Rhythm" }];
   // no kick or snare anywhere in the track: the Rhythm tab (and its empty drum grid) steps aside; Explorer says so and offers it back
   const TABS = $derived(drums.hidden ? ALL_TABS.filter(t => t.value !== "rhythm") : ALL_TABS);
-  let tab = $state<string | null>("rhythm");
+  let tab = $state<string | null>("roll");
   $effect(() => { if (drums.hidden && tab === "rhythm") tab = "roll"; });
 
   // ---- rhythm

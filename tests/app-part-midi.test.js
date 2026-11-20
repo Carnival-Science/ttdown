@@ -1,7 +1,7 @@
 // The MIDI menu of the piano roll, and the empty drum interface for a track with no drums.
 //   * one "↓ MIDI ▾" menu: Melody / Bass / Chords (suggested) / All parts, for the selected section, the visible range or the whole track,
 //     with a timing choice (Original timing / Follow tempo map / Quantized). Every unavailable choice says why. Quantized MIDI keeps the one
-//     export gate (locked until the bar lines are confirmed; a refused grid stays locked); the files are read back with the independent
+//     export gate (no confirmation step: available on a steady 4/4 track; a refused grid stays locked, and the roll says why); the files are read back with the independent
 //     decoder (tests/lib/smf.js) and compared with the analysis
 //   * an older teardown without whole-track notes writes the representative 4-bar phrase, exactly the notes the roll shows
 //   * the section's chord names copied as text
@@ -38,12 +38,10 @@ fs.mkdirSync(OUT, { recursive: true });
     const labels = await m.locator("label.opt").allInnerTexts();
     check(["Melody", "Bass", "Chords (suggested)", "All parts (multitrack MIDI)", "Selected section", "Visible range", "Whole track", "Original timing", "Follow tempo map", "Quantized"].every(w => labels.some(l => l.startsWith(w))), `${f}: one MIDI menu offers each part, all parts, three ranges and three timings`);
     let md = await modes(p);
-    check(md.quantized.disabled && /Check the bar lines/.test(md.quantized.why), `${f}: Quantized is locked until the bar lines are confirmed, and says so ("${md.quantized.why.slice(0, 50)}")`);
     check(Object.values(md).every(x => !x.disabled || x.why.trim().length > 5), `${f}: every unavailable timing shows its reason, none is hidden`);
-    await p.keyboard.press("Escape"); await p.waitForTimeout(100);
-    await p.locator('#exports input[type=checkbox]').nth(0).check(); await p.locator('#exports input[type=checkbox]').nth(1).check(); await p.locator('#exports button:has-text("Confirm and unlock")').click(); await p.waitForTimeout(200);
-    await menu(p); md = await modes(p);
-    check(!md.quantized.disabled && md.quantized.checked, `${f}: confirming in Export unlocks Quantized (the one shared gate), and it is the default when allowed`);
+    check(!md.quantized.disabled && md.quantized.checked, `${f}: on a steady 4/4 track Quantized is available straight away (no bar-line confirmation step) and is the default`);
+    check(await p.locator('#explorer [data-part="roll"]').innerText().then(t => !/Quantized MIDI is unavailable|bar lines|Export/.test(t)), `${f}: the roll asks for no confirmation and points to no Export panel`);
+    check(await p.locator("#exports").count() === 0, `${f}: there is no Export panel: MIDI comes from the piano roll`);
     const grab = async (nameRe, tag) => { const [d] = await Promise.all([p.waitForEvent("download"), dl(p).click()]); const file = path.join(OUT, `${f}_${tag}.mid`); await d.saveAs(file); check(nameRe.test(d.suggestedFilename()), `${f}: ${tag} file name "${d.suggestedFilename()}"`); return decodeMidi(fs.readFileSync(file)); };
     // melody, selected section: the transcribed notes of those bars, from the section's first bar
     await choose(p, "part", "hook"); await choose(p, "range", "section"); await choose(p, "timing", "quantized");
@@ -116,9 +114,10 @@ fs.mkdirSync(OUT, { recursive: true });
   { const p = await open(); await analyse(p, path.join(SONGS, "time-fixtures", "drift_fast.wav"));
     await tabBtn(p, "Piano roll").click(); await p.waitForTimeout(200);
     if (await p.locator(".phead .midi").isEnabled()) { await menu(p); const md = await modes(p);
-      check(md.quantized.disabled && /Blocked/.test(md.quantized.why), `drift_fast: Quantized stays locked and says the grid is blocked (nothing to confirm): "${md.quantized.why.slice(0, 60)}"`);
+      check(md.quantized.disabled && /fixed bar grid/.test(md.quantized.why), `drift_fast: Quantized stays locked and says why one fixed grid can't be used (nothing to confirm): "${md.quantized.why.slice(0, 60)}"`);
       check(!md.original.disabled ? md.original.checked || md["tempo-map"].checked : md.original.why.length > 5, `drift_fast: a timing that follows the audio is offered instead and chosen by default (original ${md.original.disabled ? "off" : "on"}, tempo map ${md["tempo-map"].disabled ? "off: " + md["tempo-map"].why.slice(0, 40) : "on"})`); }
-    else check(true, "drift_fast: nothing was read to write, so the menu is off (the refusal itself is covered by app-exports)");
+    else check(true, "drift_fast: nothing was read to write, so the menu is off");
+    check(await p.locator('#explorer [data-part="roll"]').innerText().then(t => /Quantized MIDI is unavailable/.test(t) && /tempo/i.test(t)), "drift_fast: the roll says quantized MIDI is unavailable, and why (the tempo)");
     await p.close(); }
 
   { const p = await open(); await analyse(p, path.join(SONGS, "pop127_Amaj.wav"));
@@ -130,7 +129,6 @@ fs.mkdirSync(OUT, { recursive: true });
     check(/No kick or snare was found/.test(note) && !/instrumental|no vocals/i.test(note), "no drums: the notice claims nothing about vocals or instrumentals (\"" + note.slice(0, 60) + "…\")");
     check(await tabBtn(p, "Rhythm").count() === 0 && await p.locator('#explorer button:has-text("Drums")').count() === 0 && await tabBtn(p, "Piano roll").count() === 1, "no drums: no Rhythm tab and no Drums button; the Piano roll remains");
     check(await p.locator("#explorer .detail [data-part=\"rhythm\"]").count() === 0, "no drums: no empty drum grid is on the page");
-    check(await p.locator("#exports").innerText().then(t => /Download the song as MIDI/.test(t)), "no drums: Export is still there (its drum files are simply not written when empty)");
     await p.locator('#explorer [data-drumless] button:has-text("Show the drum tools anyway")').click(); await p.waitForTimeout(200);
     check(await tabBtn(p, "Rhythm").count() === 1 && await p.locator("#explorer [data-drumless]").count() === 0, "'Show the drum tools anyway' brings them back");
     await p.close(); }

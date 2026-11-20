@@ -66,7 +66,7 @@
   /* the wordmark: a compact bold sticker on the brand lime, with a hard early-web offset shadow */
   .brand { display: inline-flex; align-items: center; gap: 6px; margin: 0 10px 0 0; flex: none; color: var(--tt-ink); }
   .brand .word { font: 800 1.45rem/1 var(--tt-font-display); font-stretch: 68%; letter-spacing: -0.01em; }
-  .brand .mark { width: 34px; height: 24px; }
+  .brand .mark { width: 34px; height: 24px; overflow: visible; } /* the hover nudge moves the discs past the viewBox: draw them anyway, never clipped */
   .brand .mark circle { mix-blend-mode: multiply; opacity: .8; transform-box: fill-box; transform-origin: center; transition: translate 600ms cubic-bezier(.23, 1, .32, 1); }
   .brand:hover .mark circle:nth-child(1) { translate: -2px 1px; } .brand:hover .mark circle:nth-child(2) { translate: 2px -1px; } .brand:hover .mark circle:nth-child(3) { translate: 1px 2px; }
   .toolbar :global(.btn) { min-height: 38px; }

@@ -1,24 +1,23 @@
 // The analysis workspace: ONE view, an audio application that happens to run in a browser. A toolbar (Open track, name, Recent, status,
 // help) over a stage: a drop zone before a track is loaded, then the arrangement and the section editor with the findings about the whole
-// track and the export beside them (an inspector) on wide screens, and a sheet on narrow ones.
+// track beside them (an inspector) on wide screens, and a sheet on narrow ones. MIDI is downloaded from the piano roll (no Export panel).
 //   one view (1280x720, the smallest comfortable desktop window):
 //     0. before a track: the stage is a drop zone (with what you get and the "never uploaded" line); the toolbar has Open track, a name,
 //        Recent (off until something is saved), status and help; the window does not scroll; a file dragged over anywhere shows the drop veil
 //     0b. after: the window still does not scroll (scrollHeight <= the window), and the transport, song map, section tabs, a piano roll, the
-//        findings and the export are all on screen; only the inspector and the editor scroll inside themselves
+//        findings and the piano roll's MIDI button are all on screen; only the inspector and the editor scroll inside themselves
 //     0c. the name in the toolbar renames the teardown (and its saved copy); Recent reopens it; help carries every label's meaning and the
 //        synthetic-songs-only accuracy line, and the inspector's own accuracy line opens it; pressing a badge says what it means
 //   wide (1360x860):
 //     1. the inspector is a column beside the main area, not below it; the whole workspace fits the window (nothing to scroll to reach it)
-//     2. the essentials of each finding (tempo, key, meter and bar 1) and the export buttons are in view without scrolling; the explanations,
+//     2. the essentials of each finding (tempo, key, meter and bar 1) and the MIDI button are in view without scrolling; the explanations,
 //        alternatives and measured sound are folded away until asked for
-//     3. changing the tab or the section changes the editor, not the page position; the export stays in view meanwhile
+//     3. changing the tab or the section changes the editor, not the page position; the inspector stays in view meanwhile
 //     4. the tab bar is not sticky and never overlaps the piano roll
 //     5. the inspector folds to a rail and back; folding it does not reset anything
 //   narrow (390x844):
-//     6. there is no inspector column; a bar offers Findings and Export, and the transport is play, time and mute with the rest on demand
-//     7. Findings opens a sheet, Export opens it at the export; closing it keeps the selected section, the playback position, the
-//        notes tab and a bar-grid confirmation
+//     6. there is no inspector column; a bar offers Findings, and the transport is play, time and mute with the rest on demand
+//     7. Findings opens a sheet; closing it keeps the selected section, the playback position and the notes tab
 //     8. nothing is wider than the screen
 //   npm run app:build && TT_APP_URL=... node tests/app-workspace.test.js   (npm run app:product-tests sets the URL)
 "use strict";
@@ -50,7 +49,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
     await analyse(p, path.join(SONGS, "pop127_Amaj.wav"));
     const g = await page(), sel = s => inView(p, s);
     check(g.sh <= g.ih && g.sw <= 0, `0b: with a track loaded the window still does not scroll (${g.sh} <= ${g.ih})`);
-    check(await sel('button[aria-label="Play"]') && await sel("#explorer .timeline") && await sel('.detail [role="tab"]:has-text("Piano roll")') && await sel('[data-finding="tempo"] .big') && await sel('#exports button:has-text("Download the song as MIDI")'), "0b: at 1280x720 the transport, the song map, the section tabs, the findings and the export are all on screen");
+    check(await sel('button[aria-label="Play"]') && await sel("#explorer .timeline") && await sel('.detail [role="tab"]:has-text("Piano roll")') && await sel('[data-finding="tempo"] .big') && await sel('.detail .phead .midi') && await p.locator("#exports").count() === 0, "0b: at 1280x720 the transport, the song map, the section tabs, the findings and the piano roll's MIDI button are all on screen (and there is no Export panel)");
     await p.click('.detail [role="tab"]:has-text("Piano roll")'); await p.waitForTimeout(250);
     const roll = await p.locator(".detail .mroll").first().boundingBox();
     check(!!roll && roll.y >= 0 && roll.y + 120 <= 720, `0b: and a piano roll starts on screen (top ${roll && Math.round(roll.y)} px) with the editor scrolling inside itself for the rest`);
@@ -84,7 +83,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
     const m = await box(p, ".workspace .main"), i = await box(p, ".workspace .inspector"), w = await box(p, ".workspace");
     check(i.x >= m.x + m.width && Math.abs(i.y - m.y) < 2 && i.width >= 300 && i.width <= 340, `1: the inspector is a ${Math.round(i.width)} px column beside the main area (x ${Math.round(i.x)} vs ${Math.round(m.x + m.width)}), starting at the same height`);
     check(w.height <= 860 && w.y >= -12 && w.y + w.height <= 872, `1: the whole workspace (${Math.round(w.height)} px, top at ${Math.round(w.y)}) fits the window`);
-    check(await inView(p, '[data-finding="tempo"] .big') && await inView(p, '[data-finding="key"] .big') && await inView(p, '[data-finding="meter"] .big') && await inView(p, '#exports button:has-text("Download the song as MIDI")'), "2: tempo, key, meter and the export downloads are all in view at once, no scrolling");
+    check(await inView(p, '[data-finding="tempo"] .big') && await inView(p, '[data-finding="key"] .big') && await inView(p, '[data-finding="meter"] .big') && await inView(p, '.detail .phead .midi'), "2: tempo, key, meter and the MIDI button are all in view at once, no scrolling");
     const closed = await p.evaluate(() => [...document.querySelectorAll(".inspector details.more")].map(d => d.open));
     check(closed.length >= 4 && closed.every(o => !o), `2: explanations, alternatives and measured sound are folded away (${closed.length} folds, all closed)`);
     await p.click('.inspector summary:has-text("Measured sound")', { position: { x: 14, y: 10 } }); await p.waitForTimeout(150);
@@ -94,7 +93,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
     const y0 = await p.evaluate(() => scrollY);
     await p.click('.detail [role="tab"]:has-text("Piano roll")'); await p.waitForTimeout(250);
     await p.locator("#explorer .timeline .seg").nth(2).click(); await p.waitForTimeout(300);
-    check(await p.evaluate(() => scrollY) === y0 && await inView(p, '#exports button:has-text("Analysis data")'), `3: changing the tab and the section leaves the page where it was (scrollY ${y0}) and the export in view`);
+    check(await p.evaluate(() => scrollY) === y0 && await inView(p, '[data-finding="tempo"] .big'), `3: changing the tab and the section leaves the page where it was (scrollY ${y0}) and the findings in view`);
     const tl = await p.evaluate(() => { const el = document.querySelector(".tt-tablist"), cs = getComputedStyle(el); return { pos: cs.position }; });
     const bar = await box(p, ".detail .tt-tabbar"), roll = await p.locator(".detail .mroll").first().boundingBox().catch(() => null);
     check(tl.pos !== "sticky" && (!roll || bar.y + bar.height <= roll.y + 1), `4: the tab bar is ${tl.pos}, not sticky, and ends above the notes (${Math.round(bar.y + bar.height)} <= ${roll ? Math.round(roll.y) : "n/a"})`);
@@ -108,8 +107,8 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
 
   // ---- narrow
   { const p = await open({ width: 390, height: 844 }, true); await analyse(p, path.join(SONGS, "sections120.mp3"));
-    check(await p.locator(".workspace .inspector").count() === 0 && await p.locator(".sheetbar").isVisible(), "6: no inspector column on a phone; a bar offers Findings and Export");
-    check(/BPM/.test(await p.locator(".sheetbar .summary").innerText()) && await p.locator(".sheetbar .btn").allInnerTexts().then(t => t.join() === "Findings,Export"), "6: the bar says the tempo and key, and offers Findings and Export");
+    check(await p.locator(".workspace .inspector").count() === 0 && await p.locator(".sheetbar").isVisible(), "6: no inspector column on a phone; a bar offers Findings");
+    check(/BPM/.test(await p.locator(".sheetbar .summary").innerText()) && await p.locator(".sheetbar .btn").allInnerTexts().then(t => t.join() === "Findings"), "6: the bar says the tempo and key, and offers Findings (no Export: MIDI is in the piano roll)");
     const prim = await box(p, ".transport .primary");
     check(prim.height < 70 && await p.locator("#transport-more").isHidden() && await p.locator('button[aria-label="Play"]').isVisible(), `6: the transport is one ${Math.round(prim.height)} px row (play, time, mute); speed, loop and beat clicks are on demand`);
     await p.click('.transport .morebtn'); await p.waitForTimeout(200);
@@ -122,24 +121,11 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
     const t0 = await p.evaluate(() => document.querySelector("#explorer audio").currentTime), sel0 = await p.locator("#explorer .seg[aria-checked=true]").getAttribute("data-label");
     await p.click('.sheetbar .btn:has-text("Findings")'); await p.waitForTimeout(700);
     check(await p.locator(".tt-sheet").isVisible() && await p.locator('.tt-sheet [data-finding="tempo"] .big').isVisible(), "7: Findings opens a sheet with the findings in it");
-    await p.click(".tt-sheet-close"); await p.waitForTimeout(500);
-    await p.click('.sheetbar .btn:has-text("Export")'); await p.waitForTimeout(700);
-    check(await p.locator('.tt-sheet #exports button:has-text("Download the song as MIDI")').isVisible() && await p.locator('.tt-sheet [data-finding="tempo"]').isHidden(), "7: Export opens the sheet at the export, without the findings");
+    check(await p.locator(".tt-sheet #exports").count() === 0, "7: the sheet holds no Export panel");
     await p.click(".tt-sheet-close"); await p.waitForTimeout(500);
     const t1 = await p.evaluate(() => document.querySelector("#explorer audio").currentTime);
     check(await p.locator("#explorer .seg[aria-checked=true]").getAttribute("data-label") === sel0 && await p.locator('.detail [role="tab"][aria-selected="true"]').innerText() === "Piano roll" && Math.abs(t1 - t0) < 0.5, `7: after the sheets, the section (${sel0}), the Piano roll tab and the playback position (${t0.toFixed(1)} s) are unchanged`);
     check(await p.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 0, "8: nothing is wider than the screen");
-    await p.context().close(); }
-
-  // the bar-grid confirmation survives closing the sheet (a steady track, so the bar-aligned exports can be confirmed)
-  { const p = await open({ width: 390, height: 844 }, true); await analyse(p, path.join(SONGS, "pop127_Amaj.wav"));
-    await p.click('.sheetbar .btn:has-text("Export")'); await p.waitForTimeout(700);
-    check(await p.locator('.tt-sheet #exports button:has-text("Confirm and unlock")').count() === 1, "7: a steady track asks for the bar lines to be checked");
-    await p.locator('.tt-sheet #exports input[type=checkbox]').nth(0).check(); await p.locator('.tt-sheet #exports input[type=checkbox]').nth(1).check();
-    await p.click('.tt-sheet #exports button:has-text("Confirm and unlock")'); await p.waitForTimeout(200);
-    check(await p.locator('.tt-sheet #exports button:has-text("Download the song as MIDI")').isEnabled(), "7: confirming the bar lines unlocks the downloads");
-    await p.click(".tt-sheet-close"); await p.waitForTimeout(500); await p.click('.sheetbar .btn:has-text("Export")'); await p.waitForTimeout(600);
-    check(await p.locator('.tt-sheet #exports button:has-text("Download the song as MIDI")').isEnabled(), "7: reopened, the confirmation is still there (closing the sheet resets nothing)");
     await p.context().close(); }
 
   clearTimeout(guard); console.log("errors", errs); if (errs.length || failed) process.exitCode = 1; await b.close();

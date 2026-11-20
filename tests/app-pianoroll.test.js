@@ -1,5 +1,5 @@
 // ONE piano roll and a scrubbable arrangement.
-//   1. the section editor has two tabs, Rhythm and Piano roll; the roll is ONE keyboard, pitch axis, time axis and playhead for all parts
+//   1. the section editor has two tabs, Piano roll (first, and open by default) and Rhythm; the roll is ONE keyboard, pitch axis, time axis and playhead for all parts
 //   2. melody (deep lime) and bass (dark ink-green) are filled; the suggested chord voicings are hollow solid outlines (not heard in
 //      the audio); the legend says "Transcribed notes · Suggested chord voicings" (+ "Representative pattern" when that is shown)
 //   3. a checkbox per part hides or shows it; Alt/Option-click shows only that part, and again brings the others back
@@ -33,7 +33,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
 
   // ---- 1. one roll
   const tabs = await p.locator('.detail [role="tab"]').allInnerTexts();
-  check(JSON.stringify(tabs) === '["Rhythm","Piano roll"]', `1: the editor's tabs are Rhythm and Piano roll (${tabs})`);
+  check(JSON.stringify(tabs) === '["Piano roll","Rhythm"]' && await p.locator('.detail [role="tab"][aria-selected="true"]').innerText() === "Piano roll", `1: the editor's tabs are Piano roll then Rhythm, and the Piano roll is open by default (${tabs})`);
   await p.click('.detail [role="tab"]:has-text("Piano roll")'); await p.waitForTimeout(300);
   const shape = await p.evaluate(() => { const l = document.querySelector(".lanes"); return { rolls: l.querySelectorAll(".mroll").length, keys: l.querySelectorAll(".keys").length, heads: l.querySelectorAll(".phbox").length, rulers: l.querySelectorAll(".mroll-ruler").length, layers: [...l.querySelectorAll("g[data-layer]")].map(g => g.dataset.layer) }; });
   check(shape.rolls === 1 && shape.keys === 1 && shape.heads === 1 && shape.rulers === 1, `1: one roll, one keyboard, one ruler and one playhead for every part (${JSON.stringify(shape)})`);
@@ -119,9 +119,7 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   { await p.locator("#explorer .seg").nth(1).click(); await p.waitForTimeout(250);
     const dlTo = async tag => { const [d] = await Promise.all([p.waitForEvent("download"), p.locator(".midi-pop .dl").click()]); const f = path.join(os.tmpdir(), `pr_${tag}_${Date.now()}.mid`); await d.saveAs(f); return decodeMidi(fs.readFileSync(f)); };
     const pick = async (name, v) => { if (!(await p.locator(".midi-pop[data-open]").count())) { await p.click(".phead .midi"); await p.waitForTimeout(200); } await p.locator(`.midi-pop input[name="midi-${name}"][value="${v}"]`).check(); await p.waitForTimeout(80); };
-    // quantized is where the selected section used to leak in; it needs the bar lines confirmed in Export first
-    await p.keyboard.press("Escape"); await p.waitForTimeout(100);
-    await p.locator('#exports input[type=checkbox]').nth(0).check(); await p.locator('#exports input[type=checkbox]').nth(1).check(); await p.locator('#exports button:has-text("Confirm and unlock")').click(); await p.waitForTimeout(250);
+    // quantized is where the selected section used to leak in (available straight away: there is no bar-line confirmation step)
     await pick("part", "chords"); await pick("timing", "quantized"); await pick("range", "section"); const sectionFile = await dlTo("sec");
     await pick("part", "chords"); await pick("timing", "quantized"); await pick("range", "whole"); const wholeFile = await dlTo("whole");
     const nCh = await p.evaluate(() => window.__sn(window.__td).chords.length);
