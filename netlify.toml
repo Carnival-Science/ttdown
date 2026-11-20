@@ -26,3 +26,9 @@
   for = "/build-manifest.json"
   [headers.values]
     Cache-Control = "no-cache"
+
+# The note model (Spotify Basic Pitch, public/models/basic-pitch): fetched only when a track is transcribed. Not hashed, so cached for a day.
+[[headers]]
+  for = "/models/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"

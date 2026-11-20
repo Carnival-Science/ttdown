@@ -1,0 +1,7 @@
+Spotify Basic Pitch (ICASSP 2022 model), tf.js graph model, unmodified, from the npm package @spotify/basic-pitch 1.0.1 (model/).
+Licence: Apache-2.0 (LICENSE in this folder; package copyright 2022 Spotify AB). https://github.com/spotify/basic-pitch-ts
+Copied byte for byte. SHA-256:
+1ed1aaee3409ec1dc098c8b01f430c0911f6fe9412e7af8086750f9e8f302f68  model.json
+b142a95737a52e1e412d5f92e73d8bb80dfe8d04941acc0702f11f4524fb377c  group1-shard1of1.bin
+Served at /models/basic-pitch/. Loaded only in the browser, only when a track is transcribed; nothing is uploaded.
+Licence of the trained weights separately from the code: the code's Apache-2.0 licence is stated by the package; no separate weights licence was found in the package. Not independently confirmed with the authors.

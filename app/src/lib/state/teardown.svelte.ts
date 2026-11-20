@@ -9,9 +9,14 @@ import { engine, bufferOf, withHidden, type AnalysisResult } from "../engine";
 import { domain } from "../domain";
 import { loadHist, saveHist, deleteHist, clearHist } from "../storage/data";
 import { notify, pending } from "../ui/toast";
+import { gridOf } from "../timeline/grid";
+import { transcribe, BASIC_PITCH, type TranscribedNote } from "../audio/basic-pitch";
 
 declare const __TEST_HOOKS__: boolean;
 const { fixSectionTimes, applyTempo, applyMeter, forcedOf, recordCorrection } = domain;
+/** Basic Pitch runs in the production app. The bench build (tests) skips it unless a test opts in, so the other browser tests keep their speed and determinism. */
+const notesModelOn = () => !__TEST_HOOKS__ || (window as unknown as { __ttBasicPitch?: boolean }).__ttBasicPitch === true;
+const NOTES_METHOD = `${BASIC_PITCH.name}; onset ${BASIC_PITCH.onsetThreshold}, frame ${BASIC_PITCH.frameThreshold}, minimum ${BASIC_PITCH.minNoteFrames} frames (library defaults)`;
 const copy = (a: AnalysisResult) => withHidden(a, JSON.parse(JSON.stringify(a)) as AnalysisResult);
 
 class Teardown {
@@ -28,6 +33,10 @@ class Teardown {
   status = $state({ text: "Choose an audio file to take apart.", err: false });
   progress = $state(0);
   running = $state(false);
+  /** The note model (Basic Pitch) is running on the track on screen: the teardown is already usable, its notes are replaced when this finishes. */
+  transcribing = $state(false);
+  /** The model's notes for the audio on screen, in seconds (they do not depend on the grid, so a tempo or bar-1 correction relabels the same notes). */
+  private bpNotes: TranscribedNote[] | null = null;
   history = $state.raw<AnalysisResult[]>([]);
   /** The name in the toolbar: the optional name for the next analysis, and the name of the teardown on screen. */
   title = $state("");
@@ -65,6 +74,30 @@ class Teardown {
   }
   cancel() { if (this.running) this.supersede("Analysis cancelled. Nothing was changed."); }
 
+  /** Replace the engine's rough notes by the note model's, at the current grid. */
+  private useNotes() {
+    if (!this.bpNotes) return;
+    const notes = this.bpNotes;
+    this.replace(n => { (n as AnalysisResult & { transcription?: unknown }).transcription = domain.transcriptionFromNotes(n, gridOf(n), notes, NOTES_METHOD); });
+  }
+  /** Run the note model on the audio on screen, in the background; the quick analysis stays on screen and usable. Falls back to it, saying so, if the model fails. */
+  private async transcribeNotes(job: number) {
+    const buf = this.buffer; if (!buf || !notesModelOn() || job !== this.job) return;
+    if (this.bpNotes) { this.useNotes(); return; }
+    const current = () => job === this.job, title = this.result?.title || "", ready = `Teardown ready for “${title}”.`;
+    this.transcribing = true; this.progress = 0; this.status = { text: ready + " Transcribing the notes…", err: false };
+    try {
+      const notes = await transcribe(buf, p => { if (!current()) return; this.progress = Math.round(p * 100); this.status = { text: `${ready} Transcribing the notes… ${Math.round(p * 100)}%`, err: false }; }, () => !current());
+      if (!current()) return;
+      this.bpNotes = notes; this.useNotes();
+      this.status = { text: ready + " Notes transcribed with Basic Pitch.", err: false };
+    } catch (e) {
+      if (!current() || (e as Error)?.message === "stale") return;
+      this.status = { text: ready, err: false };
+      notify("warning", "Couldn't run the note model" + ((e as Error)?.message ? " (" + (e as Error).message.slice(0, 80) + ")" : "") + ". The quick, rougher notes are shown instead.");
+    } finally { if (current()) { this.transcribing = false; this.progress = 0; } }
+  }
+
   async analyzeFile(file: File | undefined | null) {
     if (!file) return;
     if (this.ctl) this.ctl.abort();
@@ -80,8 +113,10 @@ class Teardown {
       this.buffer = bufferOf(a) || null;
       this.status = { text: `Teardown ready for “${a.title}”.`, err: false };
       const oldURL = this.audioURL; this.audioURL = newURL; adopted = true;
+      this.bpNotes = null; this.transcribing = false;
       this.selected = 0; this.show(a); this.mountId++; this.save(a); this.ctl = null; this.running = false;
       if (oldURL) URL.revokeObjectURL(oldURL);
+      void this.transcribeNotes(job);
     } catch (e) {
       const err = e as any; // eslint-disable-line @typescript-eslint/no-explicit-any
       if (!current() || (err && err.name === "AbortError")) return;
@@ -96,7 +131,7 @@ class Teardown {
   open(saved: AnalysisResult) {
     this.supersede("Opened a saved teardown, so the analysis in progress was stopped.");
     if (this.audioURL) URL.revokeObjectURL(this.audioURL);
-    this.audioURL = null; this.buffer = null; this.selected = 0;
+    this.audioURL = null; this.buffer = null; this.selected = 0; this.bpNotes = null; this.transcribing = false;
     this.title = saved.title || ""; this.titleTyped = false;
     this.show(saved); this.mountId++;
   }
@@ -122,7 +157,11 @@ class Teardown {
       if (cur.notFourFour) a.notFourFour = true;
       recordCorrection(a, correction.type === "bpm" ? { type: "bpm", from: cur.bpm, to: correction.to, recomputed: true } : { type: "downbeat", shift: correction.shift, recomputed: true });
       this.status = { text: `Analysed again at ${a.bpm} BPM. Chords and drum edits made before this were discarded.`, err: false };
-      this.buffer = bufferOf(a) || buf; this.show(a); this.save(a); this.ctl = null; this.running = false;
+      this.buffer = bufferOf(a) || buf;
+      // the same audio gives the same notes: relabel them on the new grid instead of running the model again
+      if (this.bpNotes) (a as AnalysisResult & { transcription?: unknown }).transcription = domain.transcriptionFromNotes(a, gridOf(a), this.bpNotes, NOTES_METHOD);
+      this.show(a); this.save(a); this.ctl = null; this.running = false;
+      void this.transcribeNotes(job);
       return true;
     } catch (e) {
       const err = e as any; // eslint-disable-line @typescript-eslint/no-explicit-any

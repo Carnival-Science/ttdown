@@ -67,7 +67,9 @@
 
   // ---- which parts are shown (Alt/Option-click shows only that one; again brings the others back)
   type Part = "hook" | "bass" | "chords";
-  const PARTS: { id: Part; label: string; cls: string }[] = [{ id: "hook", label: "Melody", cls: "sw-mel" }, { id: "bass", label: "Bass", cls: "sw-bass" }, { id: "chords", label: "Chords (suggested)", cls: "sw-ch" }];
+  // a polyphonic model (Basic Pitch) writes every note it hears, split at C3: the upper part is "Notes", not a melody
+  const poly = $derived(!!(full && (full as any).polyphonic));
+  const PARTS = $derived<{ id: Part; label: string; cls: string }[]>([{ id: "hook", label: poly ? "Notes" : "Melody", cls: "sw-mel" }, { id: "bass", label: "Bass", cls: "sw-bass" }, { id: "chords", label: "Chords (suggested)", cls: "sw-ch" }]);
   let show = $state<Record<Part, boolean>>({ hook: true, bass: true, chords: true });
   const has = $derived<Record<Part, boolean>>({ hook: leadNotes.length > 0, bass: bassNotes.length > 0, chords: chordNotesAll.length > 0 });
   function toggle(p: Part, e: MouseEvent) {
@@ -78,7 +80,7 @@
   const layers = $derived<RollLayer[]>([
     { id: "chords", label: "Suggested chord voicings", notes: chordNotesAll, hidden: !show.chords, fill: "#a78bfa", fillOpacity: 0, stroke: "#b9a2ff", strokeWidth: 1.2 },
     { id: "bass", label: "Bass", notes: bassNotes, hidden: !show.bass, fill: "#5b9dff" },
-    { id: "hook", label: "Melody", notes: leadNotes, hidden: !show.hook, fill: "#ff7a1a" },
+    { id: "hook", label: poly ? "Notes" : "Melody", notes: leadNotes, hidden: !show.hook, fill: "#ff7a1a" },
   ]);
 
   // ---- chord strip and the correction it opens
@@ -178,7 +180,7 @@
     try { await navigator.clipboard.writeText(text); notify("success", "Copied: " + text); } catch { notify("warning", "Couldn't copy. The chords are: " + text); }
   }
   const TIMINGS: { id: Timing; label: string }[] = [{ id: "original", label: "Original timing" }, { id: "tempo-map", label: "Follow tempo map" }, { id: "quantized", label: "Quantized" }];
-  const PART_PICKS: { id: PartPick; label: string }[] = [{ id: "hook", label: "Melody" }, { id: "bass", label: "Bass" }, { id: "chords", label: "Chords (suggested)" }, { id: "all", label: "All parts (multitrack MIDI)" }];
+  const PART_PICKS = $derived<{ id: PartPick; label: string }[]>([{ id: "hook", label: poly ? "Notes (above C3)" : "Melody" }, { id: "bass", label: "Bass" }, { id: "chords", label: "Chords (suggested)" }, { id: "all", label: "All parts (multitrack MIDI)" }]);
   const RANGES: { id: RangePick; label: string }[] = [{ id: "section", label: "Selected section" }, { id: "visible", label: "Visible range" }, { id: "whole", label: "Whole track" }];
   const nothing = $derived(!has.hook && !has.bass && !has.chords);
   const missing = $derived(PARTS.filter(p => !has[p.id]).map(p => p.id === "chords" ? "chords" : p.label.toLowerCase()));
@@ -187,7 +189,7 @@
 <div class="proll">
   <div class="phead">
     <h3 class="sr-only">Piano roll</h3>
-    <Basis kind="estimated" note={source === "full" ? "Melody and bass are a rough transcription of the whole track from the full mix: expect wrong and missing notes. Chord voicings are suggestions built from the detected chord names." : "Melody and bass are a rough 4-bar phrase read from the full mix and folded into a loop, shown where it was read. Chord voicings are suggestions."} />
+    <Basis kind="estimated" note={source === "full" && poly ? "Notes and bass are transcribed from the whole track by Spotify's Basic Pitch, a model that runs in this browser: every note it hears, split at C3. Expect some wrong, missing and extra notes, and rough lengths. Chord voicings are suggestions built from the detected chord names." : source === "full" ? "Melody and bass are a rough transcription of the whole track from the full mix: expect wrong and missing notes. Chord voicings are suggestions built from the detected chord names." : "Melody and bass are a rough 4-bar phrase read from the full mix and folded into a loop, shown where it was read. Chord voicings are suggestions."} />
     <span class="parts" role="group" aria-label="Parts shown (Alt/Option-click one to show only it)">
       {#each PARTS as p (p.id)}
         <label class="part" title="Alt/Option-click to show only this part; again to show all" data-part-toggle={p.id}>
@@ -203,7 +205,7 @@
     </span>
     <Popover triggerClass="btn about" label="About the piano roll" class="about-pop" align="end">
       {#snippet trigger()}<span aria-hidden="true">ⓘ</span>{/snippet}
-      <p class="small">{#if source === "full"}Melody and bass are read from the whole mix ({full?.method}). Rough: dense mixes make them hard to hear, and this has not been checked against real recordings.{:else}Melody and bass are a 4-bar phrase read from one section and folded into a loop, so they are not the song's notes bar by bar. {#if !full}This teardown was made before whole-track notes existed; analyse the track again to get them.{/if}{/if}
+      <p class="small">{#if source === "full" && poly}Notes are transcribed by Spotify's Basic Pitch, run in this browser ({full?.method}): every note it hears, with the notes below C3 shown as Bass and the rest as Notes. It is a general model, checked so far on one clean synthesized track only: expect wrong, missing and extra notes, and rough lengths.{:else if source === "full"}Melody and bass are read from the whole mix ({full?.method}). Rough: dense mixes make them hard to hear, and this has not been checked against real recordings.{:else}Melody and bass are a 4-bar phrase read from one section and folded into a loop, so they are not the song's notes bar by bar. {#if !full}This teardown was made before whole-track notes existed; analyse the track again to get them.{/if}{/if}
         The purple outlined notes are suggested voicings: plain triads built from the detected chord names (major or minor only), not notes heard in the audio.{#if regions} Each chord starts where the analysis hears the harmony change, which can be inside a bar.{/if}
         {#if a.chords?.loop}Most repeated 4-bar chord loop: <b class="mono">{a.chords.loop.join(" · ")}</b> (heard {a.chords.loopCount}×).{/if}
         Scroll with Shift + wheel or by dragging, zoom with Ctrl/⌘ + wheel or the buttons. Use "Check by ear" to hear the parts over the song.</p>

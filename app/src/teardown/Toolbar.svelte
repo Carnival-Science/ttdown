@@ -56,7 +56,7 @@
       </dl>
     </details>
   </Popover>
-  {#if teardown.running}<div class="progress" aria-hidden="true"><div id="prog" style:transform={`scaleX(${teardown.progress / 100})`}></div></div>{:else}<div class="progress" aria-hidden="true"><div id="prog" style:transform="scaleX(0)"></div></div>{/if}
+  {#if teardown.running || teardown.transcribing}<div class="progress" aria-hidden="true"><div id="prog" style:transform={`scaleX(${teardown.progress / 100})`}></div></div>{:else}<div class="progress" aria-hidden="true"><div id="prog" style:transform="scaleX(0)"></div></div>{/if}
 </header>
 
 <style>

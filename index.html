@@ -2204,6 +2204,21 @@ function chordSpans(a, grid) {
   fixed.forEach(b => perBar(b));
   return out.sort((p, q) => p.s - q.s);
 }
+/* a.transcription from the notes of a POLYPHONIC model (Basic Pitch): `notes` = [{ on, off, midi, vel }] in audio seconds. Split at C3
+   (MIDI 48): below is the bass (`bass`), the rest is "Notes" (`lead`, the field the melody used, so every consumer keeps working).
+   Each note gets its bar, beat (from bar 1, 16th resolution) and length in beats from the grid G (TimeMap wrapper: barOf, barStart),
+   so a correction that moves the grid can relabel the same notes. method names the model and settings; nothing is quantized: on and
+   off stay at their real times. */
+const BASS_BELOW = 48;
+function transcriptionFromNotes(a, G, notes, method) {
+  const secOf = b => (a.sections || []).findIndex(sc => b >= sc.startBar && b < sc.startBar + sc.bars);
+  const lab = n => {
+    let b = G.barOf(n.on + 1e-6); const s0 = G.barStart(b), s1 = G.barStart(b + 1); let i = Math.round(16 * (n.on - s0) / (s1 - s0)); if (i >= 16) { b++; i -= 16; }
+    return { on: +n.on.toFixed(3), off: +n.off.toFixed(3), midi: n.midi, vel: n.vel, bar: b, beat: +(b * 4 + i / 4).toFixed(3), dur: +((n.off - n.on) / ((s1 - s0) / 4)).toFixed(3), section: secOf(b) };
+  };
+  const all = (notes || []).filter(n => n.off > n.on && n.on >= 0).map(lab);
+  return { version: 1, method: method || "basic-pitch", polyphonic: true, split: BASS_BELOW, grid: G.tracked ? "tracked" : "fallback", lead: all.filter(n => n.midi >= BASS_BELOW), bass: all.filter(n => n.midi < BASS_BELOW) };
+}
 /* The bar a whole-track file starts at: -1 when the transcription has a pickup (notes before bar 1), else 0. */
 function pickupBar(a) { const T = a.transcription; return T && [...(T.lead || []), ...(T.bass || [])].some(n => n.bar < 0) ? -1 : 0; }
 const startText = b => b < 0 ? "the file starts one bar before bar 1, so the pickup is kept" : `the file starts at bar ${b + 1}`;
@@ -2223,7 +2238,7 @@ function partMidi(a, part, opts) {
   if (opts && (opts.timing === "original" || opts.timing === "tempo-map")) return timedPartMidi(a, part, opts);
   const bpm = opts && opts.tempo != null ? opts.tempo : a.bpm, q = `quantized to the 16th-note grid at ${Math.round(bpm * 1000) / 1000} BPM, 4/4; not the original timing`;
   if (part === "hook" || part === "bass") {
-    const label = part === "hook" ? "Top line" : is808(a, genreOf(a)) ? "808" : "Bass", nBars = a.nBars || Math.floor(a.duration / a.barSec);
+    const label = part === "hook" ? (isPoly(a) ? "Notes" : "Top line") : isPoly(a) || !is808(a, genreOf(a)) ? "Bass" : "808", nBars = a.nBars || Math.floor(a.duration / a.barSec);
     // a range asks for the notes in those bars (the transcription when there is one); no range and no source keeps the displayed 4-bar phrase
     const src = opts && opts.source || (opts && opts.range && a.transcription ? "transcribed" : "pattern");
     if (src === "transcribed") {
@@ -2272,7 +2287,10 @@ function smfFile(tracks, tempos, title) {
   const fmt = title ? 1 : 0, n = chunks.length;
   return new Uint8Array([0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, fmt, (n >> 8) & 255, n & 255, (PPQ >> 8) & 255, PPQ & 255].concat(...chunks));
 }
-const partLabel = (a, part) => part === "hook" ? "Melody" : part === "bass" ? (is808(a, genreOf(a)) ? "808" : "Bass") : "Chords";
+/* The notes came from a polyphonic model (Basic Pitch, in the browser): every note it heard, split at C3 into Bass (below) and Notes (the
+   rest), not a single melody. The older engine transcription is melody + bass. */
+const isPoly = a => !!(a.transcription && a.transcription.polyphonic);
+const partLabel = (a, part) => part === "hook" ? (isPoly(a) ? "Notes" : "Melody") : part === "bass" ? (isPoly(a) || !is808(a, genreOf(a)) ? "Bass" : "808") : "Chords";
 const spanText = r => r ? `bars ${r.startBar + 1}-${r.endBar}` : "entire track";
 /* The reference tempo for original timing: the export grid's tempo when beats were tracked, else the analysis tempo; returned as exactly
    what the file can hold (a whole number of microseconds per quarter), so ticks are converted with the tempo the reader will use. */
@@ -2315,12 +2333,12 @@ function timeline(a, grid, timing, range, lists) {
   throw new Error("timeline: unknown timing " + timing);
 }
 const toTicks = (L, notes) => notes.map(x => { const on = L.tick(x.s0); return { on, off: Math.max(on + 1, L.tick(x.s1) - 1), midi: x.midi, vel: x.vel }; });
-const kindOf = part => part === "chords" ? "SUGGESTED voicings generated from the detected chord names, not transcribed from the audio" : "rough transcription of the audio";
+const kindOf = (part, a) => part === "chords" ? "SUGGESTED voicings generated from the detected chord names, not transcribed from the audio" : a && isPoly(a) ? "rough transcription of the audio by Spotify's Basic Pitch" : "rough transcription of the audio";
 function timedPartMidi(a, part, opts) {
   const grid = opts.grid, r = opts.range || null, notes = partSeconds(a, part, grid, r); if (!notes) return null;
   const L = timeline(a, grid, opts.timing, r, [notes]), label = partLabel(a, part), kind = part === "chords" ? "suggested voicings" : "rough transcription";
   return { name: `${label} ${spanText(r)} (${kind}, ${MODE_WORDS[opts.timing]}).mid`, refTempo: L.refTempo,
-    data: smfFile([{ name: label, text: `${label}: ${kindOf(part)}, ${spanText(r)}; ${L.words}.`, notes: toTicks(L, notes) }], L.tempos) };
+    data: smfFile([{ name: label, text: `${label}: ${kindOf(part, a)}, ${spanText(r)}; ${L.words}.`, notes: toTicks(L, notes) }], L.tempos) };
 }
 /* Which MIDI timings this teardown can export now, and why not. confirmed = the person confirmed the bar lines (only quantized uses it). */
 function midiModes(a, grid, confirmed) {
@@ -2363,7 +2381,7 @@ function allPartsMidi(a, opts) {
     lists.forEach(([p, notes]) => tracks.push({ part: p, notes: toTicks(L, notes) }));
   }
   if (!tracks.length) return null;
-  const named = tracks.map(t => ({ name: t.part === "chords" ? "Chords (suggested)" : `${partLabel(a, t.part)} (rough)`, text: `${partLabel(a, t.part)}: ${kindOf(t.part)}, ${spanText(r)}.`, notes: t.notes }));
+  const named = tracks.map(t => ({ name: t.part === "chords" ? "Chords (suggested)" : `${partLabel(a, t.part)} (rough)`, text: `${partLabel(a, t.part)}: ${kindOf(t.part, a)}, ${spanText(r)}.`, notes: t.notes }));
   return { name: `${title} - all parts ${spanText(r)} (${MODE_WORDS[timing]}).mid`, refTempo: refT,
     data: smfFile(named, tempos, { name: title, text: `Teardown export, ${spanText(r)}: ${words}.` }) };
 }
@@ -2857,7 +2875,7 @@ const EXAMPLE = {
   sections: [{ label: "Intro", startBar: 0, bars: 16 }, { label: "Build", startBar: 16, bars: 8 }, { label: "Drop", startBar: 24, bars: 32 }, { label: "Breakdown", startBar: 56, bars: 16 }, { label: "Build", startBar: 72, bars: 8 }, { label: "Drop", startBar: 80, bars: 24 }, { label: "Outro", startBar: 104, bars: 15 }].map(s => Object.assign(s, { start: +(s.startBar * 1.92).toFixed(1), end: +((s.startBar + s.bars) * 1.92).toFixed(1) })),
   barSec: 1.92, nBars: 119, balance: [17, 33, 19, 15, 10, 6], width: 0.31, loudRms: -8.9, crest: 8.2, peakDb: -0.3
 };
-return Object.freeze({ chordSpans, transcribedSteps, partMidi, midiModes, allPartsMidi, smfFile, refTempo, chordNamesText, noDrumsFound, exportGate, recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
+return Object.freeze({ transcriptionFromNotes, chordSpans, transcribedSteps, partMidi, midiModes, allPartsMidi, smfFile, refTempo, chordNamesText, noDrumsFound, exportGate, recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
 });
 /* END src/domain.js */
 </script>
