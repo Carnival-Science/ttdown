@@ -22,6 +22,7 @@ The first numbered release: the Svelte app (replacing the single-file page) with
 - Whole-track MIDI keeps the pickup notes before bar 1. (#41)
 - Steady tracks keep a constant tempo instead of being called variable.
 - Bar 1 lands on the first chord of music without drums, and the beats no longer slide onto the off-beats.
+- On piano and other music without drums, the beats and bar 1 no longer lock half a beat late: four paired renders went from bar 1 wrong on all four to right on all four. It trusts the notes when their evidence is strong enough, otherwise it takes the start of a file cut at a bar line as bar 1; a piece that starts on a pickup with weak note evidence can still be misread, and moving bar 1 by hand never moves the beats. (#50)
 - A tempo correction keeps the tempo you typed.
 - Short messages ("Saved", "Deleted ...") appear as toasts; lasting state stays on the page.
 - Corrections (tempo, bar 1, chords, key) recompute everything built on the bar grid, or mark it out of date when the audio is not on hand.
