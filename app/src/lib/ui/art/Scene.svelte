@@ -139,6 +139,6 @@
   .scene[data-state="drop"] .orbit ellipse { stroke: var(--tt-cobalt); opacity: .7; }
   .scene[data-state="drop"] .orbit .dot { fill: var(--tt-cobalt); }
   .say { position: absolute; left: 0; top: 0; width: 0; height: 0; display: grid; place-items: center; will-change: transform; }
-  .say .tt-line { position: absolute; width: max-content; font-size: clamp(2rem, 5.4vmin, 4rem); }
+  .say .tt-line { position: absolute; width: max-content; font-size: clamp(2.2rem, 4.8vmin, 3.2rem); }
   @media (prefers-reduced-motion: reduce) { .disc, .orbit { transition: none; } }
 </style>

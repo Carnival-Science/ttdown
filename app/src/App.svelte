@@ -14,9 +14,12 @@
   import DropVeil from "./teardown/DropVeil.svelte";
   import { workspace } from "./lib/state/workspace.svelte";
   import { sweepReveal, stopSweep } from "./lib/ui/sweep";
+  import { faviconWorking } from "./lib/ui/favicon";
   import Scene, { type SceneState } from "./lib/ui/art/Scene.svelte";
 
   installTestHooks();
+  // the tab icon turns cobalt and pulses while the note model transcribes (lib/ui/favicon.ts)
+  $effect(() => { faviconWorking(teardown.transcribing); return () => faviconWorking(false); });
   $effect(() => mountNotes());
   $effect(() => { teardown.refreshHistory(); });
   // Runs the canonical TimeMap once; the smoke test compares this with Node (dev server and built bundle alike).

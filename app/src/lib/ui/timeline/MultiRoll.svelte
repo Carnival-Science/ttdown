@@ -135,19 +135,19 @@
   .ruler-row { flex: none; border-bottom: 1px solid var(--tt-line); background: var(--tt-chassis); }
   .corner { background: var(--tt-chassis); }
   .ann-row { flex: none; height: 24px; border-bottom: 1px solid var(--tt-line); background: var(--tt-panel); }
-  .alabel { font: 600 .68rem/24px var(--tt-font-body, sans-serif); color: var(--tt-ink-3); padding-left: 6px; overflow: hidden; }
+  .alabel { font: 400 .68rem/24px var(--tt-font-body, sans-serif); color: var(--tt-ink-3); padding-left: 6px; overflow: hidden; }
   .ann { position: relative; min-width: 0; overflow: visible; z-index: 2; }
   .ann-row { overflow: visible; }
   .ann-item {
     position: absolute; top: 2px; bottom: 2px; min-width: 0; padding: 0 4px; margin: 0; border: 0; border-left: 1px solid var(--tt-line-2); border-radius: 0;
-    background: transparent; color: var(--tl-ann-ink, var(--tt-ink-2)); font: 500 .72rem/20px var(--tt-font-body, sans-serif); text-align: left; white-space: nowrap; overflow: visible; cursor: pointer;
+    background: transparent; color: var(--tl-ann-ink, var(--tt-ink-2)); font: 400 .72rem/20px var(--tt-font-body, sans-serif); text-align: left; white-space: nowrap; overflow: visible; cursor: pointer;
     transition: background-color 120ms, color 120ms;
   }
   .ann-item:disabled { cursor: default; }
   /* a region too narrow for its name: hovering (or focusing) it shows the full chord in a small label above the lane */
   .ann-item.tight:hover::after, .ann-item.tight:focus-visible::after {
     content: attr(data-full); position: absolute; left: 50%; bottom: calc(100% + 2px); translate: -50% 0; padding: 2px 6px; z-index: 5; pointer-events: none;
-    background: var(--tt-ink); color: var(--tt-bg); font: 500 .72rem/1.4 var(--tt-font-body, sans-serif); white-space: nowrap;
+    background: var(--tt-ink); color: var(--tt-bg); font: 400 .72rem/1.4 var(--tt-font-body, sans-serif); white-space: nowrap;
   }
   .ann-item:not(:disabled):hover { background: var(--tt-inset); color: var(--tt-ink); }
   .ann-item.playing { background: var(--tl-ann-playing, var(--tt-accent-soft)); color: var(--tt-accent); }
@@ -157,7 +157,7 @@
   .keys { position: relative; overflow: hidden; background: #FFFFFF; border-right: 1px solid var(--tt-line-2); }
   .keys span { position: absolute; left: 0; right: 0; background: #FFFFFF; border-bottom: 1px solid var(--tt-line); }
   .keys span.black { background: #3A443E; right: 42%; border-bottom-color: #3A443E; }
-  .keys i { position: absolute; right: 3px; bottom: 0; font: 500 .58rem/1 var(--tt-font-mono, monospace); font-style: normal; color: var(--tt-ink-2); white-space: nowrap; }
+  .keys i { position: absolute; right: 3px; bottom: 0; font: 400 .58rem/1 var(--tt-font-mono, monospace); font-style: normal; color: var(--tt-ink-2); white-space: nowrap; }
   .keys span { overflow: visible; }
   .keys span.black i { color: var(--tt-ink-3); right: -46%; }
   .track { position: relative; min-width: 0; min-height: 0; overflow: hidden; touch-action: pan-y; cursor: grab; }

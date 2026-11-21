@@ -46,7 +46,7 @@
 
 <style>
   .lane { position: relative; display: grid; grid-template-columns: var(--tl-gutter, 40px) minmax(0, 1fr); min-height: 0; height: 100%; background: var(--tt-panel); border: 1px solid var(--tt-line-2); border-radius: 0; overflow: hidden; }
-  .gutter { position: relative; font: 500 .62rem var(--tt-font-mono, monospace); color: var(--tt-ink-3); }
+  .gutter { position: relative; font: 400 .62rem var(--tt-font-mono, monospace); color: var(--tt-ink-3); }
   .gutter span { position: absolute; left: 3px; white-space: nowrap; }
   .track { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
   svg { display: block; }

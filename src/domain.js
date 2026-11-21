@@ -466,13 +466,14 @@ function songMidiFiles(a, opts) {
   const bassNotes = tb || N.bass, hookNotes = th || N.hook;
   const poly = isPoly(a), by = poly ? " by Spotify's Basic Pitch" : "";
   const bassHow = tb ? `rough transcription${by} of the bass at its real positions in the song` : "detected bass line folded to 4 bars and repeated", hookHow = th ? (poly ? "rough transcription by Spotify's Basic Pitch of the notes above C3 at their real positions in the song" : "rough transcription of the top line at its real positions in the song") : "rough melody estimate folded to 4 bars and repeated";
+  const noDrums = !!(a.drumEvidence && a.drumEvidence.found === false) && !(opts && opts.includeDrums); // MEASURED absence only (not "no kick or snare step": a track with hi-hats alone keeps them): no invented drum patterns, unless asked for
   const files = [
     ["1 Kick", "1 Kick", N.D.kick, `Kick: detected pattern, ${q}`], ["2 Snare or clap", "2 Snare or clap", N.D.snare, `Snare or clap: detected pattern, ${q}`],
     ["3 Hi-hats", "3 Hi-hats", N.D.hats, `Hi-hats: detected pattern, ${q}`],
     !poly && is808(a, genreOf(a)) ? ["4 808", "4 808", bassNotes, `808: ${bassHow}, ${q}`] : ["4 Bass", "4 Bass", bassNotes, `Bass: ${bassHow}, ${q}`],
     ["5 Chords (suggested)", "5 Chords", N.chords, `Chords: SUGGESTED voicings generated from the detected chord names, not transcribed from the audio; ${q}`],
     poly ? ["6 Notes (rough)", "6 Notes", hookNotes, `Notes: ${hookHow}, ${q}`] : ["6 Hook (rough)", "6 Hook", hookNotes, `Hook: ${hookHow}, ${q}`]];
-  return files.filter(f => f[2].length).map(([n, label, notes, text]) => ({ name: `${n} - full song.mid`, data: midiBytes(sh(notes), bpm, { name: label, text }) }));
+  return files.filter((f, i) => f[2].length && !(noDrums && i < 3)).map(([n, label, notes, text]) => ({ name: `${n} - full song.mid`, data: midiBytes(sh(notes), bpm, { name: label, text }) }));
 }
 /* The full-track transcription (engine transcribeTrack: notes at their real positions, a.transcription) of one part, as 16th steps
    counted from bar startBar, for bars [startBar, endBar). A note that runs past endBar is cut there. null when the analysis has none
@@ -735,9 +736,12 @@ function chordNamesText(a, sec) {
 /* True when no kick and no snare was found anywhere (the main pattern or any section's pattern). Says nothing about vocals or other
    instruments; callers use it to stop offering drum tools for a track that has none to show, never to delete anything. */
 function noDrumsFound(a) {
+  if (a.drumEvidence && a.drumEvidence.found === false) return true; // measured: almost nothing in the sound is percussive (engine drumEvidence)
   const hit = p => !!p && ((p.kick || []).some(Boolean) || (p.snare || []).some(Boolean));
   return !hit(a.pattern) && !(a.drumParts || []).some(hit);
 }
+/* Why there are no drums to analyse: "measured" (the sound has next to no percussive energy), "pattern" (no kick or snare step in any pattern), or null (drums found). */
+const drumsAbsence = a => !noDrumsFound(a) ? null : a.drumEvidence && a.drumEvidence.found === false ? "measured" : "pattern";
 /* May the bar-aligned exports run, and why not. map is the TimeMap for this analysis (callers pass it: the domain has no TimeMap dependency);
    confirmed is whether the person has confirmed the downbeat and 4/4. A tempo or meter correction made without the audio blocks everything
    built on bars (stale), a refused grid (tempo changes, drift, other meters) stays refused whatever was confirmed, and a grid that is only
@@ -1214,5 +1218,5 @@ const EXAMPLE = {
   sections: [{ label: "Intro", startBar: 0, bars: 16 }, { label: "Build", startBar: 16, bars: 8 }, { label: "Drop", startBar: 24, bars: 32 }, { label: "Breakdown", startBar: 56, bars: 16 }, { label: "Build", startBar: 72, bars: 8 }, { label: "Drop", startBar: 80, bars: 24 }, { label: "Outro", startBar: 104, bars: 15 }].map(s => Object.assign(s, { start: +(s.startBar * 1.92).toFixed(1), end: +((s.startBar + s.bars) * 1.92).toFixed(1) })),
   barSec: 1.92, nBars: 119, balance: [17, 33, 19, 15, 10, 6], width: 0.31, loudRms: -8.9, crest: 8.2, peakDb: -0.3
 };
-return Object.freeze({ transcriptionFromNotes, chordRegionsFromNotes, chordSpans, transcribedSteps, partMidi, midiModes, allPartsMidi, smfFile, refTempo, chordNamesText, noDrumsFound, exportGate, recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
+return Object.freeze({ transcriptionFromNotes, chordRegionsFromNotes, chordSpans, transcribedSteps, partMidi, midiModes, allPartsMidi, smfFile, refTempo, chordNamesText, noDrumsFound, drumsAbsence, exportGate, recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
 });

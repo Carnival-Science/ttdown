@@ -56,6 +56,15 @@ class Teardown {
     if (__TEST_HOOKS__) (window as unknown as { __tdReplace: unknown }).__tdReplace = (fn: (r: AnalysisResult) => void) => this.replace(fn); // bench build only: tests build a variant (say, a track without drums) of what is shown
   }
   refreshHistory() { this.history = loadHist(); }
+  /** Back to the start (the wordmark): stops any analysis or note transcription, closes the teardown on screen (it stays saved in Recent)
+   *  and lets go of its audio. The stage shows the drop motif again. */
+  home() {
+    this.supersede(); this.transcribing = false; this.bpNotes = null; this.notesUpgradedAt = 0;
+    if (this.audioURL) URL.revokeObjectURL(this.audioURL);
+    this.audioURL = null; this.buffer = null; this.selected = 0; this.result = null; this.rev++;
+    this.title = ""; this.titleTyped = false; this.progress = 0;
+    this.status = { text: "Choose an audio file to take apart.", err: false };
+  }
   /** Delete a saved teardown from this browser's storage (the one on screen, if it is that one, stays open but is no longer saved). */
   forget(h: AnalysisResult) {
     const ok = deleteHist(h), shown = this.result && this.result.title === h.title && this.result.duration === h.duration;

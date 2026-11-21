@@ -5,6 +5,7 @@
      mute stay in the transport and the rest opens on demand. Bar lines, beat clicks and loops use the TimeMap grid (gridOf). -->
 <script lang="ts">
   /* eslint-disable @typescript-eslint/no-explicit-any */
+  import Icon from "../lib/ui/Icon.svelte";
   import { untrack } from "svelte";
   import { teardown } from "../lib/state/teardown.svelte";
   import { player } from "../lib/state/player.svelte";
@@ -203,7 +204,7 @@
           <button type="button" class="iconbtn stop" aria-label="Stop (back to the start)" title="Stop: back to the start" onclick={stop}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="1.5" /></svg></button>
           <!-- two readouts, each its own unit: a small label over a figure. Time is where you are of how long; Bar is bar.beat on the tracked grid -->
           <span class="ro clock" title="Time: where you are, of the track's length"><span class="rlabel plabel">Time</span><span class="rfig"><b>{fmtT(now)}</b><span class="total">/ {fmtT(dur)}</span></span></span>
-          <span class="ro posn" title="Bar and beat, from the tracked beats"><span class="rlabel plabel">Bar · beat</span><span class="rfig"><b>{#if pos}{pos.bar}<span class="beat">.{Math.floor(pos.beat)}</span>{:else}–{/if}</b></span></span>
+          <span class="ro posn" title="Bar and beat, from the tracked beats"><span class="rlabel plabel">Bar<span class="lbeat"> · beat</span></span><span class="rfig"><b>{#if pos}{pos.bar}<span class="beat">.{Math.floor(pos.beat)}</span>{:else}–{/if}</b></span></span>
           <span class="vol">
             <button type="button" class="iconbtn" id="mute" aria-pressed={audio.vol.muted} aria-label="Mute" onclick={() => audio.toggleMute()}>
               {#if audio.vol.muted}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" /><path d="m16 9 5 6m0-6-5 6" class="stroke" /></svg>
@@ -231,7 +232,7 @@
     {/if}
 
     {#if drums.hidden}
-      <p class="small notice info" role="status" data-drumless>No kick or snare was found in this track, so the drum tools are hidden. It may be drumless, or its drums may be too quiet or too washed out to detect. <button class="btn" type="button" onclick={() => drums.showAnyway()}>Show the drum tools anyway</button></p>
+      <p class="small notice info" role="status" data-drumless>{#if drums.measured}No drums found in this track, so there is no drum analysis and the drum tools are hidden. Almost none of the sound is percussive, as in a solo piano piece; a very quiet or washed-out drum part could read the same way. Vocals are not detected. {:else}No kick or snare was found in this track, so the drum tools are hidden. It may be drumless, or its drums may be too quiet or too washed out to detect. {/if}<button class="btn" type="button" onclick={() => drums.showAnyway()}>Show the drum tools anyway</button></p>
     {/if}
 
     {#if !playable}
@@ -255,7 +256,7 @@
             itemProps={(it: any) => ({ class: "seg", title: `${sectionName(it.s.label, a)}: bars ${it.s.startBar + 1}–${it.s.startBar + it.s.bars} (starts ${fmtT(it.s.start)})`,
               style: `left:${pct(Math.max(0, it.s.start))};width:calc(${pct(it.s.end)} - ${pct(Math.max(0, it.s.start))});--c:${sectionColor(it.s.label)}`, "data-label": it.s.label,
               "data-playing": +it.value === playingIdx ? "" : undefined })}>
-            {#snippet item(it: any)}<span class="seglabel">{#if +it.value === playingIdx}<span class="nowmark" aria-label="playing">▶ </span>{/if}{it.label}</span>{/snippet}
+            {#snippet item(it: any)}<span class="seglabel">{#if +it.value === playingIdx}<span class="nowmark" aria-label="playing"><Icon name="play" /> </span>{/if}{it.label}</span>{/snippet}
           </Segmented>
           {#if loud}
             <svg class="loud" viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true">
@@ -328,10 +329,10 @@
   }
   :global(.explorer .bands .seg:focus-visible) { outline: 2px solid var(--tt-focus); outline-offset: -4px; z-index: 1; }
   :global(.explorer .bands .seg .seglabel) {
-    position: absolute; top: 9px; left: 8px; right: 6px; font: 500 0.8rem/1.2 var(--tt-font-body); text-transform: none; letter-spacing: 0;
+    position: absolute; top: 9px; left: 8px; right: 6px; font: 400 0.8rem/1.2 var(--tt-font-body); text-transform: none; letter-spacing: 0;
     white-space: nowrap; overflow: hidden; text-overflow: clip;
   }
-  :global(.explorer .bands .seg[data-checked] .seglabel) { font-weight: 600; }
+  :global(.explorer .bands .seg[data-checked] .seglabel) { font-weight: 400; }
   :global(.explorer .bands .seg) { container-type: inline-size; }
   @container (max-width: 64px) { :global(.explorer .bands .seg .seglabel) { display: none; } }
 
@@ -351,16 +352,16 @@
   /* readouts: a small label over a monospaced figure, a hairline between them, so time and bar never read as one run of text */
   .ro { display: inline-grid; grid-template-rows: auto auto; align-content: center; gap: 1px; padding: 0 12px; white-space: nowrap; line-height: 1; }
   .ro + .ro { border-left: 1px solid var(--tt-line-2); }
-  .rlabel { font: 500 .62rem/1 var(--tt-font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--tt-ink-3); }
-  .rfig { font: 500 .95rem/1.1 var(--tt-font-mono); font-variant-numeric: tabular-nums; color: var(--tt-ink-3); letter-spacing: -0.01em; }
-  .rfig b { color: var(--tt-ink); font-weight: 600; }
+  .rlabel { font: 400 10px/1 var(--tt-font-mono); letter-spacing: .02em; text-transform: uppercase; color: var(--tt-ink-3); }
+  .rfig { font: 400 22px/1 var(--tt-font-mono); font-variant-numeric: tabular-nums; color: var(--tt-ink-3); letter-spacing: -0.01em; }
+  .rfig b { color: var(--tt-ink); font-weight: 400; }
   .clock .total { margin-left: 0.5ch; }
-  .posn .beat { color: var(--tt-ink-3); font-weight: 500; }
+  .posn .beat { color: var(--tt-ink-3); font-weight: 400; }
   .posn .rfig { min-width: 6ch; }
   .attach { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
   .readout {
     position: absolute; top: calc(100% + 2px); translate: -50% 0; padding: 4px 8px; border-radius: 0; white-space: pre; pointer-events: none;
-    background: var(--tt-ink); color: var(--tt-bg); font: 600 0.74rem/1.3 var(--tt-font-body); font-variant-numeric: tabular-nums;
+    background: var(--tt-ink); color: var(--tt-bg); font: 400 0.74rem/1.3 var(--tt-font-body); font-variant-numeric: tabular-nums;
     box-shadow: var(--tt-shadow); z-index: 2;
   }
 
@@ -410,7 +411,7 @@
   .iconbtn[aria-pressed="true"] { color: var(--tt-accent); }
   .iconbtn svg { width: 22px; height: 22px; fill: currentColor; }
   .iconbtn svg :global(.stroke) { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
-  .morebtn { margin-left: auto; height: var(--tt-tap); padding: 0 12px; border-radius: 2px; border: 1px solid var(--tt-line-2); background: var(--tt-panel); color: var(--tt-ink-2); font: 600 .84rem var(--tt-font-body); cursor: pointer; }
+  .morebtn { margin-left: auto; height: var(--tt-tap); padding: 0 12px; border-radius: 2px; border: 1px solid var(--tt-line-2); background: var(--tt-panel); color: var(--tt-ink-2); font: 400 .84rem var(--tt-font-body); cursor: pointer; }
   .morebtn[aria-expanded="true"] { color: var(--tt-ink); border-color: var(--tt-ink); }
 
   .byear { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -424,6 +425,7 @@
     }
     .transport { gap: 0; }
     .primary { width: 100%; gap: 6px; }
+    .ro { padding: 0 8px; } .rfig { font-size: 19px; }
     .volslider { display: none; }
     .secondary {
       position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 7; padding: 12px; border-radius: 0; gap: 12px;
@@ -435,9 +437,14 @@
     .key { gap: 4px 12px; font-size: .7rem; }
   }
   @media (max-width: 480px) {
-    .clock .total { display: none; }
-    .ro { padding: 0 8px; }
+    .clock .total, .lbeat { display: none; }
+    .ro { padding: 0 6px; }
+    .rfig { font-size: 17px; }
+    .primary { gap: 4px; }
+    .morebtn { padding: 0 10px; }
   }
+  /* the smallest phones (about 360 px): the transport's buttons step down from 44 to 40 px so the row never runs off the screen */
+  @media (max-width: 380px) { .play, .iconbtn { width: 40px; height: 40px; } }
   @media (min-width: 1180px) and (max-height: 820px) {
     .top { gap: 6px; }
     .timeline { height: 84px; } .quiet .timeline { height: 56px; }

@@ -1,0 +1,62 @@
+{
+ "penalty": 0.6,
+ "window": 8,
+ "rows": [
+  {
+   "id": "dev_key_const",
+   "split": "dev",
+   "truth": "A minor",
+   "found": "A minor",
+   "exact": 1,
+   "relativeOk": 1,
+   "modulations": 0,
+   "found_": 0,
+   "boundaryErrS": null,
+   "falseMods": 0,
+   "margin": 0.17,
+   "ms": 95
+  },
+  {
+   "id": "dev_key_up2",
+   "split": "dev",
+   "truth": "A minor > B minor",
+   "found": "A minor > B minor",
+   "exact": 0.982,
+   "relativeOk": 0.982,
+   "modulations": 1,
+   "found_": 1,
+   "boundaryErrS": 0.7,
+   "falseMods": 0,
+   "margin": 0.198,
+   "ms": 87
+  },
+  {
+   "id": "dev_key_up4",
+   "split": "dev",
+   "truth": "A minor > C# minor",
+   "found": "A minor > C# minor",
+   "exact": 0.982,
+   "relativeOk": 0.982,
+   "modulations": 1,
+   "found_": 1,
+   "boundaryErrS": 1.4,
+   "falseMods": 0,
+   "margin": 0.203,
+   "ms": 87
+  },
+  {
+   "id": "dev_key_relative",
+   "split": "dev",
+   "truth": "C major",
+   "found": "A minor",
+   "exact": 0,
+   "relativeOk": 1,
+   "modulations": 0,
+   "found_": 0,
+   "boundaryErrS": null,
+   "falseMods": 0,
+   "margin": 0.082,
+   "ms": 87
+  }
+ ]
+}

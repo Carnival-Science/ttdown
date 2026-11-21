@@ -49,7 +49,7 @@
   .folded .inspector.panel { padding: 8px 6px; align-items: center; }
   .ihead { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: none; width: 100%; }
   .folded .ihead { justify-content: center; }
-  .ititle { font-size: 1rem; }
+  .ititle { font-size: 1.2rem; }
   .fold { width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 2px; background: transparent; color: var(--tt-ink-2); cursor: pointer; }
   .fold:hover { color: var(--tt-ink); background: var(--tt-chassis); }
   .fold:focus-visible { outline: 2px solid var(--tt-focus); outline-offset: 2px; }
@@ -62,7 +62,7 @@
     position: sticky; bottom: 8px; z-index: 8; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; border-radius: 0;
     background: var(--tt-chassis); border: 1px solid var(--tt-ink); box-shadow: var(--tt-shadow);
   }
-  .summary { flex: 1; min-width: 0; font: 600 .82rem var(--tt-font-body); color: var(--tt-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+  .summary { flex: 1; min-width: 0; font: 400 .82rem var(--tt-font-body); color: var(--tt-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
   .sheetbar .btn { min-height: var(--tt-tap); padding: 0 12px; }
   @media (prefers-reduced-motion: reduce) { .workspace.wide { transition: none; } }
 </style>

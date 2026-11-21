@@ -45,9 +45,13 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
       check(d.on && /notes and chords are a quick draft/i.test(d.text) && /more accurate transcription/i.test(d.text) && /\d+%/.test(d.text), `2: the roll says these notes are a draft and a better transcription is coming, with progress ("${d.text.replace(/\s+/g, " ").slice(0, 90)}")`);
       check(+d.hook < 1, `2: the draft notes are drawn faint (fill-opacity ${d.hook})`);
       check(d.statusW > 50, `2: the toolbar shows the transcription progress (${Math.round(d.statusW)} px wide), it is not hidden`);
+      const fav = await p.evaluate(async () => { const el = document.querySelector('link[rel="icon"][type="image/svg+xml"]'), h1 = el.getAttribute("href"); await new Promise(r => setTimeout(r, 400)); return { working: el.hasAttribute("data-working"), h1, h2: el.getAttribute("href") }; });
+      check(fav.working && /^data:image\/svg\+xml/.test(fav.h1) && /%2370|%238C|%23A3/i.test(fav.h1) && fav.h1 !== fav.h2, "2: the tab icon turns cobalt and moves (its frames change) while the notes are transcribed");
     } else check(true, "2: (the model finished before the draft could be read)"); }
   await p.waitForFunction(() => /Notes transcribed with Basic Pitch/.test(document.querySelector("#status").textContent), null, { timeout: 500000, polling: 500 });
   { const u = await p.evaluate(() => ({ draft: !!document.querySelector("[data-draft]"), done: document.querySelector("[data-notes-updated]")?.innerText || "", hook: document.querySelector('.mroll g[data-layer="hook"]')?.getAttribute("fill-opacity") }));
+    const favDone = await p.evaluate(() => { const el = document.querySelector('link[rel="icon"][type="image/svg+xml"]'); return { working: el.hasAttribute("data-working"), href: el.getAttribute("href") }; });
+    check(!favDone.working && /favicon\.svg$/.test(favDone.href), `2: when the notes land the tab icon is the green one again (${favDone.href})`);
     check(!u.draft && /Notes and chords updated/.test(u.done) && u.hook === "1", `2: when the notes land, the draft strip gives way to "Notes and chords updated" and the notes are drawn solid (fill-opacity ${u.hook})`); }
   const m = await p.evaluate(() => { const a = window.__td, T = a.transcription, all = [...T.lead, ...T.bass]; return { v: T.version, poly: T.polyphonic, method: T.method, split: T.split, n: all.length, lead: T.lead.length, bass: T.bass.length, dur: a.duration,
     inAudio: all.every(x => x.on >= 0 && x.off > x.on && x.off <= a.duration + 0.5), midi: all.every(x => Number.isInteger(x.midi) && x.midi >= 21 && x.midi <= 108 && x.vel >= 1 && x.vel <= 127), labelled: all.every(x => Number.isInteger(x.bar) && typeof x.beat === "number" && x.dur > 0 && x.section >= -1),

@@ -8,6 +8,9 @@
   import Popover from "../lib/ui/Popover.svelte";
   import RecentList from "./RecentList.svelte";
   import Changelog from "./Changelog.svelte";
+  import { PULSE } from "../lib/ui/favicon";
+  // while the note model transcribes, the mark runs the same cobalt pulse as the tab icon (lib/ui/favicon.ts), started together
+  const pulseVars = PULSE.rest.map((c, i) => `--rest:${c};--peak:${PULSE.peak[i]};--round:${PULSE.ms}ms;--lead:${-(1 - i / 3) * PULSE.ms}ms`);
 
   let fileEl: HTMLInputElement;
   let recentOpen = $state(false);
@@ -22,7 +25,7 @@
 <svelte:document onkeydown={e => { if (e.key === "Escape" && teardown.running) teardown.cancel(); }} />
 
 <header class="toolbar">
-  <h1 class="brand"><svg class="mark" viewBox="0 0 40 28" aria-hidden="true"><circle cx="13" cy="14" r="11" fill="#8EBF5E" /><circle cx="25" cy="11" r="10" fill="#7FB38F" /><circle cx="22" cy="19" r="8" fill="#5E9A6A" /></svg><span class="word">teardown</span></h1>
+  <h1 class="brand"><a class="home" href="./" aria-label="Teardown: back to the start" onclick={e => { e.preventDefault(); teardown.home(); }}><svg class="mark" class:working={teardown.transcribing} viewBox="0 0 40 28" aria-hidden="true"><circle cx="13" cy="14" r="11" fill="#8EBF5E" style={pulseVars[0]} /><circle cx="25" cy="11" r="10" fill="#7FB38F" style={pulseVars[1]} /><circle cx="22" cy="19" r="8" fill="#5E9A6A" style={pulseVars[2]} /></svg><span class="word">teardown</span></a></h1>
   <input type="file" id="file" class="sr-only" tabindex="-1" bind:this={fileEl} accept="audio/*,.mp3,.wav,.m4a,.flac,.ogg,.aac" onchange={pick}>
   <button type="button" class="btn primary open" onclick={() => fileEl.click()}>Open track</button>
   <input type="text" id="title" class="name" placeholder="Name (optional)" aria-label="Name of the track" maxlength="80" bind:value={teardown.title}
@@ -31,8 +34,7 @@
   <Popover bind:open={recentOpen} triggerClass="btn recent" triggerId="recent-btn" label="Recent teardowns saved in this browser" keepMounted disabled={!teardown.history.length}
     id="hist-wrap" class="recent-pop" align="start">
     {#snippet trigger()}Recent{#if teardown.history.length} <span class="count">{teardown.history.length}</span>{/if}{/snippet}
-    <p class="small recent-head">Saved in this browser</p>
-    <div class="hist"><RecentList clearAll onopen={() => (recentOpen = false)} /></div>
+    <RecentList clearAll onopen={() => (recentOpen = false)} />
   </Popover>
 
   <div class="statusbar">
@@ -58,6 +60,7 @@
         <dt>Engine</dt><dd>{BUILD.engineSha256.slice(0, 12)}</dd>
         <dt>TimeMap</dt><dd>{tm.schema}, {tm.fingerprint}</dd>
         <dt>Svelte</dt><dd>{BUILD.versions.svelte}</dd>
+        <dt>Type</dt><dd>Absans by Valerio Monopoli and Necto Mono by Marco Condello, both from Collletttivo (SIL Open Font License)</dd>
       </dl>
     </details>
   </Popover>
@@ -67,11 +70,20 @@
 
 <style>
   .toolbar { position: relative; display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: color-mix(in srgb, var(--tt-chassis) 88%, transparent); border-bottom: 1px solid var(--tt-line); min-width: 0; }
-  /* the wordmark: a compact bold sticker on the brand lime, with a hard early-web offset shadow */
+  /* the wordmark: the three discs and the word, a link back to the start (the drop motif) */
   .brand { display: inline-flex; align-items: center; gap: 6px; margin: 0 10px 0 0; flex: none; color: var(--tt-ink); }
-  .brand .word { font: 800 1.45rem/1 var(--tt-font-display); font-stretch: 68%; letter-spacing: -0.01em; }
+  /* the wordmark is set like everything else: Absans, regular, a little larger and tight, ink on paper; the discs carry the identity */
+  .brand .word { font: 400 1.5rem/1 var(--tt-font-display); letter-spacing: -0.03em; }
+  .home { display: inline-flex; align-items: center; gap: 7px; color: inherit; text-decoration: none; border-radius: 2px; }
+  .home:focus-visible { outline: 2px solid var(--tt-focus); outline-offset: 4px; }
+  .home:active .mark { transform: scale(0.94); }
+  .home .mark { transition: transform 120ms cubic-bezier(.23, 1, .32, 1); }
   .brand .mark { width: 34px; height: 24px; overflow: visible; } /* the hover nudge moves the discs past the viewBox: draw them anyway, never clipped */
-  .brand .mark circle { mix-blend-mode: multiply; opacity: .8; transform-box: fill-box; transform-origin: center; transition: translate 600ms cubic-bezier(.23, 1, .32, 1); }
+  .brand .mark circle { mix-blend-mode: multiply; opacity: .8; transform-box: fill-box; transform-origin: center; transition: translate 600ms cubic-bezier(.23, 1, .32, 1), fill 400ms ease; }
+  /* transcribing: the discs turn cobalt and a glow passes from one to the next, the same round as the tab icon */
+  .brand .mark.working circle { fill: var(--rest); opacity: .9; animation: mark-pulse var(--round) linear var(--lead) infinite; }
+  @keyframes mark-pulse { 0%, 100% { fill: var(--peak); scale: 1.08; } 25%, 75% { fill: var(--rest); scale: 1; } }
+  @media (prefers-reduced-motion: reduce) { .brand .mark.working circle { animation: none; } }
   .brand:hover .mark circle:nth-child(1) { translate: -2px 1px; } .brand:hover .mark circle:nth-child(2) { translate: 2px -1px; } .brand:hover .mark circle:nth-child(3) { translate: 1px 2px; }
   .toolbar :global(.btn) { min-height: 38px; }
   .name { width: 220px; flex: none; min-height: 38px; }
@@ -80,14 +92,13 @@
   .status { margin: 0; color: var(--tt-ink-2); font-size: var(--tt-fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .status.err { color: var(--tt-bad); }
   .status.quiet { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .toolbar :global(.help) { width: 38px; padding: 0; font-weight: 700; flex: none; }
+  .toolbar :global(.help) { width: 38px; padding: 0; font-weight: 400; flex: none; }
   .toolbar .progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; background: transparent; border: 0; border-radius: 0; margin: 0; }
   .toolbar .progress :global(#prog) { width: 100%; height: 100%; background: var(--tt-accent); transform-origin: left center; transition: transform 160ms linear; }
   :global(.help-pop) { width: min(380px, calc(100vw - 24px)); padding: 12px 16px; font-size: var(--tt-fs-sm); }
   :global(.help-pop p) { margin: 0 0 8px; }
   :global(.help-pop .help-title) { font-size: 1rem; margin: 0 0 8px; }
-  :global(.recent-pop) { width: min(420px, calc(100vw - 24px)); padding: 12px; }
-  :global(.recent-pop .hist) { display: grid; gap: 6px; max-height: 50dvh; overflow-y: auto; }
+  :global(.recent-pop) { width: min(400px, calc(100vw - 24px)); padding: 12px 8px 10px 8px; }
   
   .about { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 8px 0 0; font-size: var(--tt-fs-xs); }
   .about dt { color: var(--tt-ink-3); } .about dd { margin: 0; overflow-wrap: anywhere; }

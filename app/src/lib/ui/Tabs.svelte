@@ -36,7 +36,7 @@
   @media (max-width: 1179px) { :global(.tt-tabpanel) { overflow: visible; flex: none; } :global(.tt-tab) { padding: 0 12px; } .tt-tabbar { gap: 6px 8px; } }
   :global(.tt-tab) {
     flex: 0 0 auto; min-height: 36px; padding: 0 12px; border-radius: var(--tt-radius-sm); border: 0; background: transparent;
-    color: var(--tt-ink-2); font: 600 var(--tt-fs-sm) var(--tt-font-body); cursor: pointer; transition: background var(--tt-ease);
+    color: var(--tt-ink-2); font: 400 var(--tt-fs-sm) var(--tt-font-body); cursor: pointer; transition: background var(--tt-ease);
   }
   :global(.tt-tab[aria-selected="true"]) { background: var(--tt-accent); color: var(--tt-accent-ink); }
 </style>
