@@ -41,8 +41,7 @@
 
   /* type: ONE weight. Absans (an early-twentieth-century grotesque with small imperfections) for everything, Necto Mono for figures and
      technical labels; hierarchy comes from size, colour and spacing, never bold (font-synthesis is off, so nothing is faux-bolded).
-     Archivo, condensed and heavy, is only the "teardown" wordmark. */
-  --tt-font-brand: "Archivo Variable", "Archivo", "Arial Narrow", "Helvetica Neue", Helvetica, Arial, sans-serif;
+     The "teardown" wordmark is Absans too. */
   --tt-font-display: "Absans", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --tt-font-body: "Absans", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --tt-font-mono: "Necto Mono", ui-monospace, Menlo, Consolas, monospace;

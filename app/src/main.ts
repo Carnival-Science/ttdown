@@ -1,4 +1,4 @@
-// Fonts are self-hosted (no third-party font CDN), all OFL-1.1: Absans and Necto Mono (lib/design/fonts), Archivo for the wordmark only.
+// Fonts are self-hosted (no third-party font CDN), all OFL-1.1: Absans and Necto Mono (lib/design/fonts).
 import "./lib/design/fonts.css";
 // ui-sdk default styles, once, at the entry and before our own stylesheets, so TTdown's tokens and components still win.
 import "@ui-sdk/core/web.css";
