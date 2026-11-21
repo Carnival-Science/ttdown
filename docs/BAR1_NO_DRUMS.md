@@ -17,9 +17,31 @@ On piano pieces the beat tracker locked half a beat late (all tracked beats on t
 
 ## The rule (engine.js, Version B, B3; constants in `BAR1`)
 Only when the drum evidence measures no drums:
-- the note vote decides if it has at least `voteMin` = 150 transcribed notes and a winner 1.2 times the runner-up (a winner of position 0 keeps bar 1 as it is);
+- the note vote decides if its winner is 1.2 times the runner-up, it has at least 32 transcribed notes, and its margin is significant for the
+  number of notes behind it: `(best - second) / sqrt(best + second) >= voteZ` (2, the usual two-sigma line, set before the data was looked at).
+  A winner of position 0 keeps bar 1 as it is. The z-score replaces an earlier fixed 150-note minimum, which sent short pickup pieces to the
+  fallback below and broke them (reported on PR #65);
 - otherwise, if the audio starts within `startWithin` = 0.25 s, the first sound is bar 1: the beat lattice is moved half a beat when
   it sits on the off-beats and extended back to that sound (`downbeatFit.method` = `first-sound-v1`).
+
+The beat phase and bar 1 are decided from the grid as the engine chose it; a manual bar-1 move (`forced.downbeatShift`) is added on top. So
+moving bar 1 never changes which beats the track lands on (tested on the synthetic loop and pickup piece for shifts of 1, 2 and 3 beats, and
+on the four real renders). Before, any manual move skipped this whole step and put the beats back on the off-beats.
+
+Why a margin and not agreement between bars: per-bar agreement with the winner was 0.37 on the correct "more please" vote and 1.00 on a wrong,
+perfectly periodic one, so it does not separate them.
+
+| Vote | z | Result |
+|---|---|---|
+| synthetic syncopated loop | 0.31 | wrong winner, rejected |
+| big mac | 1.17 | wrong winner, rejected |
+| bliss | 0.12 | rejected |
+| an angel | 0.12 | rejected |
+| synthetic pickup piece, 12 bars | 4.75 | right, kept |
+| more please | 3.05 | right, kept |
+| synthetic pickup piece, 48 bars | 9.83 | right, kept |
+
+Seven cases; the gap between 1.17 and 3.05 is wide, but this is tuned on a handful of files, not held out.
 
 ## Measured (paired renders, off = main before, on = this change)
 | Piece | Bar 1 error off to on | Beat F off to on | Downbeat F off to on |
@@ -38,6 +60,6 @@ does not choose downbeats (a separate limit, unchanged here).
 
 ## Limits
 - Thresholds were set from five real files by the person who read them: tuned, not held out. The four renders are no longer a clean scoring set.
-- A pickup piece with fewer than 150 notes is anchored to its pickup (wrong by the pickup length).
+- A pickup piece whose vote margin is not significant (z below 2) is anchored to its pickup (wrong by the pickup length).
 - A file cut mid-bar with no drums is read as starting on bar 1.
 - The synthetic fixtures in `tests/bar1-no-drums.test.js` are a regression guard, not evidence of accuracy.

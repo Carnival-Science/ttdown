@@ -3,7 +3,10 @@
  *      off-beats, and bar 1 is the first sound (method first-sound-v1)
  *   2. synthetic long piece with a two-note pickup and a long chord and bass on every bar line: the note vote decides (note-onsets-v1), the first sound is NOT bar 1
  *   3. the same loop with drums: drums decide, neither rule changes bar 1 (no downbeatFit)
- *   4. real paired renders, ONLY when TT_PAIRED_MANIFEST points at a bench/paired-renders manifest (never searched for): reported, not asserted
+ *   4. a manual bar-1 move (forced.downbeatShift, the escape hatch) never changes which beats the track lands on: same beats, bar 1 moved by exactly
+ *      the beats asked, on the loop (first-sound rule) and on the pickup piece (note vote)
+ *   5. the same pickup piece cut to 12 bars: the vote has few notes, but its margin is still significant for them, so the first sound is not bar 1
+ *   6. real paired renders, ONLY when TT_PAIRED_MANIFEST points at a bench/paired-renders manifest (never searched for): reported, not asserted
  * Synthetic music and tuned thresholds (BAR1 in engine.js): a regression guard, not a measurement of accuracy. */
 "use strict";
 const TM = require("../src/timemap"), eng = require("../src/engine")({ TimeMap: TM });
@@ -42,7 +45,16 @@ const beatErr = (a, bpm) => { const beat = 60 / bpm, g = a.grid && a.grid.beats 
     check(db != null && Math.abs(db - want) < 0.07, `2: first downbeat after the two-note pickup (want ${want.toFixed(3)}, got ${db}; bpm ${a.bpm}, grid ${a.grid && a.grid.source}, first beats ${a.grid && a.grid.beats.slice(0, 3).join(",")}, ${JSON.stringify(a.downbeatFit)})`); }
   { const bpm = 130, a = await run(render(syncopated(12, false), bpm, 12 * 4 * 60 / bpm + 1, true));
     check(a.drumEvidence && a.drumEvidence.found === true && !a.downbeatFit, `3: with drums, neither no-drums rule runs (${JSON.stringify(a.downbeatFit)})`); }
+  { const go = (x, f) => eng.analyzeDecoded(ab(x), () => {}, false, undefined, f);
+    for (const [name, x, bpm] of [["loop", render(syncopated(12, false), 130, 12 * 4 * 60 / 130 + 1, false), 130], ["pickup piece", render(plain(48, true), 105, (48 * 4 + 1.5) * 60 / 105 + 1, false), 105]]) {
+      const base = await go(x), P = 60 / bpm; let ok = true, why = "";
+      for (const sh of [1, 2, 3]) { const a = await go(x, { downbeatShift: sh }), same = a.grid.beats.length === base.grid.beats.length && a.grid.beats.every((t, i) => Math.abs(t - base.grid.beats[i]) < 1e-6), moved = (() => { const d = (((a.grid.downbeats[0] - base.grid.downbeats[0] - sh * P) % (4 * P)) + 4 * P) % (4 * P); return Math.min(d, 4 * P - d) < 0.02; })(); // modulo the bar: the first downbeat in the list may wrap one bar earlier
+        if (!same || !moved) { ok = false; why += ` shift ${sh}: beats ${same ? "same" : "CHANGED"}, bar 1 ${a.grid.downbeats[0]} want ${(base.grid.downbeats[0] + sh * P).toFixed(3)};`; } }
+      check(ok, `4: ${name}: moving bar 1 by 1, 2 or 3 beats keeps the beats and moves bar 1 by exactly that (base bar 1 ${base.grid.downbeats[0]})${why}`); } }
+  { const bpm = 105, a = await run(render(plain(12, true), bpm, (12 * 4 + 1.5) * 60 / bpm + 1, false)), db = a.grid && a.grid.downbeats && a.grid.downbeats[0], want = 1.5 * 60 / bpm;
+    check(!(a.downbeatFit && a.downbeatFit.method === "first-sound-v1"), `5: a short pickup piece is not anchored to its first sound (${JSON.stringify(a.downbeatFit)})`);
+    check(db != null && Math.abs(db - want) < 0.07, `5: first downbeat after the pickup (want ${want.toFixed(3)}, got ${db})`); }
   const mf = process.env.TT_PAIRED_MANIFEST;
-  if (mf) console.log("4: paired renders: run  node bench/paired-renders.js " + mf + "  (not asserted here)"); else console.log("SKIP paired renders (set TT_PAIRED_MANIFEST to report them)");
+  if (mf) console.log("6: paired renders: run  node bench/paired-renders.js " + mf + "  (not asserted here)"); else console.log("SKIP paired renders (set TT_PAIRED_MANIFEST to report them)");
   console.log(`bar-1 no-drums tests: ${pass} passed, ${fail} failed`); if (fail) process.exit(1);
 })().catch(e => { console.error(e); process.exit(1); });
