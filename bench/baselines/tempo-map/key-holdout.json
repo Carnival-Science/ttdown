@@ -1,0 +1,48 @@
+{
+ "penalty": 0.6,
+ "window": 8,
+ "rows": [
+  {
+   "id": "hold_key_const",
+   "split": "holdout",
+   "truth": "A minor",
+   "found": "A minor",
+   "exact": 1,
+   "relativeOk": 1,
+   "modulations": 0,
+   "found_": 0,
+   "boundaryErrS": null,
+   "falseMods": 0,
+   "margin": 0.17,
+   "ms": 95
+  },
+  {
+   "id": "hold_key_up3",
+   "split": "holdout",
+   "truth": "A minor > C minor",
+   "found": "A minor > G major",
+   "exact": 0.366,
+   "relativeOk": 0.366,
+   "modulations": 1,
+   "found_": 1,
+   "boundaryErrS": 2,
+   "falseMods": 0,
+   "margin": 0.103,
+   "ms": 87
+  },
+  {
+   "id": "hold_key_up5",
+   "split": "holdout",
+   "truth": "A minor > D minor",
+   "found": "A minor > D minor",
+   "exact": 0.938,
+   "relativeOk": 0.938,
+   "modulations": 1,
+   "found_": 1,
+   "boundaryErrS": 3.4,
+   "falseMods": 0,
+   "margin": 0.143,
+   "ms": 87
+  }
+ ]
+}
