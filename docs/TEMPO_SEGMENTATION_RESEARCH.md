@@ -150,7 +150,7 @@ rolls at 87 and 92, a steady 4/4 with hats on the eighth notes. Two things that 
 
 ## Real music (private, local audio, **no ground truth**, nothing committed)
 
-A local file named "01 Init" (5:26; identity and any ear annotation **not verified**; the issue's own BPM values are hypotheses and so are these). Engine: 149.9 BPM, `constant-fit` accepted with quarters
+A local file named "01 Init" (5:26; identity and any ear annotation **not verified**; the issue's own BPM values are hypotheses and so are these). Engine (measured before main's later engine changes; not re-run on this file): 149.9 BPM, `constant-fit` accepted with quarters
 149.946 / none / 149.946 / 150.026 (three of four valid, which is its acceptance rule). Candidates (`dp`, after coalescing; 8.1 s; `ctf` and `tempogram` agree on the structure but not on the exact edges):
 
 | stretch (s) | candidate | z | its grid hits onsets | **engine's 150 BPM grid hits onsets** (same stretch) |
