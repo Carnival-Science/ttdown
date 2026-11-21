@@ -1,5 +1,9 @@
-/* Self-hosted fonts, Latin subset only (OFL-1.1). Archivo is a variable font with a width axis; the block below is the Latin face
+/* Self-hosted fonts (all OFL-1.1). Absans (Valerio Monopoli) and Necto Mono (Marco Condello), both by Collletttivo, one weight each,
+   shipped unmodified from their repositories (fonts/SOURCE.txt, licences beside them): Absans sets everything, Necto Mono the figures and
+   technical labels. Archivo, a variable font with a width axis, is kept only for the "teardown" wordmark; the block below is the Latin face
    of @fontsource-variable/archivo/wdth.css, so only that one file is shipped instead of every script. */
+@font-face { font-family: "Absans"; font-style: normal; font-weight: 400; font-display: swap; src: url("./fonts/Absans-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Necto Mono"; font-style: normal; font-weight: 400; font-display: swap; src: url("./fonts/NectoMono-Regular.woff2") format("woff2"); }
 @font-face {
   font-family: "Archivo Variable"; font-style: normal; font-display: swap; font-weight: 100 900; font-stretch: 62% 125%;
   src: url("@fontsource-variable/archivo/files/archivo-latin-wdth-normal.woff2") format("woff2-variations");

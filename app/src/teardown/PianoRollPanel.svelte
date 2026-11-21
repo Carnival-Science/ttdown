@@ -7,6 +7,7 @@
      that is unavailable says why. Inspection only: no note editing. -->
 <script lang="ts">
   /* eslint-disable @typescript-eslint/no-explicit-any */
+  import Icon from "../lib/ui/Icon.svelte";
   import { untrack } from "svelte";
   import { teardown } from "../lib/state/teardown.svelte";
   import { transport } from "../lib/state/transport.svelte";
@@ -219,7 +220,7 @@
       <button type="button" class="btn" onclick={() => view.fit()}>Fit</button>
     </span>
     <Popover triggerClass="btn about" label="About the piano roll" class="about-pop" align="end">
-      {#snippet trigger()}<span aria-hidden="true">ⓘ</span>{/snippet}
+      {#snippet trigger()}<Icon name="info" />{/snippet}
       <p class="small">{#if source === "full" && poly}Notes are transcribed by Spotify's Basic Pitch, run in this browser ({full?.method}): every note it hears, with the notes below C3 shown as Bass and the rest as Notes. It is a general model, checked so far on one clean synthesized track only: expect wrong, missing and extra notes, and rough lengths.{:else if source === "full"}Melody and bass are read from the whole mix ({full?.method}). Rough: dense mixes make them hard to hear, and this has not been checked against real recordings.{:else}Melody and bass are a 4-bar phrase read from one section and folded into a loop, so they are not the song's notes bar by bar. {#if !full}This teardown was made before whole-track notes existed; analyse the track again to get them.{/if}{/if}
         The grey outlined notes are suggested voicings: plain triads built from the chord names (major or minor only), not notes heard in the audio. {#if a.chordRegions?.method === "chords-from-notes-v1"}The chord names are read from the transcribed notes above (checked on one piece only; where the notes are wrong the chords will be too).{:else}The chord names are detected from the audio.{/if}{#if regions} Each chord starts where the analysis hears the harmony change, which can be inside a bar.{/if}
         {#if a.chords?.loop}Most repeated 4-bar chord loop: <b class="mono">{a.chords.loop.join(" · ")}</b> (heard {a.chords.loopCount}×).{/if}
@@ -235,7 +236,7 @@
       {#if full}<Segmented class="srcseg" label="Which notes" items={[{ value: "full", label: "Full track" }, { value: "pattern", label: "Representative pattern" }]} value={source} onchange={v => (want = v as "full" | "pattern")} />{/if}
     </Popover>
     <Popover bind:open={menuOpen} triggerClass="btn midi" label="Download MIDI: choose the part, range and timing" class="midi-pop" align="end" side="bottom" disabled={nothing}>
-      {#snippet trigger()}↓ MIDI ▾{/snippet}
+      {#snippet trigger()}<Icon name="download" /> MIDI <Icon name="chevron-down" />{/snippet}
       <div class="mcols"><div class="mcol">
       <fieldset><legend>Part</legend>
         {#each PART_PICKS as o (o.id)}
@@ -292,12 +293,12 @@
     {#if cur != null}
       <div class="fix" role="group" aria-label={`Bar ${cur + 1} chord`}>
         <b>Bar {cur + 1}: {inBar.length ? inBar.join(" → ") : "no clear chord"}</b>{#if inBar.length === 1}<span class="small dim">({chordNotes(inBar[0])})</span>{:else if inBar.length > 1}<span class="small dim">A correction sets one chord for the whole bar.</span>{/if}
-        <button class="btn" type="button" onclick={sounds}>✓ Sounds right</button>
+        <button class="btn" type="button" onclick={sounds}><Icon name="check" /> Sounds right</button>
         <select class="isel" aria-label="Change this bar's chord" value="" onchange={e => { const v = e.currentTarget.value; if (v) setChord(v, "fixed"); e.currentTarget.value = ""; }}>
           <option value="">Change chord…</option>{#each opts as o (o)}<option value={o}>{o}</option>{/each}<option value="–">No chord</option>
         </select>
-        {#if playable}<button class="btn" type="button" onclick={() => hear(cur!)}>▶ Hear this bar with the chord</button>{/if}
-        <button class="btn close" type="button" aria-label="Close the chord correction" onclick={() => { cur = null; curKey = null; }}>✕</button>
+        {#if playable}<button class="btn" type="button" onclick={() => hear(cur!)}><Icon name="play" /> Hear this bar with the chord</button>{/if}
+        <button class="btn close" type="button" aria-label="Close the chord correction" onclick={() => { cur = null; curKey = null; }}><Icon name="close" /></button>
       </div>
     {/if}
     {#if missing.length}<p class="small missing">Not found: {missing.join(", ")}. <Basis kind="unknown" note="The analyzer could not read these reliably from the mix, so nothing is drawn for them." /></p>{/if}
@@ -324,9 +325,9 @@
   /* the draft strip: cobalt (it is about state, not data), one line, the progress as a hairline along its bottom */
   .draft { position: relative; display: flex; align-items: center; gap: 10px; margin: 0; padding: 8px 12px 10px; background: color-mix(in srgb, var(--tt-cobalt) 9%, var(--tt-panel)); color: var(--tt-ink); font-size: var(--tt-fs-sm); overflow: hidden; animation: draft-in 260ms cubic-bezier(.23, 1, .32, 1); }
   .draft p { margin: 0; flex: 1; min-width: 0; }
-  .draft b { font-weight: 600; }
+  .draft b { font-weight: 400; }
   .dmark { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--tt-cobalt); animation: draft-pulse 1.6s ease-in-out infinite; }
-  .dpct { flex: none; font-variant-numeric: tabular-nums; color: var(--tt-cobalt); font-weight: 600; }
+  .dpct { flex: none; font-variant-numeric: tabular-nums; color: var(--tt-cobalt); font-weight: 400; }
   .dbar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: color-mix(in srgb, var(--tt-cobalt) 18%, transparent); }
   .dbar i { display: block; height: 100%; background: var(--tt-cobalt); transform-origin: left center; transition: transform 300ms linear; }
   .draft.done { background: color-mix(in srgb, var(--tt-good) 10%, var(--tt-panel)); }
@@ -344,7 +345,7 @@
   .kk { display: block; width: 18px; height: 9px; margin-top: 4px; border-radius: 2px; box-sizing: border-box; }
   .kk.heard { background: #526BCE; } .kk.bass { background: #4E8A3E; }
   .kk.suggest { border: 1.2px solid #8A6BC9; } .kk.yours { border: 1.6px solid #2B2F2A; background: rgb(43 47 42 / .16); }
-  .kk.name { height: auto; margin-top: 0; font: 600 .7rem var(--tt-font-mono); color: var(--tt-ink-2); }
+  .kk.name { height: auto; margin-top: 0; font: 400 .7rem var(--tt-font-mono); color: var(--tt-ink-2); }
   .fix { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
   .fix .close { margin-left: auto; }
   .dim { color: var(--tt-ink-3); }

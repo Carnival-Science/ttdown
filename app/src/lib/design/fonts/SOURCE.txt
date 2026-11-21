@@ -1,0 +1,8 @@
+Fonts self-hosted by Teardown, unmodified, under the SIL Open Font License 1.1 (see the LICENSE files beside them).
+
+Absans-Regular.woff2      Absans by Valerio Monopoli, Collletttivo (https://www.collletttivo.it/typefaces/absans)
+                          from https://github.com/collletttivo/absans at e1ba5d9a2359934df024b4ebef4c1be76e0db263, fonts/Absans-Regular.woff2
+                          sha256 d99eeb41d82e7bd23b4c92483267143e10d5c9686ad299056ac057c03a34b68f
+NectoMono-Regular.woff2   Necto Mono by Marco Condello, Collletttivo (https://www.collletttivo.it/typefaces/necto-mono)
+                          from https://github.com/collletttivo/necto-mono at db9edb73bace38d64f36f29e698d9c7547045ce6, fonts/NectoMono-Regular.woff2
+                          sha256 92b49265d991b621e6ed90675608f70811caa4e2154f8ac095af073a9738b7e5

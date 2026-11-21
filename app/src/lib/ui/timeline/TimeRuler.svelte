@@ -33,7 +33,7 @@
   .ruler { position: relative; touch-action: none; user-select: none; overflow: hidden; }
   .ruler.seekable { cursor: pointer; }
   .ruler:focus-visible { outline: 2px solid var(--tl-focus, var(--tt-focus)); outline-offset: 2px; }
-  .ruler span { position: absolute; top: 0; height: 100%; padding-left: 3px; border-left: 1px solid var(--tt-line-2); font-size: .68rem; line-height: 1.4; white-space: nowrap; color: var(--tl-ink, var(--tt-ink-3)); font-variant-numeric: tabular-nums; }
+  .ruler span { position: absolute; top: 0; height: 100%; padding-left: 3px; border-left: 1px solid var(--tt-line-2); font-size: 11px; line-height: 1.4; white-space: nowrap; color: var(--tl-ink, var(--tt-ink-3)); font-variant-numeric: tabular-nums; }
   .ruler span.ext { border-left-style: dashed; opacity: .55; }
   .ruler span.end { translate: -100%; border-left: 0; border-right: 1px solid var(--tt-line-2); padding: 0 3px 0 0; }
 </style>

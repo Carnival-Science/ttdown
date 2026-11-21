@@ -3,6 +3,7 @@
      explanations, alternatives and the measured sound fold away until asked for. -->
 <script lang="ts">
   /* eslint-disable @typescript-eslint/no-explicit-any */
+  import Icon from "../lib/ui/Icon.svelte";
   import { teardown } from "../lib/state/teardown.svelte";
   import { domain } from "../lib/domain";
   import { engine } from "../lib/engine";
@@ -74,7 +75,7 @@
       <div class="keyopts">
         {#each keyOpts as k (k)}
           <span class="row tight">
-            <button class="btn drone-btn" type="button" onclick={() => drone.toggle(k)}>{drone.playing === k ? "■ Stop" : "▶ " + k}</button>
+            <button class="btn drone-btn" type="button" onclick={() => drone.toggle(k)}>{#if drone.playing === k}<Icon name="stop" /> Stop{:else}<Icon name="play" /> {k}{/if}</button>
             {#if k !== a.key}<button class="btn" type="button" onclick={() => setKey(k)}>Use</button>{/if}
           </span>
         {/each}
@@ -88,8 +89,8 @@
     <label class="small tick"><input type="checkbox" checked={!!a.notFourFour} onchange={e => teardown.setNotFourFour(e.currentTarget.checked)}> This track isn't in 4/4</label>
     <p class="small bar1">Bar 1 at {a.firstDown < 0 ? "−" : ""}{Math.abs(a.firstDown).toFixed(2)} s {#if moved % 4}<Basis kind="corrected" note="You moved bar 1; the track was analysed again with it there." />{:else}<Basis kind="estimated" note="The first downbeat the analyzer chose. Check it with the beat clicks." />{/if}</p>
     <div class="row tight">
-      <button class="btn" type="button" aria-label="Move bar 1 one beat earlier" disabled={busy || !teardown.canRecompute} onclick={() => teardown.moveBar1(-1)}>◀ One beat earlier</button>
-      <button class="btn" type="button" aria-label="Move bar 1 one beat later" disabled={busy || !teardown.canRecompute} onclick={() => teardown.moveBar1(1)}>One beat later ▶</button>
+      <button class="btn" type="button" aria-label="Move bar 1 one beat earlier" disabled={busy || !teardown.canRecompute} onclick={() => teardown.moveBar1(-1)}><Icon name="chevron-left" /> One beat earlier</button>
+      <button class="btn" type="button" aria-label="Move bar 1 one beat later" disabled={busy || !teardown.canRecompute} onclick={() => teardown.moveBar1(1)}>One beat later <Icon name="chevron-right" /></button>
     </div>
     {#if !teardown.canRecompute}<p class="small">Moving bar 1 analyses the track again, so it needs the audio: upload it again.</p>{/if}
     <details class="more"><summary>About the meter</summary>
