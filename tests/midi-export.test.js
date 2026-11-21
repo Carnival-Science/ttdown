@@ -174,7 +174,9 @@ for (const id of ["pop127_pad300", "pop127_pad1200", "leading_silence_2s", "pick
   { const m = JSON.parse(JSON.stringify(a)); m.drumEvidence = { method: "percussive-share-v1", found: false }; const nm = D.songMidiFiles(m, opts(m)).map(f => f.name), wm = D.songMidiFiles(m, Object.assign({ includeDrums: true }, opts(m))).map(f => f.name), nd = D.songMidiFiles(a, opts(a)).map(f => f.name);
     check(!nm.some(n => /Kick|Snare|Hi-hats/.test(n)) && nm.some(n => /Bass|808/.test(n)), `measured no drums: the full-song package has no invented drum files (${nm.join(", ")})`);
     check(wm.some(n => /Kick/.test(n)) && wm.some(n => /Snare/.test(n)) && wm.some(n => /Hi-hats/.test(n)), "measured no drums: includeDrums brings the drum files back");
-    check(nd.some(n => /Kick/.test(n)), "a track with drums keeps its drum files"); }
+    check(nd.some(n => /Kick/.test(n)), "a track with drums keeps its drum files");
+    const hh = JSON.parse(JSON.stringify(a)); hh.drumEvidence = { method: "percussive-share-v1", found: true }; const off = v => v.map(() => false); hh.pattern.kick = off(hh.pattern.kick); hh.pattern.snare = off(hh.pattern.snare); (hh.drumParts || []).forEach(p => { p.kick = off(p.kick); p.snare = off(p.snare); });
+    const hn = D.songMidiFiles(hh, opts(hh)).map(f => f.name); check(D.noDrumsFound(hh) === true && hn.some(n => /Hi-hats/.test(n)), `hi-hats with no kick or snare, and percussion measured: the hi-hat file is still exported (${hn.join(", ")})`); }
   const b = JSON.parse(JSON.stringify(a)); b.pattern.kick = b.pattern.kick.map(() => false); b.pattern.snare = b.pattern.snare.map(() => false); (b.drumParts || []).forEach(p => { p.kick = p.kick.map(() => false); p.snare = p.snare.map(() => false); });
   check(D.noDrumsFound(b) === true, "no kick or snare anywhere: drumless (hi-hats alone do not make drums)");
   const c = JSON.parse(JSON.stringify(b)); if (c.drumParts && c.drumParts.length) c.drumParts[c.drumParts.length - 1].snare[4] = true; check(D.noDrumsFound(c) === (!(c.drumParts && c.drumParts.length)), "one snare in any section's pattern keeps the drum tools");
