@@ -46,7 +46,8 @@ const OUT = path.join(__dirname, "out", `e2e-journey-${BROWSER}`);
     // 3. MIDI from the piano roll (the first tab, open by default): all parts, the whole track, quantized; no bar-line confirmation step
     check(await p.locator('.detail [role="tab"][aria-selected="true"]').innerText() === "Piano roll", "3: the Piano roll is the open tab");
     await p.click(".detail .phead .midi"); await p.waitForTimeout(200);
-    for (const [name, v] of [["part", "all"], ["range", "whole"], ["timing", "quantized"]]) await p.locator(`.midi-pop input[name="midi-${name}"][value="${v}"]`).check();
+    for (const part of ["hook", "bass", "chords"]) await p.locator(`.midi-pop input[name="midi-part"][value="${part}"]`).check();   // parts are checkboxes now: tick all three
+    for (const [name, v] of [["range", "whole"], ["timing", "quantized"]]) await p.locator(`.midi-pop input[name="midi-${name}"][value="${v}"]`).check();
     const [dl] = await Promise.all([p.waitForEvent("download"), p.locator(".midi-pop .dl").click()]); const midPath = path.join(OUT, "song.mid"); await dl.saveAs(midPath);
     const d = decodeMidi(fs.readFileSync(midPath)), bpm = d.tempos[0] && d.tempos[0].bpm;
     check(d.format === 1 && d.tracks.length >= 2 && d.notes.length > 0 && Math.abs(bpm - 127) < 0.01, `3: the all-parts MIDI (${dl.suggestedFilename()}) is a readable multitrack file at ${bpm} BPM with ${d.notes.length} notes`);
