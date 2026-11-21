@@ -142,6 +142,14 @@ const CR = { tau: 0.03, change: 3, offbeat: 0.6, onBar: 0.4, nc: 0.22, bassRoot:
    below 200 Hz (pLo) in up to 8 windows of 8 s spread over the track; the highest window of each decides (the windows are the most transient-heavy ones of a cheap scan of the whole track plus evenly spaced ones), so an intro, a quiet passage or a short drum section does not hide the drums. found: false only when BOTH are clearly low, true when pAll is high, else null (unclear). Calibrated on a
    handful of files only (docs/DRUM_EVIDENCE.md), so a quiet or washed-out drum part can read as "none". */
 const DRUM_EV = { win: 8, minWin: 5, maxWin: 8, picks: 4, none: { pAll: 0.20, pLo: 0.30 }, yes: { pAll: 0.30 } };
+/* Bar-1 rules for pieces with no measured drums (issue #50, docs/BAR1_NO_DRUMS.md). Tuned on five real renders, so a regression guard, not a measurement. */
+const BAR1 = { voteMin: 150, startWithin: 0.25 };
+/* Seconds to the first 10 ms frame louder than 2% of the track's 99th-percentile frame RMS; null for silence. */
+function firstSound(x, SR) {
+  const hop = Math.round(SR / 100), rms = []; for (let i = 0; i + hop <= x.length; i += hop) { let q = 0; for (let k = i; k < i + hop; k++) q += x[k] * x[k]; rms.push(Math.sqrt(q / hop)); }
+  const ref = rms.slice().sort((a, b) => a - b)[Math.floor(rms.length * 0.99)] || 0, k0 = rms.findIndex(v => v > 0.02 * ref);
+  return k0 < 0 || !(ref > 0) ? null : k0 / 100;
+}
 function drumEvidence(x, SR) {
   try {
     const N = 2048, H = 512, K = N / 2, L = 8, W = Math.min(Math.round(DRUM_EV.win * SR), x.length); if (x.length < DRUM_EV.minWin * SR || W < 1) return null;
@@ -714,9 +722,15 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
      and bass notes start on beat 1 more than anywhere else. The full-track transcription is read once on the current grid and its
      duration-weighted onsets are counted on the 8 eighth-note positions of a bar; a clear winner moves bar 1 there, by half a beat when
      it is an off-beat (which also fixes beats locked onto the 8ths). Notes keep their times; only their bar and beat are relabelled.
-     Measured on a MIDI render with a two-note pickup (bench/paired-renders): bar 1 lands on the first chord. Not used when drums decide. */
-  let early = null, rephased = 0;
-  if (pat && downK0 != null && !(forced && forced.downbeatShift) && !snare.some(Boolean) && beatsF.length >= 16) {
+     Measured on a MIDI render with a two-note pickup (bench/paired-renders): bar 1 lands on the first chord. Not used when drums decide.
+     Version B, B3 (issue #50): the same rule also runs when the drum evidence MEASURES no drums, because the snare steps the tracker finds on a
+     piano are its attacks, not a backbeat. A syncopated piece gives the vote nothing to count (even perfect MIDI onsets favour the off-beats on
+     3 of 4 renders), so the vote needs BAR1.voteMin weighted notes and a clear winner. Without that, if the audio starts within BAR1.startWithin
+     seconds the first sound is taken as bar 1 (a loop or bounce cut at a bar line): the beat lattice is moved half a beat if it sits on the
+     off-beats and is extended back to that sound. A track that starts on a pickup with too few notes to vote is misread by this fallback. */
+  let early = null, rephased = 0, anchor = null, voted = false;
+  const de0 = drumEvidence(x, SR), noDrums = !!(de0 && de0.found === false);
+  if (pat && downK0 != null && !(forced && forced.downbeatShift) && (!snare.some(Boolean) || noDrums) && beatsF.length >= 16) {
     const fd0 = firstDownOf(bar0), G0 = (() => { try { return TimeMap.forAnalysis({ duration: dur, bpm, barSec, firstDown: fd0, grid: gridOf() }); } catch (e) { return null; } })();
     early = G0 && G0.tracked ? transcribeTrack(x, SR, G0, fd0, barSec, nBars, dur, sections, tune, priorEarly) : null;
     if (early) {
@@ -725,12 +739,21 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
       const v = new Array(8).fill(0); let cnt = 0;
       for (const [part, w] of [["lead", 1], ["bass", 1.5]]) for (const n of early[part]) { const i = near(n.on); if (Math.abs(e8[i] - n.on) > 0.04) continue; v[((i - 2 * downK0) % 8 + 8) % 8] += w * Math.min(4, n.dur); cnt++; }
       const best = v.indexOf(Math.max(...v)), second = Math.max(...v.filter((_, i) => i !== best));
-      if (cnt >= 32 && best !== 0 && v[best] >= 1.2 * second) rephased = best;
+      voted = cnt >= (noDrums ? BAR1.voteMin : 32) && v[best] >= 1.2 * second; if (voted && best !== 0) rephased = best;
     }
-    if (rephased) {
+    if (!voted && noDrums) { // B3 fallback: the first sound is bar 1
+      const t0 = firstSound(x, SR), T = beatsF.map(fr2s);
+      if (t0 != null && t0 < BAR1.startWithin) { anchor = { t0 }; rephased = (((Math.round((t0 - T[downK0]) / ((T[T.length - 1] - T[0]) / (T.length - 1) / 2))) % 8) + 8) % 8; }
+    }
+    if (rephased || anchor) {
       const half = rephased % 2, s16 = 2 * rephased;
       if (half) { const nb = []; for (let k = 0; k + 1 < beatsF.length; k++) nb.push((beatsF[k] + beatsF[k + 1]) / 2); beatsF.length = 0; beatsF.push(...nb); if (tempoFit) tempoFit.phase += fps * 30 / tempoFit.bpm; }
-      downK0 = ((downK0 + (rephased - half) / 2) % 4 + 4) % 4; bar0 = beatsF[downK0];
+      downK0 = ((downK0 + (rephased - half) / 2) % 4 + 4) % 4;
+      if (anchor) { // extend the lattice back to the first sound; the beat there is bar 1
+        const Pf = beatsF[1] - beatsF[0]; while (beatsF.length < 4000 && fr2s(beatsF[0] - Pf) >= anchor.t0 - 0.03) beatsF.unshift(beatsF[0] - Pf);
+        let bi = 0, bd = Infinity; beatsF.forEach((f, k) => { const d = Math.abs(fr2s(f) - anchor.t0); if (d < bd) { bd = d; bi = k; } }); downK0 = bi % 4;
+      }
+      bar0 = beatsF[downK0];
       const r16 = A => A.slice(s16 % 16).concat(A.slice(0, s16 % 16));
       for (const k of ["kick", "snare", "hats"]) { pat[k] = r16(pat[k]); for (const g of ["ghost", "vel", "freq"]) if (pat[g]) pat[g][k] = r16(pat[g][k]); }
       kick = pat.kick; snare = pat.snare; hats = pat.hats; rhythm.fourFloor = [0, 4, 8, 12].every(i => kick[i]);
@@ -800,8 +823,8 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
     balance, width: +width.toFixed(2), loudRms: +loudRms.toFixed(1), crest: +crest.toFixed(1), peakDb: +(20 * Math.log10(peak + 1e-9)).toFixed(1)
   };
   if (tempoFit) result.tempoFit = { method: "constant-comb-v1", bpm: +tempoFit.bpm.toFixed(3), ratio: tempoFit.ratio, quarters: tempoFit.quarters, locked: tempoFit.locked };
-  if (rephased) result.downbeatFit = { method: "note-onsets-v1", movedBy8ths: rephased }; // bar 1 chosen from the notes (no backbeat); see B2 above
-  { const de = drumEvidence(x, SR); if (de) result.drumEvidence = de; } // after every Version A field, like the fields below
+  if (rephased || anchor) result.downbeatFit = { method: anchor ? "first-sound-v1" : "note-onsets-v1", movedBy8ths: rephased }; // bar 1 chosen from the notes (no backbeat); see B2 above
+  if (de0) result.drumEvidence = de0; // after every Version A field, like the fields below
   if (full) result.transcription = full; // after every Version A field, so those are untouched and in their original order
   { const regions = chordRegions(x, SR, barGrid, nBars, dur, tune, scaleOf(kt, kmi), full && full.bass, barChords); if (regions) result.chordRegions = { method: "chords-v2", regions }; }
   /* Measurement only (G0): the tracked beat and downbeat times in seconds, as the engine computed them.
