@@ -8,6 +8,9 @@
   import Popover from "../lib/ui/Popover.svelte";
   import RecentList from "./RecentList.svelte";
   import Changelog from "./Changelog.svelte";
+  import { PULSE } from "../lib/ui/favicon";
+  // while the note model transcribes, the mark runs the same cobalt pulse as the tab icon (lib/ui/favicon.ts), started together
+  const pulseVars = PULSE.rest.map((c, i) => `--rest:${c};--peak:${PULSE.peak[i]};--round:${PULSE.ms}ms;--lead:${-(1 - i / 3) * PULSE.ms}ms`);
 
   let fileEl: HTMLInputElement;
   let recentOpen = $state(false);
@@ -22,7 +25,7 @@
 <svelte:document onkeydown={e => { if (e.key === "Escape" && teardown.running) teardown.cancel(); }} />
 
 <header class="toolbar">
-  <h1 class="brand"><a class="home" href="./" aria-label="Teardown: back to the start" onclick={e => { e.preventDefault(); teardown.home(); }}><svg class="mark" viewBox="0 0 40 28" aria-hidden="true"><circle cx="13" cy="14" r="11" fill="#8EBF5E" /><circle cx="25" cy="11" r="10" fill="#7FB38F" /><circle cx="22" cy="19" r="8" fill="#5E9A6A" /></svg><span class="word">teardown</span></a></h1>
+  <h1 class="brand"><a class="home" href="./" aria-label="Teardown: back to the start" onclick={e => { e.preventDefault(); teardown.home(); }}><svg class="mark" class:working={teardown.transcribing} viewBox="0 0 40 28" aria-hidden="true"><circle cx="13" cy="14" r="11" fill="#8EBF5E" style={pulseVars[0]} /><circle cx="25" cy="11" r="10" fill="#7FB38F" style={pulseVars[1]} /><circle cx="22" cy="19" r="8" fill="#5E9A6A" style={pulseVars[2]} /></svg><span class="word">teardown</span></a></h1>
   <input type="file" id="file" class="sr-only" tabindex="-1" bind:this={fileEl} accept="audio/*,.mp3,.wav,.m4a,.flac,.ogg,.aac" onchange={pick}>
   <button type="button" class="btn primary open" onclick={() => fileEl.click()}>Open track</button>
   <input type="text" id="title" class="name" placeholder="Name (optional)" aria-label="Name of the track" maxlength="80" bind:value={teardown.title}
@@ -76,7 +79,11 @@
   .home:active .mark { transform: scale(0.94); }
   .home .mark { transition: transform 120ms cubic-bezier(.23, 1, .32, 1); }
   .brand .mark { width: 34px; height: 24px; overflow: visible; } /* the hover nudge moves the discs past the viewBox: draw them anyway, never clipped */
-  .brand .mark circle { mix-blend-mode: multiply; opacity: .8; transform-box: fill-box; transform-origin: center; transition: translate 600ms cubic-bezier(.23, 1, .32, 1); }
+  .brand .mark circle { mix-blend-mode: multiply; opacity: .8; transform-box: fill-box; transform-origin: center; transition: translate 600ms cubic-bezier(.23, 1, .32, 1), fill 400ms ease; }
+  /* transcribing: the discs turn cobalt and a glow passes from one to the next, the same round as the tab icon */
+  .brand .mark.working circle { fill: var(--rest); opacity: .9; animation: mark-pulse var(--round) linear var(--lead) infinite; }
+  @keyframes mark-pulse { 0%, 100% { fill: var(--peak); scale: 1.08; } 25%, 75% { fill: var(--rest); scale: 1; } }
+  @media (prefers-reduced-motion: reduce) { .brand .mark.working circle { animation: none; } }
   .brand:hover .mark circle:nth-child(1) { translate: -2px 1px; } .brand:hover .mark circle:nth-child(2) { translate: 2px -1px; } .brand:hover .mark circle:nth-child(3) { translate: 1px 2px; }
   .toolbar :global(.btn) { min-height: 38px; }
   .name { width: 220px; flex: none; min-height: 38px; }
