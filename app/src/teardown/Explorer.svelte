@@ -231,7 +231,7 @@
     {/if}
 
     {#if drums.hidden}
-      <p class="small notice info" role="status" data-drumless>No kick or snare was found in this track, so the drum tools are hidden. It may be drumless, or its drums may be too quiet or too washed out to detect. <button class="btn" type="button" onclick={() => drums.showAnyway()}>Show the drum tools anyway</button></p>
+      <p class="small notice info" role="status" data-drumless>{#if drums.measured}No drums found in this track, so there is no drum analysis and the drum tools are hidden. Almost none of the sound is percussive, as in a solo piano piece; a very quiet or washed-out drum part could read the same way. Vocals are not detected. {:else}No kick or snare was found in this track, so the drum tools are hidden. It may be drumless, or its drums may be too quiet or too washed out to detect. {/if}<button class="btn" type="button" onclick={() => drums.showAnyway()}>Show the drum tools anyway</button></p>
     {/if}
 
     {#if !playable}

@@ -135,6 +135,40 @@ function transcribe(x, SR, firstDown, barSec, sections, tune) {
    which need not be bar lines. Pickup bar (-1) included. Triads only for now; "–" = no chord heard. Returns [{ t0, t1, bar, beat, endBar,
    endBeat, c }] (bar 0 = bar 1; beat = quarter-note position in that bar from 0, in 8ths; the end is exclusive) or null without a bar grid. Measurement-free: never changes chords.bars. */
 const CR = { tau: 0.03, change: 3, offbeat: 0.6, onBar: 0.4, nc: 0.22, bassRoot: 0.3, bassTone: 0.08, outKey: 0.08, minStepEnergy: 0.02, barPrior: 0.1, pedalWin: 16, pedalShare: 0.85 };
+/* Is there percussion in this track at all? Measured, not guessed from the drum pattern (that is always normalised to the loudest step, so it
+   finds a "kick" even in a piano piece). Harmonic/percussive separation, light version: on a 2048-point spectrogram (hop 512) a bin's
+   percussive share is its median across 17 neighbouring frequencies against its median across 17 neighbouring frames (sustained tones are
+   steady in time, hits are steady in frequency). The share of energy that is percussive is taken over the whole spectrum (pAll) and
+   below 200 Hz (pLo) in up to 8 windows of 8 s spread over the track; the highest window of each decides (the windows are the most transient-heavy ones of a cheap scan of the whole track plus evenly spaced ones), so an intro, a quiet passage or a short drum section does not hide the drums. found: false only when BOTH are clearly low, true when pAll is high, else null (unclear). Calibrated on a
+   handful of files only (docs/DRUM_EVIDENCE.md), so a quiet or washed-out drum part can read as "none". */
+const DRUM_EV = { win: 8, minWin: 5, maxWin: 8, picks: 4, none: { pAll: 0.20, pLo: 0.30 }, yes: { pAll: 0.30 } };
+function drumEvidence(x, SR) {
+  try {
+    const N = 2048, H = 512, K = N / 2, L = 8, W = Math.min(Math.round(DRUM_EV.win * SR), x.length); if (x.length < DRUM_EV.minWin * SR || W < 1) return null;
+    const out = new Float32Array(K), kLo = Math.round(200 / (SR / N)), win = new Float32Array(2 * L + 1), med = () => { for (let i = 1; i < win.length; i++) { const v = win[i]; let j = i - 1; while (j >= 0 && win[j] > v) { win[j + 1] = win[j]; j--; } win[j + 1] = v; } return win[L]; };
+    // which windows: the whole track is scanned cheaply for transient activity (normalised spectral flux, 1024-point frames), and the most active
+    // windows are analysed together with evenly spaced ones, so drums that play in only one part of a long track are not skipped
+    const starts = new Set(), last = Math.max(0, x.length - W), nEven = Math.min(DRUM_EV.maxWin - DRUM_EV.picks, Math.floor(x.length / W)) || 1;
+    for (let w = 0; w < nEven; w++) starts.add(Math.floor(last * (w + 0.5) / nEven));
+    { const n1 = 1024, h1 = 512, o1 = new Float32Array(n1 / 2), nf = Math.floor((x.length - n1) / h1); let prev = null; const fx = new Float32Array(Math.max(0, nf));
+      for (let t = 0; t < nf; t++) { mag(x, t * h1, n1, o1); let up = 0, tot = 1e-9; for (let k = 2; k < n1 / 2; k++) { tot += o1[k]; if (prev) up += Math.max(0, o1[k] - prev[k]); } fx[t] = prev ? up / tot : 0; prev = Float32Array.from(o1); }
+      const fw = Math.floor(W / h1), cs = new Float64Array(nf + 1); for (let t = 0; t < nf; t++) cs[t + 1] = cs[t] + fx[t];
+      const cand = []; for (let t = 0; t + fw <= nf; t += Math.max(1, Math.floor(2 * SR / h1))) cand.push({ t, v: cs[t + fw] - cs[t] }); cand.sort((p, q) => q.v - p.v);
+      const taken = []; for (const c of cand) { if (taken.length >= DRUM_EV.picks) break; if (taken.every(u => Math.abs(u - c.t) >= fw)) taken.push(c.t); }
+      taken.forEach(t => starts.add(Math.min(last, t * h1))); }
+    let bestAll = 0, bestLo = 0;
+    for (const s0 of starts) {
+      const nF = Math.floor((W - N) / H), S = []; for (let t = 0; t < nF; t++) { mag(x, s0 + t * H, N, out); S.push(Float32Array.from(out)); }
+      let Ea = 0, Pa = 0, El = 0, Pl = 0;
+      for (let t = L; t < nF - L; t++) { const sp = S[t]; for (let k = 1; k < K; k++) {
+        for (let i = -L; i <= L; i++) win[i + L] = sp[Math.min(K - 1, Math.max(0, k + i))]; const p = med(); for (let i = -L; i <= L; i++) win[i + L] = S[t + i][k]; const h = med(); // frequency neighbours are clamped at both ends of the spectrum, so the lowest bins (kicks, sub bass) count
+        const v = sp[k] * sp[k], pp = p * p, den = pp + h * h + 1e-12, P = v * pp / den; Ea += v; Pa += P; if (k <= kLo) { El += v; Pl += P; } } }
+      if (Ea > 0) { bestAll = Math.max(bestAll, Pa / Ea); if (El > 0) bestLo = Math.max(bestLo, Pl / El); }
+    }
+    const found = bestAll < DRUM_EV.none.pAll && bestLo < DRUM_EV.none.pLo ? false : bestAll >= DRUM_EV.yes.pAll ? true : null;
+    return { method: "percussive-share-v1", windows: starts.size, pAll: +bestAll.toFixed(3), pLo: +bestLo.toFixed(3), found };
+  } catch (e) { return null; }
+}
 function chordRegions(x, SR, G, nBars, dur, tune, scale, bass, barChords) {
   try {
     if (!G || !(nBars > 0)) return null;
@@ -767,6 +801,7 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
   };
   if (tempoFit) result.tempoFit = { method: "constant-comb-v1", bpm: +tempoFit.bpm.toFixed(3), ratio: tempoFit.ratio, quarters: tempoFit.quarters, locked: tempoFit.locked };
   if (rephased) result.downbeatFit = { method: "note-onsets-v1", movedBy8ths: rephased }; // bar 1 chosen from the notes (no backbeat); see B2 above
+  { const de = drumEvidence(x, SR); if (de) result.drumEvidence = de; } // after every Version A field, like the fields below
   if (full) result.transcription = full; // after every Version A field, so those are untouched and in their original order
   { const regions = chordRegions(x, SR, barGrid, nBars, dur, tune, scaleOf(kt, kmi), full && full.bass, barChords); if (regions) result.chordRegions = { method: "chords-v2", regions }; }
   /* Measurement only (G0): the tracked beat and downbeat times in seconds, as the engine computed them.
@@ -779,5 +814,5 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
   return result;
 }
 
-return Object.freeze({ analyze, analyzeDecoded, transcribe, transcribeTrack, fitConstantTempo, tick, mag, detrend, acfAt, NAMES, CAM_MAJ, CAM_MIN, LIMITS, InputLimitError, fmtLen, ANALYSIS_STATS });
+return Object.freeze({ analyze, analyzeDecoded, drumEvidence, transcribe, transcribeTrack, fitConstantTempo, tick, mag, detrend, acfAt, NAMES, CAM_MAJ, CAM_MIN, LIMITS, InputLimitError, fmtLen, ANALYSIS_STATS });
 });

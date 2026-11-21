@@ -133,6 +133,16 @@ fs.mkdirSync(OUT, { recursive: true });
     check(await tabBtn(p, "Rhythm").count() === 1 && await p.locator("#explorer [data-drumless]").count() === 0, "'Show the drum tools anyway' brings them back");
     await p.close(); }
 
+  { // no drums, MEASURED: the sound is not percussive (a piano piece): the analysis carries drumEvidence, and the page says so and hides the drum tools
+    const p = await open(); await analyse(p, path.join(SONGS, "pop127_Amaj.wav"));
+    const ev = await p.evaluate(() => window.__td.drumEvidence);
+    check(ev && ev.method === "percussive-share-v1" && ev.found === true && ev.pAll >= 0.3, `a track with drums carries drum evidence that says so (${JSON.stringify(ev)})`);
+    await p.evaluate(() => window.__tdReplace(y => { y.drumEvidence = { method: "percussive-share-v1", windows: 8, pAll: 0.11, pLo: 0.1, found: false }; })); await p.waitForTimeout(300);
+    const note = await p.locator("#explorer [data-drumless]").innerText().catch(() => "");
+    check(/^No drums found in this track, so there is no drum analysis/.test(note) && /Vocals are not detected/.test(note), `measured: the notice says no drums were found and that vocals are not detected ("${note.slice(0, 70)}…")`);
+    check(await tabBtn(p, "Rhythm").count() === 0 && await p.locator('#explorer button:has-text("Drums")').count() === 0, "measured: no Rhythm tab and no Drums button, although the pattern has a kick");
+    await p.close(); }
+
   console.log("errors", errs); if (errs.length || failed) process.exitCode = 1; await b.close();
   if (!process.exitCode) console.log(`app part-midi tests passed (${n})`);
 })();
