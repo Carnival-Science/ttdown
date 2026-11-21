@@ -11,6 +11,9 @@
  *   8. a moving bass is read exactly as before the pedal guard (the regions match those of the reader at c41a590, byte for byte)
  *   9. a chord change inside the bar with the bass moving too (A for 2.5 beats over A, F#m for 1.5 beats over F#, every bar, at 120 BPM) is
  *      not a pedal: both chords are read in every bar, as without the guard (PR #59 review; the first guard read F#m from bar 1 on)
+ *  10. the same change with the bass moving up across C3 (A2 or A1 under A, then F#3 lowest under F#m, no note below C3): no bass reading
+ *      is not evidence of a held bass, so it is not a pedal; at 120 BPM both chords are read in every bar, and at 100, 120 and 140 BPM the
+ *      regions are exactly those without the guard (main at 92de5bc). Before the heard-in-every-beat test the guard read F#m from 1 s on.
  * Synthetic notes only; the real-music numbers are in docs/SYMBOLIC_CHORDS.md. */
 "use strict";
 const TM = require("../src/timemap"), TS = require("../src/timing-store"), eng = require("../src/engine")({ TimeMap: TM }), D = require("../src/domain")({ TimingStore: TS, engine: eng });
@@ -70,5 +73,15 @@ for (const [bA, bF] of [[45, 42], [33, 30]]) {
   for (let b = 0; b < 4; b++) { const t0 = b * 2, tc = t0 + 1.25; [57, 61, 64, bA].forEach(m => notes.push({ on: t0, off: tc, midi: m })); [54, 57, 61, bF].forEach(m => notes.push({ on: tc, off: t0 + 2, midi: m })); }
   const r = D.chordRegionsFromNotes(a, G, notes), seq = r.regions.filter(x => x.c !== "–").map(x => `${x.bar}:${x.c}`).join(" ");
   check(seq === "0:A 0:F#m 1:A 1:F#m 2:A 2:F#m 3:A 3:F#m", `9: A then F#m inside every bar, bass ${bA} -> ${bF}, both chords read in each bar: ${said(r).join(" | ")}`);
+}
+// 10: the bass moves up across C3 inside the bar (PR #59 review, C3 crossing). Each bar: A2 (or A1) with A major for 2.5 beats, then F#m whose
+// lowest note is F#3, so nothing sounds below C3. Pinned: sha256 of the regions from main (92de5bc), which has no guard.
+const WITHOUT_GUARD = { "120": "373f3c1348859f63", "100": "9699c63909cc0f80", "140": "e235b68f3c233690" };
+for (const bpm of [120, 100, 140]) for (const bA of [45, 33]) {
+  const { a, G, bar } = song(bpm, 0, 4), notes = [];
+  for (let b = 0; b < 4; b++) { const t0 = b * bar, tc = t0 + 2.5 * bar / 4; [bA, 57, 61, 64].forEach(m => notes.push({ on: t0, off: tc, midi: m })); [54, 57, 61, 66].forEach(m => notes.push({ on: tc, off: t0 + bar, midi: m })); }
+  const r = D.chordRegionsFromNotes(a, G, notes), h = crypto.createHash("sha256").update(JSON.stringify(r)).digest("hex").slice(0, 16), seq = r.regions.filter(x => x.c !== "–").map(x => `${x.bar}:${x.c}`).join(" ");
+  if (bpm === 120) check(seq === "0:A 0:F#m 1:A 1:F#m 2:A 2:F#m 3:A 3:F#m", `10: bass ${bA} then F#3 (above C3) inside every bar at 120 BPM: both chords in each bar: ${said(r).join(" | ")}`);
+  check(h === WITHOUT_GUARD[bpm], `10: bass ${bA} then F#3 inside every bar at ${bpm} BPM reads exactly as without the guard (${h}): ${seq}`);
 }
 console.log(`chords-from-notes tests: ${pass} passed, ${fail} failed`); if (fail) process.exit(1);

@@ -2268,13 +2268,17 @@ function chordRegionsFromNotes(a, G, notes) {
     // Pedal guard (#26): a bass note held while the harmony above it changes (a pedal, such as an 808 on the key's root) is not each chord's
     // root. A bar is a pedal bar when its lowest bass note (below C3, the bass split above) has ONE pitch class at every 8th that has a bass
     // note, and that pitch class is also the most frequent one in each neighbouring bar (a neighbour with no bass notes, or a tie, rules it
-    // out; the first and last bars need only their one neighbour); there the lowest-note root bonus is not given. A bass that moves inside
-    // the bar (A then F#, a change on beat 3.5) is never a pedal, and where the bass moves between bars the reading is the same as without
-    // the guard.
+    // out; the first and last bars need only their one neighbour), AND the pedal is heard in every beat of the bar: in each beat, at least
+    // one 8th has that pitch class as its lowest bass note sounding for at least half of the 8th. No bass reading is not evidence of a held
+    // bass (A2 moving up to F#3 leaves no note below C3), and a sliver of a neighbouring note does not count. In a pedal bar the lowest-note
+    // root bonus is not given. A bass that moves inside the bar (A then F#, a change on beat 3.5) is never a pedal, and where the bass moves
+    // between bars the reading is the same as without the guard.
     const lowPc = st => { let low = null; for (const x of srt) { if (x.on >= st.t1) break; if (x.midi < 48 && x.off > st.t0 && (low === null || x.midi < low)) low = x.midi; } return low === null ? null : ((low % 12) + 12) % 12; };
     const barLow = new Map(); for (const st of steps) { const c = barLow.get(st.b) || new Array(12).fill(0), l = lowPc(st); if (l !== null) c[l]++; barLow.set(st.b, c); }
     const domLow = b => { const c = barLow.get(b); if (!c) return undefined; let k = 0; for (let i = 1; i < 12; i++) if (c[i] > c[k]) k = i; return c[k] > 0 && c.filter(v => v === c[k]).length === 1 ? k : null; };
-    const pedalBar = b => { const d = domLow(b), p = domLow(b - 1), q = domLow(b + 1); return d != null && barLow.get(b).filter(v => v > 0).length === 1 && (p !== undefined || q !== undefined) && (p === undefined || p === d) && (q === undefined || q === d); };
+    const solidPc = st => { let low = null; for (const x of srt) { if (x.on >= st.t1) break; if (x.midi < 48 && Math.min(x.off, st.t1) - Math.max(x.on, st.t0) >= (st.t1 - st.t0) / 2 && (low === null || x.midi < low)) low = x.midi; } return low === null ? null : ((low % 12) + 12) % 12; };
+    const heardEveryBeat = (b, d) => { const bs = steps.filter(st => st.b === b), all = new Set(bs.map(st => st.i >> 1)), heard = new Set(bs.filter(st => solidPc(st) === d).map(st => st.i >> 1)); return heard.size === all.size; };
+    const pedalBar = b => { const d = domLow(b), p = domLow(b - 1), q = domLow(b + 1); return d != null && barLow.get(b).filter(v => v > 0).length === 1 && heardEveryBeat(b, d) && (p !== undefined || q !== undefined) && (p === undefined || p === d) && (q === undefined || q === d); };
     for (const st of steps) st.pedal = pedalBar(st.b);
     const emit = steps.map(st => {
       const lo = st.t0 - CFN.win * st.beat, hi = st.t1 + CFN.win * st.beat, w = new Array(12).fill(0); let low = null, tot = 0;
