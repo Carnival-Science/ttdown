@@ -28,11 +28,11 @@
   .version:hover, .version:focus-visible { color: var(--tt-ink); }
   .changelog { display: grid; gap: 24px; }
   .rhead { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
-  .rv { margin: 0; font: 700 1.6rem var(--tt-font-display); color: var(--tt-ink); }
+  .rv { margin: 0; font: 400 1.6rem var(--tt-font-display); color: var(--tt-ink); }
   .rv.current { color: var(--tt-accent); }
   .rdate { color: var(--tt-ink-3); font-size: var(--tt-fs-sm); }
   .rintro { margin: 8px 0 0; color: var(--tt-ink-2); }
-  .rsec { margin: 20px 0 8px; font: 500 var(--tt-fs-sm) var(--tt-font-display); color: var(--tt-ink-3); text-transform: none; }
+  .rsec { margin: 20px 0 8px; font: 400 var(--tt-fs-sm) var(--tt-font-display); color: var(--tt-ink-3); text-transform: none; }
   .ritems { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
   .ritems li { position: relative; padding-left: 16px; color: var(--tt-ink-2); }
   .ritems li::before { content: "-"; position: absolute; left: 0; color: var(--tt-ink-3); }

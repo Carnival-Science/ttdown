@@ -39,10 +39,12 @@
   --tt-part-bass: #4E8A3E;
   --tt-part-chords: #8A6BC9;
 
-  /* type: a compact bold wordmark, a neutral grotesque for the interface, monospaced figures for anything measured */
-  --tt-font-display: "Archivo Variable", "Archivo", "Arial Narrow", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --tt-font-body: "Helvetica Neue", Helvetica, Arial, "Nimbus Sans", "Liberation Sans", sans-serif;
-  --tt-font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  /* type: ONE weight. Absans (an early-twentieth-century grotesque with small imperfections) for everything, Necto Mono for figures and
+     technical labels; hierarchy comes from size, colour and spacing, never bold (font-synthesis is off, so nothing is faux-bolded).
+     The "teardown" wordmark is Absans too. */
+  --tt-font-display: "Absans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --tt-font-body: "Absans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --tt-font-mono: "Necto Mono", ui-monospace, Menlo, Consolas, monospace;
   --tt-fs: 15px;
   --tt-fs-sm: 0.88rem;
   --tt-fs-xs: 0.76rem;

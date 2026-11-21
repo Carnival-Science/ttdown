@@ -2,6 +2,7 @@
      found nothing, instead of filling the space. -->
 <script lang="ts">
   /* eslint-disable @typescript-eslint/no-explicit-any */
+  import Icon from "../lib/ui/Icon.svelte";
   import type { Snippet } from "svelte";
   import { teardown } from "../lib/state/teardown.svelte";
   import { player } from "../lib/state/player.svelte";
@@ -44,7 +45,7 @@
   {#if tools}{@render tools()}{/if}
   <div class="dsec">
     <h3 class="dtitle" title={`${fmtT(s.start)}–${fmtT(s.end)}`}>{sectionName(s.label, a)} <span class="small mono">bars {s.startBar + 1}–{s.startBar + s.bars}</span></h3>
-    {#if playable}<div class="row" style="gap:6px"><button class="btn cool" type="button" onclick={() => player.seek(s.start)}>▶ Play from here</button><button class="btn" type="button" onclick={() => player.loopSection?.(index, 1)}>Loop section</button></div>{/if}
+    {#if playable}<div class="row" style="gap:6px"><button class="btn cool" type="button" onclick={() => player.seek(s.start)}><Icon name="play" /> Play from here</button><button class="btn" type="button" onclick={() => player.loopSection?.(index, 1)}>Loop section</button></div>{/if}
   </div>
 {/snippet}
 
@@ -69,7 +70,7 @@
           {/if}
           <details class="more"><summary>About this pattern</summary><p class="small">Main groove: one bar, four squares per beat. Orange hits appear in most bars; dim ones are ghost notes. {a.pattern.tracked ? `Found by following the beat through ${a.pattern.bars} bars. ` : ""}Click a square to correct it; the change applies to the whole track.</p></details>
           <Rack rows={[{ name: "Kick", steps: a.pattern.kick, onEdit: edited("kick") }, { name: "Snare / clap", steps: a.pattern.snare, ghost: gh.snare, onEdit: edited("snare") }, { name: "Hi-hats", steps: a.pattern.hats, ghost: gh.hats, onEdit: edited("hats") }]} />
-          <div class="row"><button class="btn cool" onclick={() => patternPlayer.toggle(a)}>{patternPlayer.on ? "■ Stop" : "▶ Hear this pattern at " + a.bpm + " BPM"}</button></div>
+          <div class="row"><button class="btn cool" onclick={() => patternPlayer.toggle(a)}>{#if patternPlayer.on}<Icon name="stop" />{:else}<Icon name="play" />{/if} {patternPlayer.on ? "Stop" : "Hear this pattern at " + a.bpm + " BPM"}</button></div>
           <p class="small">{#if a.swing}Swing: the in-between 16th notes land about {Math.round(a.swing.late * 100)}% of a step late (0% is straight).{:else}Swing: unknown, there were not enough in-between notes to measure it.{/if}</p>
         </div>
       {:else}

@@ -14,19 +14,21 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; }
-body { background: var(--bg); color: var(--ink); font: var(--fs, 15px)/1.5 var(--font-body); -webkit-font-smoothing: antialiased; }
+body { background: var(--bg); color: var(--ink); font: var(--fs, 15px)/1.5 var(--font-body); -webkit-font-smoothing: antialiased; font-synthesis: none; }
+/* one weight everywhere (Absans and Necto Mono have only Regular): emphasis is size, colour and spacing, never bold */
+b, strong, h1, h2, h3, h4, th, legend, summary, dt { font-weight: 400; }
 a { color: var(--accent); text-underline-offset: 2px; }
 .wrap { max-width: 1060px; margin: 0 auto; padding: 16px 16px 96px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.1; }
-h1 { font-size: clamp(2rem, 5vw, 3.1rem); font-weight: 800; font-stretch: 75%; letter-spacing: -0.01em; }
-h2 { font-size: 1.1rem; font-weight: 600; letter-spacing: 0; font-family: var(--font-body); }
-h3 { font-size: 1rem; font-weight: 600; font-family: var(--font-body); }
+h1 { font-size: clamp(2rem, 5vw, 3.1rem); font-weight: 400; letter-spacing: -0.01em; }
+h2 { font-size: 1.1rem; font-weight: 400; letter-spacing: 0; font-family: var(--font-body); }
+h3 { font-size: 1rem; font-weight: 400; font-family: var(--font-body); }
 p { margin: 0; }
 .lead { color: var(--ink-2); max-width: 65ch; font-size: 1.04rem; }
 .mono, .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .tabs { display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; justify-self: center; min-width: 0; max-width: 100%; }
 .tabs::-webkit-scrollbar { display: none; }
-.tabs a { display: inline-flex; align-items: center; gap: 8px; font: 600 0.88rem var(--font-body); text-decoration: none; color: var(--ink-2); padding: 8px 12px; border-radius: 2px; background: var(--panel); border: 1px solid var(--line); }
+.tabs a { display: inline-flex; align-items: center; gap: 8px; font: 400 0.88rem var(--font-body); text-decoration: none; color: var(--ink-2); padding: 8px 12px; border-radius: 2px; background: var(--panel); border: 1px solid var(--line); }
 .tabs a::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--tt-line-2); }
 .tabs a[aria-current="page"] { color: var(--ink); border-color: var(--ink); }
 .tabs a[aria-current="page"]::before { background: var(--accent); }
@@ -35,7 +37,7 @@ p { margin: 0; }
 .wrap { padding-bottom: 130px; }
 /* ---- song map timeline ---- */
 .seggap { background: repeating-linear-gradient(45deg, var(--tt-inset) 0 6px, var(--tt-step-off) 6px 12px); border-radius: 0; min-width: 2px; }
-.barruler { position: relative; height: 18px; margin-top: 4px; font: 600 .66rem var(--font-mono); color: var(--ink-3); }
+.barruler { position: relative; height: 18px; margin-top: 4px; font: 400 11px var(--font-mono); color: var(--ink-3); }
 .barruler span { position: absolute; top: 0; transform: translateX(-1px); padding-left: 3px; border-left: 1px solid var(--tt-line-2); line-height: 18px; }
 .barruler span.ext { border-left-style: dashed; opacity: .55; }
 .playhead-wrap { cursor: pointer; }
@@ -44,10 +46,10 @@ p { margin: 0; }
 .panel { background: color-mix(in srgb, var(--panel) 76%, transparent); border: 1px solid var(--line); border-radius: var(--tt-radius); padding: 20px; display: grid; gap: 12px; min-width: 0; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 /* secondary buttons are unboxed: a faint ink tint, no outline; only the primary action is filled */
-.btn { font: 500 0.88rem var(--font-body); border-radius: 2px; padding: 8px 12px; border: 1px solid transparent; background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); cursor: pointer; transition: transform 160ms var(--tt-ease-out), border-color 150ms ease, background-color 150ms ease; }
+.btn { font: 400 0.88rem var(--font-body); border-radius: 2px; padding: 8px 12px; border: 1px solid transparent; background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); cursor: pointer; transition: transform 160ms var(--tt-ease-out), border-color 150ms ease, background-color 150ms ease; }
 .btn:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
 .btn:active:not(:disabled) { transform: scale(0.97); }
-.btn.primary { font-weight: 600; background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.primary { font-weight: 400; background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .btn.primary:hover { background: color-mix(in srgb, var(--accent) 88%, black); border-color: color-mix(in srgb, var(--accent) 88%, black); }
 .btn.cool { color: var(--cool); background: color-mix(in srgb, var(--cool) 9%, transparent); }
 .btn.cool:hover { background: color-mix(in srgb, var(--cool) 15%, transparent); }
@@ -56,36 +58,36 @@ p { margin: 0; }
 .drop { border: 1px dashed var(--tt-line-2); border-radius: var(--tt-radius); padding: 24px; display: grid; gap: 8px; justify-items: start; background: var(--panel); transition: border-color .15s, background .15s; }
 .drop.over { border-color: var(--accent); background: var(--tt-accent-soft); }
 .drop input[type=file] { font: inherit; max-width: 100%; color: var(--ink-2); }
-.drop input[type=file]::file-selector-button { font: 600 0.9rem var(--font-body); background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 2px; padding: 8px 12px; margin-right: 8px; cursor: pointer; }
+.drop input[type=file]::file-selector-button { font: 400 0.9rem var(--font-body); background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 2px; padding: 8px 12px; margin-right: 8px; cursor: pointer; }
 .status { color: var(--ink-2); font-size: 0.9rem; }
 .status.err { color: var(--tt-bad); }
 .timeline { display: flex; width: 100%; height: 52px; border-radius: 0; overflow: hidden; border: 1px solid var(--tt-line-2); background: var(--inset); gap: 2px; padding: 2px; }
-.seg { border: 0; border-radius: 0; padding: 0 8px; font: 600 0.72rem var(--font-mono); letter-spacing: 0; color: var(--ink); cursor: pointer; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; filter: saturate(.9); }
+.seg { border: 0; border-radius: 0; padding: 0 8px; font: 400 0.72rem var(--font-mono); letter-spacing: 0; color: var(--ink); cursor: pointer; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; filter: saturate(.9); }
 .seg:hover { filter: saturate(1.15) brightness(1.08); }
 .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.78rem; color: var(--ink-2); }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 0; margin-right: 4px; vertical-align: -1px; }
 table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
 th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-th { font: 600 0.72rem var(--font-mono); letter-spacing: 0.01em; color: var(--ink-3); }
+th { font: 400 0.72rem var(--font-mono); letter-spacing: 0.01em; color: var(--ink-3); }
 .rack { display: grid; gap: 8px; background: var(--inset); border: 0; border-radius: 0; padding: 8px; }
 .rack-row { display: grid; grid-template-columns: 92px 1fr; gap: 8px; align-items: center; }
-.rack-row span { font: 600 0.72rem var(--font-mono); letter-spacing: 0; color: var(--ink-2); white-space: nowrap; }
+.rack-row span { font: 400 0.72rem var(--font-mono); letter-spacing: 0; color: var(--ink-2); white-space: nowrap; }
 .steps { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 3px; }
 .step { aspect-ratio: 1 / 1.35; border-radius: 1px; background: var(--tt-step-off); box-shadow: inset 0 0 0 1px var(--line); }
 .step.beat { background: #DDE2D9; }
 .ptools { display: grid; gap: 8px; }
 .seg2 { display: inline-flex; border: 1px solid var(--tt-line-2); border-radius: 2px; overflow: hidden; }
-.seg2 button { font: 600 .82rem var(--font-body); background: var(--panel); color: var(--ink-2); border: 0; border-right: 1px solid var(--line); padding: 8px 12px; cursor: pointer; }
+.seg2 button { font: 400 .82rem var(--font-body); background: var(--panel); color: var(--ink-2); border: 0; border-right: 1px solid var(--line); padding: 8px 12px; cursor: pointer; }
 .seg2 button:last-child { border-right: 0; }
 .seg2 button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
-.isel { font: 600 .84rem var(--font-body); color: var(--ink); background: var(--panel); border: 1px solid var(--tt-line-2); border-radius: 2px; padding: 8px 8px; max-width: 100%; }
+.isel { font: 400 .84rem var(--font-body); color: var(--ink); background: var(--panel); border: 1px solid var(--tt-line-2); border-radius: 2px; padding: 8px 8px; max-width: 100%; }
 details summary { cursor: pointer; }
 .idea details summary { cursor: pointer; }
 .idea details ul { margin: 6px 0 0; padding-left: 16px; }
 .idea .step { aspect-ratio: 1 / .62; }
 #out > * { min-width: 0; }
 .roll .ruler .steps { gap: 0; }
-.roll .tick { font: 600 .66rem var(--font-mono); color: var(--ink-3); border-left: 1px solid transparent; padding-left: 3px; height: 14px; }
+.roll .tick { font: 400 .66rem var(--font-mono); color: var(--ink-3); border-left: 1px solid transparent; padding-left: 3px; height: 14px; }
 .roll .tick.b { border-left-color: var(--tt-line-2); color: var(--ink-2); }
 .roll .steps { gap: 0; background: var(--inset); border-radius: 0; overflow: hidden; }
 .roll .step { aspect-ratio: auto; height: 20px; border-radius: 0; background: transparent; box-shadow: inset -1px 0 0 var(--line); }
@@ -97,9 +99,9 @@ details summary { cursor: pointer; }
 .sw.shaky { background: color-mix(in srgb, var(--warn) 10%, var(--panel)); border: 1px dashed var(--warn); }
 .sw.none { background: transparent; border: 1px dashed var(--tt-line-2); }
 .chrow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-.chcell { position: relative; display: grid; place-items: center; min-height: 46px; border-radius: 2px; background: var(--panel); border: 1px solid var(--tt-line-2); color: var(--ink); cursor: pointer; font: 700 1rem var(--font-mono, monospace); }
+.chcell { position: relative; display: grid; place-items: center; min-height: 46px; border-radius: 2px; background: var(--panel); border: 1px solid var(--tt-line-2); color: var(--ink); cursor: pointer; font: 400 1rem var(--font-mono, monospace); }
 .chcell:hover { border-color: var(--accent); }
-.chcell .chnum { position: absolute; top: 3px; left: 6px; font: 600 .62rem var(--font-mono, monospace); color: var(--ink-3); }
+.chcell .chnum { position: absolute; top: 3px; left: 6px; font: 400 .62rem var(--font-mono, monospace); color: var(--ink-3); }
 .chcell.none { background: transparent; border-style: dashed; color: var(--ink-3); }
 .chcell.shaky { background: color-mix(in srgb, var(--warn) 8%, var(--panel)); border: 1px dashed var(--warn); color: var(--warn); }
 .step.ghost { background: color-mix(in srgb, var(--ink) 30%, transparent); }
@@ -123,8 +125,8 @@ audio { width: 100%; }
 .progress div { height: 100%; width: 100%; background: var(--accent); transform: scaleX(0); transform-origin: left center; transition: transform 160ms linear; }
 .small { font-size: 0.85rem; color: var(--ink-2); }
 .drop .progress { justify-self: stretch; }
-kbd { font: 600 0.74rem var(--font-mono); background: var(--panel); border: 1px solid var(--tt-line-2); border-bottom-width: 2px; border-radius: 2px; padding: 1px 6px; white-space: nowrap; color: var(--ink); }
-.check { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--tt-line-2); display: grid; place-items: center; font: 700 0.8rem var(--font-mono); color: var(--good); }
+kbd { font: 400 0.74rem var(--font-mono); background: var(--panel); border: 1px solid var(--tt-line-2); border-bottom-width: 2px; border-radius: 2px; padding: 1px 6px; white-space: nowrap; color: var(--ink); }
+.check { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--tt-line-2); display: grid; place-items: center; font: 400 0.8rem var(--font-mono); color: var(--good); }
 @media (max-width: 760px) {.tabs { grid-column: 1 / -1; justify-self: start; order: 3; }
 
 }

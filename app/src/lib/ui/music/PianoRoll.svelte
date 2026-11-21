@@ -16,7 +16,7 @@
   {#each geo.keys as m (m)}
     {@const y = (geo.hi - m) * geo.rh}
     <rect x={geo.lw} {y} width={total * geo.sw} height={geo.rh} fill={[1, 3, 6, 8, 10].includes(((m % 12) + 12) % 12) ? "#14151a" : "#1b1d23"} />
-    {#if geo.used.has(m)}<text x="3" y={y + geo.rh - 2} font-size={Math.min(9, geo.rh)} fill="#b3b2ab" font-family="JetBrains Mono, monospace">{label(m)}</text>{/if}
+    {#if geo.used.has(m)}<text x="3" y={y + geo.rh - 2} font-size={Math.min(9, geo.rh)} fill="#b3b2ab" font-family="Necto Mono, ui-monospace, monospace">{label(m)}</text>{/if}
   {/each}
   {#each Array.from({ length: Math.floor(total / 4) + 1 }, (_, i) => i * 4) as s (s)}
     <line x1={geo.lw + s * geo.sw} y1="0" x2={geo.lw + s * geo.sw} y2={geo.H} stroke={s % 16 === 0 ? "#4a4d57" : "#2c2f37"} stroke-width={s % 16 === 0 ? 1.2 : 0.6} />

@@ -17,7 +17,7 @@
   .scroll { flex: 1 1 0; min-height: 168px; overflow-y: auto; overscroll-behavior: contain; padding: 0 4px 32px 0; display: grid; align-content: start; gap: 8px;
     /* content that runs on fades out (an eased ramp, no visible edge), so a cut block reads as "scroll for more"; the bottom padding lets the last line scroll clear of it */
     mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), rgb(0 0 0 / .85) calc(100% - 24px), rgb(0 0 0 / .55) calc(100% - 14px), rgb(0 0 0 / .2) calc(100% - 6px), transparent); }
-  .acc { flex: none; align-self: start; padding: 0; border: 0; background: none; color: var(--tt-ink-3); font: 500 var(--tt-fs-xs) var(--tt-font-body); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .acc { flex: none; align-self: start; padding: 0; border: 0; background: none; color: var(--tt-ink-3); font: 400 var(--tt-fs-xs) var(--tt-font-body); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
   .acc:hover { color: var(--tt-ink); }
   .sheet .scroll { mask-image: none; padding-bottom: 0; min-height: 0; }
 </style>

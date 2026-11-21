@@ -67,9 +67,9 @@
   .head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 2px 4px 10px; border-bottom: 1px solid var(--tt-line); }
   .head.asking { display: block; }
   .title { margin: 0; font-size: var(--tt-fs-sm); color: var(--tt-ink); }
-  .title b { font-weight: 600; }
+  .title b { font-weight: 400; }
   .sub { color: var(--tt-ink-3); margin-left: 4px; }
-  .link { border: 0; background: none; padding: 2px 0; font: 500 var(--tt-fs-sm) var(--tt-font-body); color: var(--tt-ink-3); cursor: pointer; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; transition: color 150ms ease, text-decoration-color 150ms ease; }
+  .link { border: 0; background: none; padding: 2px 0; font: 400 var(--tt-fs-sm) var(--tt-font-body); color: var(--tt-ink-3); cursor: pointer; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; transition: color 150ms ease, text-decoration-color 150ms ease; }
   .link:hover, .link:focus-visible { color: var(--tt-bad); text-decoration-color: currentColor; }
 
   /* the list scrolls on its own; the gutter is reserved so nothing (the delete column) ever sits under the scrollbar */
@@ -84,7 +84,7 @@
   }
   .h-open:active { transform: scale(0.98); }
   .h-open:focus-visible { outline: 2px solid var(--tt-focus); outline-offset: -2px; }
-  .t { font: 500 .9rem/1.3 var(--tt-font-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .t { font: 400 .9rem/1.3 var(--tt-font-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .m { font: 400 .74rem/1.3 var(--tt-font-mono); color: var(--tt-ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* the teardown on screen: a cobalt dot before its title */
   .current .t::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--tt-cobalt); margin-right: 8px; vertical-align: 2px; }
@@ -109,7 +109,7 @@
   .acts { display: flex; gap: 6px; }
   .btn.sm { min-height: 30px; padding: 0 12px; font-size: .82rem; }
   .btn.sm:active { transform: scale(0.97); }
-  .danger { background: var(--tt-bad); color: #fff; border-color: var(--tt-bad); font-weight: 600; }
+  .danger { background: var(--tt-bad); color: #fff; border-color: var(--tt-bad); font-weight: 400; }
   .danger:hover { background: color-mix(in srgb, var(--tt-bad) 88%, black); }
   @keyframes swap-in { from { opacity: 0; filter: blur(2px); } }
 

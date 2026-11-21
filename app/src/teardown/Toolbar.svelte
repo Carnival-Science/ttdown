@@ -22,7 +22,7 @@
 <svelte:document onkeydown={e => { if (e.key === "Escape" && teardown.running) teardown.cancel(); }} />
 
 <header class="toolbar">
-  <h1 class="brand"><svg class="mark" viewBox="0 0 40 28" aria-hidden="true"><circle cx="13" cy="14" r="11" fill="#8EBF5E" /><circle cx="25" cy="11" r="10" fill="#7FB38F" /><circle cx="22" cy="19" r="8" fill="#5E9A6A" /></svg><span class="word">teardown</span></h1>
+  <h1 class="brand"><a class="home" href="./" aria-label="Teardown: back to the start" onclick={e => { e.preventDefault(); teardown.home(); }}><svg class="mark" viewBox="0 0 40 28" aria-hidden="true"><circle cx="13" cy="14" r="11" fill="#8EBF5E" /><circle cx="25" cy="11" r="10" fill="#7FB38F" /><circle cx="22" cy="19" r="8" fill="#5E9A6A" /></svg><span class="word">teardown</span></a></h1>
   <input type="file" id="file" class="sr-only" tabindex="-1" bind:this={fileEl} accept="audio/*,.mp3,.wav,.m4a,.flac,.ogg,.aac" onchange={pick}>
   <button type="button" class="btn primary open" onclick={() => fileEl.click()}>Open track</button>
   <input type="text" id="title" class="name" placeholder="Name (optional)" aria-label="Name of the track" maxlength="80" bind:value={teardown.title}
@@ -57,6 +57,7 @@
         <dt>Engine</dt><dd>{BUILD.engineSha256.slice(0, 12)}</dd>
         <dt>TimeMap</dt><dd>{tm.schema}, {tm.fingerprint}</dd>
         <dt>Svelte</dt><dd>{BUILD.versions.svelte}</dd>
+        <dt>Type</dt><dd>Absans by Valerio Monopoli and Necto Mono by Marco Condello, both from Collletttivo (SIL Open Font License)</dd>
       </dl>
     </details>
   </Popover>
@@ -66,9 +67,14 @@
 
 <style>
   .toolbar { position: relative; display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: color-mix(in srgb, var(--tt-chassis) 88%, transparent); border-bottom: 1px solid var(--tt-line); min-width: 0; }
-  /* the wordmark: a compact bold sticker on the brand lime, with a hard early-web offset shadow */
+  /* the wordmark: the three discs and the word, a link back to the start (the drop motif) */
   .brand { display: inline-flex; align-items: center; gap: 6px; margin: 0 10px 0 0; flex: none; color: var(--tt-ink); }
-  .brand .word { font: 800 1.45rem/1 var(--tt-font-display); font-stretch: 68%; letter-spacing: -0.01em; }
+  /* the wordmark is set like everything else: Absans, regular, a little larger and tight, ink on paper; the discs carry the identity */
+  .brand .word { font: 400 1.5rem/1 var(--tt-font-display); letter-spacing: -0.03em; }
+  .home { display: inline-flex; align-items: center; gap: 7px; color: inherit; text-decoration: none; border-radius: 2px; }
+  .home:focus-visible { outline: 2px solid var(--tt-focus); outline-offset: 4px; }
+  .home:active .mark { transform: scale(0.94); }
+  .home .mark { transition: transform 120ms cubic-bezier(.23, 1, .32, 1); }
   .brand .mark { width: 34px; height: 24px; overflow: visible; } /* the hover nudge moves the discs past the viewBox: draw them anyway, never clipped */
   .brand .mark circle { mix-blend-mode: multiply; opacity: .8; transform-box: fill-box; transform-origin: center; transition: translate 600ms cubic-bezier(.23, 1, .32, 1); }
   .brand:hover .mark circle:nth-child(1) { translate: -2px 1px; } .brand:hover .mark circle:nth-child(2) { translate: 2px -1px; } .brand:hover .mark circle:nth-child(3) { translate: 1px 2px; }
@@ -79,7 +85,7 @@
   .status { margin: 0; color: var(--tt-ink-2); font-size: var(--tt-fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .status.err { color: var(--tt-bad); }
   .status.quiet { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .toolbar :global(.help) { width: 38px; padding: 0; font-weight: 700; flex: none; }
+  .toolbar :global(.help) { width: 38px; padding: 0; font-weight: 400; flex: none; }
   .toolbar .progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; background: transparent; border: 0; border-radius: 0; margin: 0; }
   .toolbar .progress :global(#prog) { width: 100%; height: 100%; background: var(--tt-accent); transform-origin: left center; transition: transform 160ms linear; }
   :global(.help-pop) { width: min(380px, calc(100vw - 24px)); padding: 12px 16px; font-size: var(--tt-fs-sm); }
