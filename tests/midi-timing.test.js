@@ -94,6 +94,20 @@ for (const id of ["tempo_change_step", "drift_fast", "drift_slow"]) {
   }
 }
 
+/* 3c. separate files for a chosen set of parts stay aligned when only one part has pickup notes; an empty selection writes nothing */
+{
+  const a = melody(), g = TM.forAnalysis(a), pre = g.barStart(0) - g.barStart(-1) > 0 ? g.barStart(-1) + 0.1 : 0;
+  a.transcription.lead = [{ on: pre, off: pre + 0.2, midi: 72, vel: 90, bar: -1 }, ...a.transcription.lead];   // the Melody has a pickup, the Bass has none
+  for (const timing of ["original", "tempo-map"]) {
+    if (timing === "tempo-map" && !g.tracked) continue;
+    const ids = ["hook", "bass"], sep = ids.map(p => decodeMidi(D.partMidi(a, p, { timing, grid: g, withParts: ids }).data)), one = decodeMidi(D.allPartsMidi(a, { timing, grid: g, parts: ids }).data);
+    const bassSep = sep[1].notes[0].onTick, bassOne = one.notes.find(n => n.track === 2 || n.track === one.tracks.findIndex(t => /Bass|808/.test(t.name))).onTick;
+    check(bassSep === bassOne, `separate files (${timing}): the Bass file starts where the one-file Bass track does, though only the Melody has a pickup (${bassSep} vs ${bassOne} ticks)`);
+    if (timing === "tempo-map") { const alone = decodeMidi(D.partMidi(a, "bass", { timing, grid: g }).data).notes[0].onTick; check(alone !== bassSep, "the old per-part start differs from the shared one on this fixture, so this test can fail"); }
+  }
+  for (const timing of ["original", "tempo-map", "quantized"]) check(D.allPartsMidi(a, { timing, grid: g, tempo: 120, parts: [] }) === null, `an empty part selection writes nothing (${timing})`);
+}
+
 /* 4. what is offered when */
 {
   const a = byId("pop127_Amaj"), g = TM.forAnalysis(a), m = D.midiModes(a, g, false);

@@ -2433,7 +2433,9 @@ const toTicks = (L, notes) => notes.map(x => { const on = L.tick(x.s0); return {
 const kindOf = (part, a) => part === "chords" ? "SUGGESTED voicings generated from the detected chord names, not transcribed from the audio" : a && isPoly(a) ? "rough transcription of the audio by Spotify's Basic Pitch" : "rough transcription of the audio";
 function timedPartMidi(a, part, opts) {
   const grid = opts.grid, r = opts.range || null, notes = partSeconds(a, part, grid, r); if (!notes) return null;
-  const L = timeline(a, grid, opts.timing, r, [notes]), label = partLabel(a, part), kind = part === "chords" ? "suggested voicings" : "rough transcription";
+  // opts.withParts = every part going into the same download: they share ONE start, so a pickup in one part does not move that file a bar earlier than its siblings
+  const align = Array.isArray(opts.withParts) ? opts.withParts.map(p => partSeconds(a, p, grid, r)).filter(Boolean) : [notes];
+  const L = timeline(a, grid, opts.timing, r, align.length ? align : [notes]), label = partLabel(a, part), kind = part === "chords" ? "suggested voicings" : "rough transcription";
   return { name: `${label} ${spanText(r)} (${kind}, ${MODE_WORDS[opts.timing]}).mid`, refTempo: L.refTempo,
     data: smfFile([{ name: label, text: `${label}: ${kindOf(part, a)}, ${spanText(r)}; ${L.words}.`, notes: toTicks(L, notes) }], L.tempos) };
 }
@@ -2456,13 +2458,13 @@ function midiModes(a, grid, confirmed) {
   }
   return { original, tempoMap: tm, quantized };
 }
-/* Any chosen set of parts in ONE Type 1 MIDI file: opts.parts (a subset of ["hook", "bass", "chords"]; omitted means all three) picks which tracks are written, so
+/* Any chosen set of parts in ONE Type 1 MIDI file: opts.parts (a subset of ["hook", "bass", "chords"]; omitted means all three, an empty list means none: nothing is written) picks which tracks are written, so
    Notes + Bass without the suggested chords is one call. A tempo track, then Melody, Bass (or 808) and Chords (suggested), each with its own name and
    provenance text, all in one timing. Quantized uses opts.tempo (the export gate's tempo; the caller checks exportGate) and the
    transcription when the teardown has one, else the representative pattern repeated, as the full-song package does. */
 function allPartsMidi(a, opts) {
   const timing = opts.timing || "quantized", r = opts.range || null, title = (a.title || "Teardown").trim(), tracks = [];
-  const want = new Set(Array.isArray(opts.parts) && opts.parts.length ? opts.parts : ["hook", "bass", "chords"]), partsOf = ["hook", "bass", "chords"].filter(p => want.has(p));
+  const want = new Set(Array.isArray(opts.parts) ? opts.parts : ["hook", "bass", "chords"]), partsOf = ["hook", "bass", "chords"].filter(p => want.has(p));
   let tempos, words, refT = null;
   if (timing === "quantized") {
     // a whole-track file starts at the pickup bar when there is one (step 0 = that bar), so the pickup is not dropped

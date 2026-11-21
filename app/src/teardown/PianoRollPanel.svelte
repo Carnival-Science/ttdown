@@ -183,7 +183,7 @@
     if (!okOf(t)) { notify("warning", "That timing isn't available: " + whyOf(t)); return; }
     const [startBar, endBar] = rangeOf(rangePick), range = rangePick === "whole" ? undefined : { startBar, endBar };
     const tempo = t === "quantized" ? exportState.gate.tempo : undefined;
-    const one = (p: Part) => partMidi(a, p, { timing: t, grid: G, range, section: rangePick === "whole" ? undefined : s, tempo, source: full && p !== "chords" ? "transcribed" : undefined });
+    const one = (p: Part) => partMidi(a, p, { timing: t, grid: G, range, section: rangePick === "whole" ? undefined : s, tempo, withParts: ids, source: full && p !== "chords" ? "transcribed" : undefined });
     const clean = (n: string) => n.replace(/[\\/:*?"<>|]+/g, "");
     try {
       let data: Uint8Array | null, fileName = "", mime = "audio/midi", refT: number | null = null, skipped: Part[] = [];
