@@ -2,8 +2,8 @@
      because they are built from the detected chord names, not heard in the audio) on ONE keyboard, pitch axis and time axis, sharing the
      arrangement's viewport and its one playhead. A chord strip above the notes names each chord where it sounds (several in a bar when the analysis
      hears the chord change inside it), marks the one under the playhead
-     and opens the chord correction when clicked. Parts can be shown, hidden or soloed (Alt/Option-click). "↓ MIDI ▾" writes a part, or all
-     of them as one multitrack file, for the selected section, the visible range or the whole track, with a choice of timing; every mode
+     and opens the chord correction when clicked. Parts can be shown, hidden or soloed (Alt/Option-click). "↓ MIDI ▾" writes any ticked combination of parts (one part: one file; several: one multitrack
+     file, or a zip with a file each), for the selected section, the visible range or the whole track, with a choice of timing; every mode
      that is unavailable says why. Inspection only: no note editing. -->
 <script lang="ts">
   /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -146,21 +146,21 @@
   const timing = $derived<Timing>(timingPick && okOf(timingPick) ? timingPick : fallback);
   const refTempo = $derived(modes.original.refTempo != null ? Math.round(modes.original.refTempo * 10) / 10 : null);
 
-  type PartPick = Part | "all";
-  let partPick = $state<PartPick>("hook");
+  // Which parts to write: any combination. One part is one small file; two or three are one multitrack file, or one file each in a zip.
+  const PART_IDS: Part[] = ["hook", "bass", "chords"];
+  let picked = $state<Record<Part, boolean>>({ hook: true, bass: false, chords: false });
+  let layoutPick = $state<"one" | "zip">("one");
   // original timing and the tempo map need notes at their real times: an older teardown without a transcription has chords only there
   const timedParts = $derived(timing === "quantized" ? null : (timing === "tempo-map" ? modes.tempoMap.parts : modes.original.parts) ?? null);
   const baseOk = (p: Part) => p === "hook" ? !!(full?.lead.length || hook) : p === "bass" ? !!(full?.bass.length || bassPat) : chordBars.some(isChord);
-  const partOk = (p: PartPick): boolean => {
-    if (p === "all") return typeof D.allPartsMidi === "function" && (["hook", "bass", "chords"] as Part[]).some(partOk);
-    return baseOk(p) && (!timedParts || !!timedParts[p]);
-  };
-  const partWhy = (p: PartPick) => {
-    if (p === "all") return typeof D.allPartsMidi === "function" ? "Nothing was found to write." : "Not available in this version yet.";
+  const partOk = (p: Part): boolean => baseOk(p) && (!timedParts || !!timedParts[p]);
+  const partWhy = (p: Part) => {
     if (!baseOk(p)) return p === "chords" ? "No chords were found." : "No notes were found for this part.";
     return "Needs whole-track notes, which this teardown doesn't have: analyse the track again, or use Quantized for the 4-bar phrase.";
   };
-  const part = $derived<PartPick>(partOk(partPick) ? partPick : (["hook", "bass", "chords", "all"] as PartPick[]).find(partOk) ?? partPick);
+  /** The ticked parts that can be written in the chosen timing (a ticked part that is unavailable there is shown unticked and greyed, and is not written). */
+  const chosen = $derived(PART_IDS.filter(p => picked[p] && partOk(p)));
+  const layout = $derived<"one" | "zip">(chosen.length > 1 ? layoutPick : "one");
 
   type RangePick = "section" | "visible" | "whole";
   let rangePick = $state<RangePick>("section");
@@ -172,23 +172,35 @@
 
   let menuOpen = $state(false);
   const base = $derived(safeName(a.title, "song"));
+  const SHORT: Record<Part, string> = { hook: "Notes", bass: "Bass", chords: "Chords" };
+  const WORDS: Record<Timing, string> = { original: "original timing", "tempo-map": "tempo map", quantized: "quantized" };
+  const shortOf = (p: Part) => p === "hook" && !poly ? "Melody" : SHORT[p];
+  const chosenText = $derived(chosen.length === 3 ? "all 3 parts" : chosen.map(shortOf).join(" + "));
   async function download() {
-    const t = timing;
+    const t = timing, ids = chosen;
+    if (!ids.length) { notify("warning", "Tick at least one part to download."); return; }
     // decided again at the click, from the same rules the menu shows
     if (!okOf(t)) { notify("warning", "That timing isn't available: " + whyOf(t)); return; }
     const [startBar, endBar] = rangeOf(rangePick), range = rangePick === "whole" ? undefined : { startBar, endBar };
     const tempo = t === "quantized" ? exportState.gate.tempo : undefined;
+    const one = (p: Part) => partMidi(a, p, { timing: t, grid: G, range, section: rangePick === "whole" ? undefined : s, tempo, source: full && p !== "chords" ? "transcribed" : undefined });
+    const clean = (n: string) => n.replace(/[\\/:*?"<>|]+/g, "");
     try {
-      const m = part === "all"
-        ? D.allPartsMidi(a, { timing: t, grid: G, range, tempo })
-        : partMidi(a, part, { timing: t, grid: G, range, section: rangePick === "whole" ? undefined : s, tempo, source: full && part !== "chords" ? "transcribed" : undefined });
-      if (!m) { notify("warning", "There is nothing to write for this part in that range."); return; }
-      // the all-parts file is already named after the track
-      await saveFile(part === "all" ? m.name.replace(/[\\/:*?"<>|]+/g, "") : `${base} - ${m.name}`, m.data, "audio/midi"); menuOpen = false;
+      let data: Uint8Array | null, fileName = "", mime = "audio/midi", refT: number | null = null, skipped: Part[] = [];
+      if (ids.length === 1) { const m = one(ids[0]!); data = m ? m.data : null; fileName = m ? `${base} - ${m.name}` : ""; }
+      else if (layout === "one") { const m = D.allPartsMidi(a, { timing: t, grid: G, range, tempo, parts: ids }); data = m ? m.data : null; fileName = m ? clean(m.name) : ""; refT = m?.refTempo ?? null; }
+      else {
+        const files = ids.map(p => ({ p, m: one(p) })); skipped = files.filter(f => !f.m).map(f => f.p); const made = files.filter(f => f.m);
+        data = made.length ? D.zipStore(made.map(f => ({ name: `${base} - ${f.m.name}`, data: f.m.data }))) : null; mime = "application/zip";
+        fileName = clean(`${base} - ${made.map(f => shortOf(f.p)).join(" + ")} ${rangeText(rangePick)} (${WORDS[t]}).zip`);
+      }
+      if (!data) { notify("warning", ids.length > 1 ? "There is nothing to write for these parts in that range." : "There is nothing to write for this part in that range."); return; }
+      await saveFile(fileName, data, mime); menuOpen = false;
       confirmAt(document.querySelector(".phead .midi"));
-      const rt = m.refTempo != null ? Math.round(m.refTempo * 10) / 10 : refTempo;
+      const rt = refT != null ? Math.round(refT * 10) / 10 : refTempo;
       const how = t === "quantized" ? `snapped to the 16th-note grid at ${Math.round((exportState.gate.tempo || a.bpm) * 10) / 10} BPM, not the original timing` : t === "tempo-map" ? "following the song's tempo map" : `with the original timing${rt ? `; it plays in time at ${rt} BPM (set your DAW to it, or import the file's tempo)` : ""}`;
-      notify("success", `Saved, ${how}.` + (part === "chords" || part === "all" ? " Chords are suggested voicings built from the detected chord names, not transcribed from the audio." : " The notes are a rough transcription."));
+      const where = ids.length === 1 ? "" : layout === "zip" ? ` as ${ids.length - skipped.length} files in a zip` : ` as one multitrack file`;
+      notify("success", `Saved ${ids.length === 1 ? "" : chosenText}${where}, ${how}.` + (ids.includes("chords") ? " Chords are suggested voicings built from the detected chord names, not transcribed from the audio." : "") + (ids.some(p => p !== "chords") ? " The notes are a rough transcription." : "") + (skipped.length ? ` Nothing to write for ${skipped.map(shortOf).join(", ")} in that range, so it was left out.` : ""));
     } catch (e) { notify("error", "Couldn't save the file" + ((e as Error)?.message ? ": " + (e as Error).message.slice(0, 80) : ".")); }
   }
   async function copyChords() {
@@ -196,7 +208,7 @@
     try { await navigator.clipboard.writeText(text); notify("success", "Copied: " + text); } catch { notify("warning", "Couldn't copy. The chords are: " + text); }
   }
   const TIMINGS: { id: Timing; label: string }[] = [{ id: "original", label: "Original timing" }, { id: "tempo-map", label: "Follow tempo map" }, { id: "quantized", label: "Quantized" }];
-  const PART_PICKS = $derived<{ id: PartPick; label: string }[]>([{ id: "hook", label: poly ? "Notes (above C3)" : "Melody" }, { id: "bass", label: "Bass" }, { id: "chords", label: "Chords (suggested)" }, { id: "all", label: "All parts (multitrack MIDI)" }]);
+  const PART_PICKS = $derived<{ id: Part; label: string }[]>([{ id: "hook", label: poly ? "Notes (above C3)" : "Melody" }, { id: "bass", label: "Bass" }, { id: "chords", label: "Chords (suggested)" }]);
   const RANGES: { id: RangePick; label: string }[] = [{ id: "section", label: "Selected section" }, { id: "visible", label: "Visible range" }, { id: "whole", label: "Whole track" }];
   const nothing = $derived(!has.hook && !has.bass && !has.chords);
   const missing = $derived(PARTS.filter(p => !has[p.id]).map(p => p.id === "chords" ? "chords" : p.label.toLowerCase()));
@@ -238,11 +250,17 @@
     <Popover bind:open={menuOpen} triggerClass="btn midi" label="Download MIDI: choose the part, range and timing" class="midi-pop" align="end" side="bottom" disabled={nothing}>
       {#snippet trigger()}<Icon name="download" /> MIDI <Icon name="chevron-down" />{/snippet}
       <div class="mcols"><div class="mcol">
-      <fieldset><legend>Part</legend>
+      <fieldset><legend>Parts <span class="dim">· tick any combination</span></legend>
         {#each PART_PICKS as o (o.id)}
-          <label class="opt" class:off={!partOk(o.id)}><input type="radio" name="midi-part" value={o.id} checked={part === o.id} disabled={!partOk(o.id)} onchange={() => (partPick = o.id)} /><span>{o.label}{#if !partOk(o.id)}<em class="why">{partWhy(o.id)}</em>{/if}</span></label>
+          <label class="opt" class:off={!partOk(o.id)}><input type="checkbox" name="midi-part" value={o.id} checked={picked[o.id] && partOk(o.id)} disabled={!partOk(o.id)} onchange={e => (picked[o.id] = e.currentTarget.checked)} /><span>{o.label}{#if !partOk(o.id)}<em class="why">{partWhy(o.id)}</em>{/if}</span></label>
         {/each}
       </fieldset>
+      {#if chosen.length > 1}
+        <fieldset data-layout><legend>Write {chosen.length} parts as</legend>
+          <label class="opt"><input type="radio" name="midi-layout" value="one" checked={layout === "one"} onchange={() => (layoutPick = "one")} /><span>One multitrack file<em class="hint">Each part on its own track, in one .mid.</em></span></label>
+          <label class="opt"><input type="radio" name="midi-layout" value="zip" checked={layout === "zip"} onchange={() => (layoutPick = "zip")} /><span>One file per part (.zip)<em class="hint">Separate .mid files to drag in one at a time.</em></span></label>
+        </fieldset>
+      {/if}
       <fieldset><legend>Range</legend>
         {#each RANGES as o (o.id)}
           <label class="opt"><input type="radio" name="midi-range" value={o.id} checked={rangePick === o.id} onchange={() => (rangePick = o.id)} /><span>{o.label} <span class="mono dim">· {rangeText(o.id)}</span></span></label>
@@ -263,7 +281,7 @@
       </fieldset>
       </div></div>
       <div class="mfoot">
-      <button type="button" class="btn primary dl" disabled={!okOf(timing) || !partOk(part)} onclick={download}>Download {PART_PICKS.find(o => o.id === part)?.label.replace(" (multitrack MIDI)", "")} · {rangeText(rangePick)}</button>
+      <button type="button" class="btn primary dl" disabled={!okOf(timing) || !chosen.length} onclick={download}>{chosen.length ? `Download ${chosenText} · ${rangeText(rangePick)}${layout === "zip" ? " (.zip)" : ""}` : "Tick a part to download"}</button>
       <button type="button" class="btn" onclick={copyChords}>Copy this section's chord names</button>
       </div>
     </Popover>

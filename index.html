@@ -2456,11 +2456,13 @@ function midiModes(a, grid, confirmed) {
   }
   return { original, tempoMap: tm, quantized };
 }
-/* Every part in ONE Type 1 MIDI file: a tempo track, then Melody, Bass (or 808) and Chords (suggested), each with its own name and
+/* Any chosen set of parts in ONE Type 1 MIDI file: opts.parts (a subset of ["hook", "bass", "chords"]; omitted means all three) picks which tracks are written, so
+   Notes + Bass without the suggested chords is one call. A tempo track, then Melody, Bass (or 808) and Chords (suggested), each with its own name and
    provenance text, all in one timing. Quantized uses opts.tempo (the export gate's tempo; the caller checks exportGate) and the
    transcription when the teardown has one, else the representative pattern repeated, as the full-song package does. */
 function allPartsMidi(a, opts) {
   const timing = opts.timing || "quantized", r = opts.range || null, title = (a.title || "Teardown").trim(), tracks = [];
+  const want = new Set(Array.isArray(opts.parts) && opts.parts.length ? opts.parts : ["hook", "bass", "chords"]), partsOf = ["hook", "bass", "chords"].filter(p => want.has(p));
   let tempos, words, refT = null;
   if (timing === "quantized") {
     // a whole-track file starts at the pickup bar when there is one (step 0 = that bar), so the pickup is not dropped
@@ -2470,16 +2472,17 @@ function allPartsMidi(a, opts) {
     { const lo = r ? r.startBar * 16 : b0 * 16, hi = r ? r.endBar * 16 : (nB + 1) * 16;
       chordSpans(a, null).forEach(sp => { const q0 = Math.max(sp.s, lo), q1 = Math.min(sp.e, hi); if (q1 > q0) chordFromName(sp.c).notes.forEach(m => src.chords.push({ t: q0 - b0 * 16, dur: q1 - q0, midi: m, vel: 85 })); }); }
     const T = 480 / 4; tempos = [{ tick: 0, us: Math.round(6e7 / bpm) }]; words = `quantized to the 16th-note grid at ${Math.round(bpm * 1000) / 1000} BPM, 4/4; not the original timing. ${startText(r ? r.startBar : b0).replace(/^t/, "T")}`;
-    ["hook", "bass", "chords"].forEach(p => { const notes = src[p].filter(n => n.t >= s0 && n.t < s1).map(n => { const t = n.t - s0, e = Math.min(t + n.dur, s1 - s0); return { on: Math.round(t * T), off: Math.max(Math.round(t * T) + 1, Math.round(e * T) - 1), midi: n.midi, vel: n.vel || 100 }; });
+    partsOf.forEach(p => { const notes = src[p].filter(n => n.t >= s0 && n.t < s1).map(n => { const t = n.t - s0, e = Math.min(t + n.dur, s1 - s0); return { on: Math.round(t * T), off: Math.max(Math.round(t * T) + 1, Math.round(e * T) - 1), midi: n.midi, vel: n.vel || 100 }; });
       if (notes.length) tracks.push({ part: p, notes }); });
   } else {
-    const lists = ["hook", "bass", "chords"].map(p => [p, partSeconds(a, p, opts.grid, r)]).filter(x => x[1]);
+    const lists = partsOf.map(p => [p, partSeconds(a, p, opts.grid, r)]).filter(x => x[1]);
     const L = timeline(a, opts.grid, timing, r, lists.map(x => x[1])); tempos = L.tempos; words = L.words; refT = L.refTempo || null;
     lists.forEach(([p, notes]) => tracks.push({ part: p, notes: toTicks(L, notes) }));
   }
   if (!tracks.length) return null;
   const named = tracks.map(t => ({ name: t.part === "chords" ? "Chords (suggested)" : `${partLabel(a, t.part)} (rough)`, text: `${partLabel(a, t.part)}: ${kindOf(t.part, a)}, ${spanText(r)}.`, notes: t.notes }));
-  return { name: `${title} - all parts ${spanText(r)} (${MODE_WORDS[timing]}).mid`, refTempo: refT,
+  const which = partsOf.length === 3 ? "all parts" : partsOf.map(p => partLabel(a, p)).join(" + ");   // "Notes + Bass", not "all parts", when chords were left out
+  return { name: `${title} - ${which} ${spanText(r)} (${MODE_WORDS[timing]}).mid`, parts: tracks.map(t => t.part), refTempo: refT,
     data: smfFile(named, tempos, { name: title, text: `Teardown export, ${spanText(r)}: ${words}.` }) };
 }
 /* The detected chord names for a section, as text to paste: bars separated by " | ", "N.C." where no chord was found. */

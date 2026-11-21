@@ -72,7 +72,9 @@ const ROOT = path.resolve(__dirname, ".."), URL = process.env.TT_APP_URL || `fil
   const basis = await p.locator(".phead .basis").first().evaluate(e => e.getAttribute("title") || e.getAttribute("aria-label") || e.textContent); check(true, "3: (estimated label present)");
 
   // ---- 4. MIDI
-  const pick = async (name, v) => { if (!(await p.locator(".midi-pop[data-open]").count())) { await p.click(".phead .midi"); await p.waitForTimeout(200); } await p.locator(`.midi-pop input[name="midi-${name}"][value="${v}"]`).check(); await p.waitForTimeout(80); };
+  const pick = async (name, v) => { if (!(await p.locator(".midi-pop[data-open]").count())) { await p.click(".phead .midi"); await p.waitForTimeout(200); } 
+    if (name === "part") for (const id of ["hook", "bass", "chords"]) { const box = p.locator(`.midi-pop input[name="midi-part"][value="${id}"]`), want = v === "all" || v === id; if (want !== await box.isChecked()) await box.setChecked(want); } // parts are checkboxes: "hook" ticks only Notes, "all" ticks all three
+    else await p.locator(`.midi-pop input[name="midi-${name}"][value="${v}"]`).check(); await p.waitForTimeout(80); };
   const dl = async () => { const [d] = await Promise.all([p.waitForEvent("download"), p.locator(".midi-pop .dl").click()]); const f = path.join(os.tmpdir(), `bp_${Date.now()}.mid`); await d.saveAs(f); return { name: d.suggestedFilename(), midi: decodeMidi(fs.readFileSync(f)), raw: fs.readFileSync(f).toString("latin1") }; };
   await pick("part", "hook"); await pick("timing", "original"); await pick("range", "whole"); const notesFile = await dl();
   check(/Notes entire track/.test(notesFile.name) && notesFile.midi.notes.length === m.lead && /Basic Pitch/.test(notesFile.raw), `4: the Notes file holds exactly the ${m.lead} Notes and says Basic Pitch ("${notesFile.name}")`);

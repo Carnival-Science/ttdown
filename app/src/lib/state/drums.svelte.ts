@@ -14,5 +14,9 @@ class Drums {
   /** Hide the drum tools: there are none to show, and the person has not asked for them. */
   hidden = $derived(this.none && this.shownFor !== teardown.mountId);
   showAnyway() { this.shownFor = teardown.mountId; }
+  /** The big notice can be closed without bringing the drum tools back; a small one-line reminder with the way back stays. A new teardown shows the notice again. */
+  closedFor = $state(-1);
+  noticeOpen = $derived(this.hidden && this.closedFor !== teardown.mountId);
+  closeNotice() { this.closedFor = teardown.mountId; }
 }
 export const drums = new Drums();

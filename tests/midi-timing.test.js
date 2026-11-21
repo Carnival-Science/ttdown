@@ -79,6 +79,21 @@ for (const id of ["tempo_change_step", "drift_fast", "drift_slow"]) {
   check(r.notes.length > 0 && r.notes.length < decodeMidi(D.allPartsMidi(a, { timing: "original", grid: g }).data).notes.length, "all parts for a range holds fewer notes than the whole track");
 }
 
+/* 3b. a chosen set of parts: opts.parts picks the tracks (Notes + Bass without the suggested chords, any timing) */
+{
+  const a = melody(), g = TM.forAnalysis(a);
+  for (const timing of ["original", "tempo-map", "quantized"]) {
+    const nb = D.allPartsMidi(a, { timing, grid: g, tempo: 120, parts: ["hook", "bass"] }), d = decodeMidi(nb.data);
+    check(d.format === 1 && d.ntrks === 3 && d.tracks.slice(1).map(t => t.name).join("|").match(/^Melody \(rough\)\|(Bass|808) \(rough\)$/), `parts hook+bass (${timing}): a tempo track and exactly two part tracks, no Chords (${d.tracks.slice(1).map(t => t.name).join(", ")})`);
+    check(/Melody \+ (Bass|808)/.test(nb.name) && !/all parts/.test(nb.name) && nb.parts.join() === "hook,bass", `parts hook+bass (${timing}): the file name lists the parts, not "all parts" (${nb.name})`);
+    const all = decodeMidi(D.allPartsMidi(a, { timing, grid: g, tempo: 120, parts: ["chords", "bass", "hook"] }).data), none = decodeMidi(D.allPartsMidi(a, { timing, grid: g, tempo: 120 }).data);
+    check(all.ntrks === none.ntrks && all.notes.length === none.notes.length, `parts in any order, all three = the default all-parts file (${timing})`);
+    const ch = decodeMidi(D.allPartsMidi(a, { timing, grid: g, tempo: 120, parts: ["chords"] }).data);
+    check(ch.ntrks === 2 && ch.tracks[1].name === "Chords (suggested)", `parts chords only (${timing}): one part track`);
+    const bn = decodeMidi(nb.data).notes.length; check(bn > 0 && bn + ch.notes.length === none.notes.length, `parts hook+bass plus chords add up to the whole (${timing}: ${bn} + ${ch.notes.length} = ${none.notes.length})`);
+  }
+}
+
 /* 4. what is offered when */
 {
   const a = byId("pop127_Amaj"), g = TM.forAnalysis(a), m = D.midiModes(a, g, false);

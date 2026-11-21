@@ -231,8 +231,10 @@
       </div>
     {/if}
 
-    {#if drums.hidden}
-      <p class="small notice info" role="status" data-drumless>{#if drums.measured}No drums found in this track, so there is no drum analysis and the drum tools are hidden. Almost none of the sound is percussive, as in a solo piano piece; a very quiet or washed-out drum part could read the same way. Vocals are not detected. {:else}No kick or snare was found in this track, so the drum tools are hidden. It may be drumless, or its drums may be too quiet or too washed out to detect. {/if}<button class="btn" type="button" onclick={() => drums.showAnyway()}>Show the drum tools anyway</button></p>
+    {#if drums.noticeOpen}
+      <p class="small notice info drumless" role="status" data-drumless>{#if drums.measured}No drums found in this track, so there is no drum analysis and the drum tools are hidden. Almost none of the sound is percussive, as in a solo piano piece; a very quiet or washed-out drum part could read the same way. Vocals are not detected. {:else}No kick or snare was found in this track, so the drum tools are hidden. It may be drumless, or its drums may be too quiet or too washed out to detect. {/if}<span class="row"><button class="btn" type="button" onclick={() => drums.showAnyway()}>Show the drum tools anyway</button><button class="btn close" type="button" aria-label="Close this message (the drum tools stay hidden)" title="Close this message (the drum tools stay hidden)" data-drumless-close onclick={() => drums.closeNotice()}>✕ Close</button></span></p>
+    {:else if drums.hidden}
+      <p class="small dim drumless-min" data-drumless-min>No drums found, so the drum tools are hidden. <button class="linkbtn" type="button" onclick={() => drums.showAnyway()}>Show them</button></p>
     {/if}
 
     {#if !playable}
@@ -296,6 +298,10 @@
 </div>
 
 <style>
+  .drumless .row { display: flex; flex-wrap: wrap; gap: 8px; justify-self: start; }
+  .drumless .close { min-width: 36px; padding: 0 10px; }
+  .drumless-min { margin: 0; color: var(--tt-ink-3); }
+  .linkbtn { background: none; border: 0; padding: 0; color: var(--tt-accent); text-decoration: underline; cursor: pointer; font: inherit; }
   .explorer { display: flex; flex-direction: column; min-height: 0; min-width: 0; flex: 1; gap: 12px; }
   .top { display: grid; gap: 8px; min-width: 0; flex: none; }
   .editor { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
