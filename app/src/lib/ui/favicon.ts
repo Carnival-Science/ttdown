@@ -10,10 +10,14 @@ const BASE = ["#A3B1EA", "#8C9DE3", "#7086DA"]; // light cobalt, three steps (mu
 const GLOW = "#E3E9FD";
 const FRAMES = 18, STEP_MS = 110;
 
-const mix = (a: string, b: string, t: number) => {
+/** The working pulse, shared with the toolbar mark so the tab icon and the wordmark move as one: each disc's resting cobalt, its colour at
+ *  the top of its glow, and the length of one round (disc 1, then 2, then 3). */
+export const PULSE = { ms: FRAMES * STEP_MS, rest: BASE, peak: BASE.map(c => mix(c, GLOW, 0.8)) };
+
+function mix(a: string, b: string, t: number) {
   const p = (h: string, i: number) => parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
   return "#" + [0, 1, 2].map(i => Math.round(p(a, i) + (p(b, i) - p(a, i)) * t).toString(16).padStart(2, "0")).join("");
-};
+}
 /** One frame: each disc brightens and swells a touch as the glow passes it (a smooth pulse, a third of a turn apart). */
 function frame(phase: number | null): string {
   const circles = DISCS.map(([x, y, r], i) => {
