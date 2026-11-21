@@ -82,26 +82,22 @@ coverage (the share of the track committed to a tempo; the rest is unknown); lat
 
 | Variable-tempo fixtures (9) | beat F | BPM err | Acc1 over committed stretches | Acc1, unknown counted wrong | octave-tolerant, unknown counted wrong | coverage | transitions found of 12 | missed | extra | median ms |
 |---|---|---|---|---|---|---|---|---|---|---|
-| engine (its own tracked beats; ms is the whole analysis) | 0.875 | 6.14 | 0.822 | 0.813 | 0.813 | 0.988 | 10 | 2 | 1 | 2846 |
-| const | 0.517 | 8.28 | 0.54 | 0.42 | 0.42 | 0.778 | 0 | 12 | 0 | 241 |
-| **dp** | 0.981 | 0.33 | 0.988 | 0.967 | 0.967 | 0.979 | 11 | 1 | 0 | 571 |
-| ctf | 0.982 | 0.39 | 0.988 | 0.97 | 0.97 | 0.982 | 11 | 1 | 0 | 406 |
-| tempogram | 0.902 | 1.38 | 0.917 | 0.859 | 0.859 | 0.941 | 10 | 2 | 0 | 317 |
+| engine (its own tracked beats; ms is the whole analysis) | 0.875 | 6.14 | 0.822 | 0.813 | 0.813 | 0.988 | 10 | 2 | 1 | 2610 |
+| const | 0.517 | 8.28 | 0.54 | 0.42 | 0.42 | 0.778 | 0 | 12 | 0 | 213 |
+| **dp** | 0.981 | 0.33 | 0.988 | 0.967 | 0.967 | 0.979 | 11 | 1 | 0 | 412 |
+| ctf | 0.982 | 0.39 | 0.988 | 0.97 | 0.97 | 0.982 | 11 | 1 | 0 | 335 |
+| tempogram | 0.902 | 1.38 | 0.917 | 0.859 | 0.859 | 0.941 | 10 | 2 | 0 | 233 |
 
 Constant-tempo controls (4): every candidate and the engine have 0 tempo changes; BPM error 0.01 (engine 0.90); mean beat F 0.747 for all (the three other controls score 0.996 and the off-beat fixture scores 0 for everyone)
 (below). The engine's `ms` includes the whole analysis (notes, chords, drums), the candidates' only the evidence and the search, so the two are not a speed comparison.
 
-| Fixture | engine: beat F / Acc1 (unknown wrong) / found (extra) | dp | ctf | tempogram |
-|---|---|---|---|---|
-| dev_step | 0.996 / 0.991 / 1 of 1 (0) | 0.996 / 1 / 1 of 1 (0) | 0.996 / 1 / 1 of 1 (0) | 0.996 / 0.991 / 1 of 1 (0) |
-| dev_init_like | 0.912 / 0.855 / 1 of 1 (0) | 0.892 / 0.815 / 0 of 1 (0) | 0.909 / 0.839 / 0 of 1 (0) | 0.855 / 0.774 / 0 of 1 (0) |
-| dev_ramp | 0.995 / 0.988 / 1 of 1 (0) | 0.979 / 0.976 / 1 of 1 (0) | 0.995 / 1 / 1 of 1 (0) | 0.854 / 0.819 / 1 of 1 (0) |
-| dev_aba | 0.997 / 0.992 / 2 of 2 (0) | 0.993 / 0.992 / 2 of 2 (0) | 0.997 / 0.992 / 2 of 2 (0) | 0.993 / 0.992 / 2 of 2 (0) |
-| dev_multi | 0.512 / 0.276 / 2 of 3 (0) | 0.997 / 0.993 / 3 of 3 (0) | 0.962 / 0.948 / 3 of 3 (0) | 0.99 / 0.985 / 3 of 3 (0) |
-| dev_ramp_short | 0.995 / 0.99 / 1 of 1 (0) | 0.995 / 0.958 / 1 of 1 (0) | 0.995 / 0.958 / 1 of 1 (0) | 0.99 / 0.958 / 1 of 1 (0) |
-| dev_ramp_long | 0.754 / 0.667 / 1 of 1 (0) | 0.995 / 1 / 1 of 1 (0) | 0.995 / 1 / 1 of 1 (0) | 0.653 / 0.548 / 1 of 1 (0) |
-| dev_silent_step | 0.718 / 0.571 / 0 of 1 (1) | 0.984 / 0.975 / 1 of 1 (0) | 0.996 / 1 / 1 of 1 (0) | 0.792 / 0.672 / 0 of 1 (0) |
-| dev_slow_step | 0.996 / 0.988 / 1 of 1 (0) | 0.996 / 0.994 / 1 of 1 (0) | 0.996 / 0.994 / 1 of 1 (0) | 0.996 / 0.994 / 1 of 1 (0) |
+| Fixture | engine: beat F / Acc1 (unknown wrong) / found (extra) | dp | ctf |
+|---|---|---|---|
+| hol_step | 0.616 / 0.43 / 0 of 1 (0) | 0.996 / 0.993 / 1 of 1 (0) | 0.996 / 1 / 1 of 1 (0) |
+| hol_init_like | 0.604 / 0.416 / 1 of 1 (0) | 0.875 / 0.779 / 0 of 1 (0) | 0.88 / 0.846 / 1 of 1 (0) |
+| hol_ramp | 0.654 / 0.475 / 1 of 1 (0) | 0.995 / 1 / 1 of 1 (0) | 0.995 / 1 / 1 of 1 (0) |
+| hol_aba | 0.778 / 0.709 / 2 of 2 (0) | 0.997 / 1 / 2 of 2 (0) | 0.962 / 0.962 / 1 of 2 (1) |
+| hol_multi | 0.677 / 0.481 / 2 of 3 (0) | 0.874 / 0.69 / 3 of 3 (0) | 0.862 / 0.684 / 3 of 3 (0) |
 
 ### Results: holdout (9 fixtures, other tempi and seeds), in two steps
 
@@ -114,10 +110,10 @@ check the rule on data that did not influence it, and it held there; a fresh hol
 
 | Variable-tempo fixtures (5) | beat F | BPM err | Acc1 over committed stretches | Acc1, unknown counted wrong | octave-tolerant, unknown counted wrong | coverage | transitions found of 8 | missed | extra | median ms |
 |---|---|---|---|---|---|---|---|---|---|---|
-| engine (its own tracked beats; ms is the whole analysis) | 0.666 | 16.20 | 0.51 | 0.502 | 0.502 | 0.985 | 6 | 2 | 0 | 2922 |
-| **dp** | 0.947 | 5.17 | 0.937 | 0.892 | 0.947 | 0.956 | 7 | 1 | 0 | 614 |
-| ctf | 0.939 | 5.81 | 0.898 | 0.898 | 0.953 | 1 | 7 | 1 | 1 | 398 |
-| tempogram | 0.905 | 6.27 | 0.856 | 0.856 | 0.91 | 1 | 8 | 0 | 0 | 279 |
+| engine (its own tracked beats; ms is the whole analysis) | 0.666 | 16.20 | 0.51 | 0.502 | 0.502 | 0.985 | 6 | 2 | 0 | 2961 |
+| **dp** | 0.947 | 5.17 | 0.937 | 0.892 | 0.947 | 0.956 | 7 | 1 | 0 | 563 |
+| ctf | 0.939 | 5.81 | 0.898 | 0.898 | 0.953 | 1 | 7 | 1 | 1 | 365 |
+| tempogram | 0.905 | 6.27 | 0.856 | 0.856 | 0.91 | 1 | 8 | 0 | 0 | 282 |
 
 Controls (4): 0 changes for everyone, BPM error 0.01 for the candidates (0.57 engine). The remaining dp gap is `hol_multi`: its first stretch (90 BPM) is read at 180 (Acc1 0.69, octave-tolerant 0.96),
 because the first stretch is placed against the engine's whole-track tempo and the engine's number for a track spanning 90 to 132 BPM is arbitrary.

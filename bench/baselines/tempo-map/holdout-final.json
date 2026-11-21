@@ -20,7 +20,7 @@
    "id": "hol_step",
    "kind": "step 100 to 132 BPM at bar 17",
    "dur": 68.5,
-   "evidenceMs": 241,
+   "evidenceMs": 238,
    "results": {
     "engine": {
      "beatF": 0.616,
@@ -58,7 +58,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 2922,
+     "ms": 3181,
      "variable": false,
      "source": "dp-tracker"
     },
@@ -98,7 +98,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 245,
+     "ms": 243,
      "segs": [
       {
        "t0": 0,
@@ -147,7 +147,7 @@
      "boundaryErrsS": [
       0.48
      ],
-     "ms": 396,
+     "ms": 400,
      "segs": [
       {
        "t0": 0,
@@ -203,7 +203,7 @@
      "boundaryErrsS": [
       0.04
      ],
-     "ms": 304,
+     "ms": 300,
      "segs": [
       {
        "t0": 0,
@@ -259,7 +259,7 @@
      "boundaryErrsS": [
       0.96
      ],
-     "ms": 265,
+     "ms": 261,
      "segs": [
       {
        "t0": 0,
@@ -283,7 +283,7 @@
    "id": "hol_init_like",
    "kind": "house 100, drumless ramp 100 to 132 over bars 13-20, half-time drop at 132",
    "dur": 75.6,
-   "evidenceMs": 256,
+   "evidenceMs": 257,
    "results": {
     "engine": {
      "beatF": 0.604,
@@ -330,7 +330,7 @@
      "boundaryErrsS": [
       0
      ],
-     "ms": 3026,
+     "ms": 2980,
      "variable": true,
      "source": "dp-tracker"
     },
@@ -431,7 +431,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 804,
+     "ms": 779,
      "segs": [
       {
        "t0": 0,
@@ -565,7 +565,7 @@
      "boundaryErrsS": [
       0
      ],
-     "ms": 279,
+     "ms": 282,
      "segs": [
       {
        "t0": 0,
@@ -589,7 +589,7 @@
    "id": "hol_ramp",
    "kind": "ramp 100 to 132 over bars 9-16, drums throughout",
    "dur": 51.5,
-   "evidenceMs": 171,
+   "evidenceMs": 174,
    "results": {
     "engine": {
      "beatF": 0.654,
@@ -636,7 +636,7 @@
      "boundaryErrsS": [
       0
      ],
-     "ms": 2515,
+     "ms": 2474,
      "variable": true,
      "source": "dp-tracker"
     },
@@ -683,7 +683,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 172,
+     "ms": 176,
      "segs": [
       {
        "t0": 0,
@@ -739,7 +739,7 @@
      "boundaryErrsS": [
       0
      ],
-     "ms": 614,
+     "ms": 630,
      "segs": [
       {
        "t0": 0,
@@ -810,7 +810,7 @@
      "boundaryErrsS": [
       0
      ],
-     "ms": 553,
+     "ms": 544,
      "segs": [
       {
        "t0": 0,
@@ -881,7 +881,7 @@
      "boundaryErrsS": [
       0
      ],
-     "ms": 185,
+     "ms": 188,
      "segs": [
       {
        "t0": 0,
@@ -905,7 +905,7 @@
    "id": "hol_aba",
    "kind": "100 -> 132 -> 100 BPM, 12 bars each",
    "dur": 80.4,
-   "evidenceMs": 290,
+   "evidenceMs": 270,
    "results": {
     "engine": {
      "beatF": 0.778,
@@ -953,7 +953,7 @@
       0.57,
       2.5
      ],
-     "ms": 2872,
+     "ms": 2826,
      "variable": true,
      "source": "dp-tracker"
     },
@@ -1000,7 +1000,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 293,
+     "ms": 272,
      "segs": [
       {
        "t0": 0,
@@ -1057,7 +1057,7 @@
       0.03,
       0.01
      ],
-     "ms": 568,
+     "ms": 520,
      "segs": [
       {
        "t0": 0,
@@ -1127,7 +1127,7 @@
      "boundaryErrsS": [
       0.01
      ],
-     "ms": 398,
+     "ms": 365,
      "segs": [
       {
        "t0": 0,
@@ -1198,7 +1198,7 @@
       0.34,
       0.8
      ],
-     "ms": 319,
+     "ms": 295,
      "segs": [
       {
        "t0": 0,
@@ -1229,7 +1229,7 @@
    "id": "hol_multi",
    "kind": "90 -> 100 -> 118 steps, then a 4-bar ramp to 132",
    "dur": 80.1,
-   "evidenceMs": 289,
+   "evidenceMs": 271,
    "results": {
     "engine": {
      "beatF": 0.677,
@@ -1291,7 +1291,7 @@
       0.01,
       0
      ],
-     "ms": 3019,
+     "ms": 2961,
      "variable": true,
      "source": "dp-tracker"
     },
@@ -1352,7 +1352,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 291,
+     "ms": 272,
      "segs": [
       {
        "unknown": true,
@@ -1425,7 +1425,7 @@
       0.51,
       0
      ],
-     "ms": 636,
+     "ms": 563,
      "segs": [
       {
        "t0": 0,
@@ -1518,7 +1518,7 @@
       0.48,
       0
      ],
-     "ms": 410,
+     "ms": 380,
      "segs": [
       {
        "t0": 0,
@@ -1611,7 +1611,7 @@
       0.1,
       0
      ],
-     "ms": 324,
+     "ms": 296,
      "segs": [
       {
        "t0": 0,
@@ -1649,7 +1649,7 @@
    "id": "hol_const",
    "kind": "constant (control)",
    "dur": 59.2,
-   "evidenceMs": 210,
+   "evidenceMs": 195,
    "results": {
     "engine": {
      "beatF": 0.996,
@@ -1680,7 +1680,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 2744,
+     "ms": 2625,
      "variable": false,
      "source": "dp-tracker"
     },
@@ -1713,7 +1713,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 214,
+     "ms": 197,
      "segs": [
       {
        "t0": 0,
@@ -1753,7 +1753,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 297,
+     "ms": 259,
      "segs": [
       {
        "t0": 0,
@@ -1793,7 +1793,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 276,
+     "ms": 254,
      "segs": [
       {
        "t0": 0,
@@ -1833,7 +1833,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 228,
+     "ms": 213,
      "segs": [
       {
        "t0": 0,
@@ -1850,7 +1850,7 @@
    "id": "hol_halftime_drop",
    "kind": "constant 166; half-time feel from bar 17 (control)",
    "dur": 47.3,
-   "evidenceMs": 162,
+   "evidenceMs": 155,
    "results": {
     "engine": {
      "beatF": 0.996,
@@ -1881,7 +1881,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 2548,
+     "ms": 2459,
      "variable": false,
      "source": "dp-tracker"
     },
@@ -1914,7 +1914,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 165,
+     "ms": 156,
      "segs": [
       {
        "t0": 0,
@@ -1954,7 +1954,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 202,
+     "ms": 187,
      "segs": [
       {
        "t0": 0,
@@ -1994,7 +1994,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 193,
+     "ms": 184,
      "segs": [
       {
        "t0": 0,
@@ -2034,7 +2034,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 175,
+     "ms": 168,
      "segs": [
       {
        "t0": 0,
@@ -2051,7 +2051,7 @@
    "id": "hol_offbeat",
    "kind": "constant 122; all drums on off-beats (control)",
    "dur": 64,
-   "evidenceMs": 220,
+   "evidenceMs": 214,
    "results": {
     "engine": {
      "beatF": 0,
@@ -2082,7 +2082,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 2746,
+     "ms": 2674,
      "variable": false,
      "source": "dp-tracker"
     },
@@ -2115,7 +2115,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 222,
+     "ms": 217,
      "segs": [
       {
        "t0": 0,
@@ -2155,7 +2155,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 363,
+     "ms": 343,
      "segs": [
       {
        "t0": 0,
@@ -2195,7 +2195,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 275,
+     "ms": 265,
      "segs": [
       {
        "t0": 0,
@@ -2235,7 +2235,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 241,
+     "ms": 234,
      "segs": [
       {
        "t0": 0,
@@ -2252,7 +2252,7 @@
    "id": "holdout_dnb_double",
    "kind": "constant 87; double-time snare rolls from bar 17 (control)",
    "dur": 89.3,
-   "evidenceMs": 298,
+   "evidenceMs": 300,
    "results": {
     "engine": {
      "beatF": 0.996,
@@ -2283,7 +2283,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 2968,
+     "ms": 2933,
      "variable": false,
      "source": "constant-fit"
     },
@@ -2316,7 +2316,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 299,
+     "ms": 301,
      "segs": [
       {
        "t0": 0,
@@ -2356,7 +2356,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 637,
+     "ms": 605,
      "segs": [
       {
        "t0": 0,
@@ -2396,7 +2396,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 411,
+     "ms": 406,
      "segs": [
       {
        "t0": 0,
@@ -2436,7 +2436,7 @@
      "extra": 0,
      "boundaryErrS": null,
      "boundaryErrsS": [],
-     "ms": 327,
+     "ms": 337,
      "segs": [
       {
        "t0": 0,
