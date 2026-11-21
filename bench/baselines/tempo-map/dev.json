@@ -20,12 +20,12 @@
    "id": "dev_step",
    "kind": "step 128 to 150 BPM at bar 17",
    "dur": 56.6,
-   "evidenceMs": 220,
+   "evidenceMs": 216,
    "results": {
     "engine": {
-     "beatF": 0.988,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.984,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 3,
      "beatMsP95": 7.4,
@@ -33,6 +33,8 @@
      "bpmErr": 1.6,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 0.991,
+     "acc1octAll": 0.991,
      "coverage": 0.991,
      "perRegion": [
       {
@@ -50,19 +52,22 @@
        "n": 51
       }
      ],
-     "nChanges": 2,
+     "nChanges": 1,
      "truthTransitions": 1,
      "missed": 0,
-     "extra": 1,
+     "extra": 0,
      "boundaryErrS": 0,
+     "boundaryErrsS": [
+      0
+     ],
      "ms": 2902,
      "variable": true,
      "source": "dp-tracker"
     },
     "const": {
-     "beatF": 0.669,
-     "beatFOff": 0.146,
-     "beatP": 0.692,
+     "beatF": 0.678,
+     "beatFOff": 0.148,
+     "beatP": 0.709,
      "beatR": 0.648,
      "beatMsMed": 2.5,
      "beatMsP95": 50.2,
@@ -70,6 +75,8 @@
      "bpmErr": 10.12,
      "acc1": 0.541,
      "acc1oct": 0.541,
+     "acc1All": 0.541,
+     "acc1octAll": 0.541,
      "coverage": 1,
      "perRegion": [
       {
@@ -92,7 +99,8 @@
      "missed": 1,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 225,
+     "boundaryErrsS": [],
+     "ms": 221,
      "segs": [
       {
        "t0": 0,
@@ -104,9 +112,9 @@
      ]
     },
     "dp": {
-     "beatF": 0.984,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.977,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 2,
      "beatMsP95": 4,
@@ -114,6 +122,8 @@
      "bpmErr": 0.01,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -136,7 +146,10 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0.38,
-     "ms": 371,
+     "boundaryErrsS": [
+      0.38
+     ],
+     "ms": 348,
      "segs": [
       {
        "t0": 0,
@@ -155,9 +168,9 @@
      ]
     },
     "ctf": {
-     "beatF": 0.984,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.977,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 2,
      "beatMsP95": 4,
@@ -165,6 +178,8 @@
      "bpmErr": 0.01,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -187,7 +202,10 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0.36,
-     "ms": 271,
+     "boundaryErrsS": [
+      0.36
+     ],
+     "ms": 264,
      "segs": [
       {
        "t0": 0,
@@ -206,9 +224,9 @@
      ]
     },
     "tempogram": {
-     "beatF": 0.984,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.977,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 0.8,
      "beatMsP95": 1.9,
@@ -216,6 +234,8 @@
      "bpmErr": 0.21,
      "acc1": 0.991,
      "acc1oct": 0.991,
+     "acc1All": 0.991,
+     "acc1octAll": 0.991,
      "coverage": 1,
      "perRegion": [
       {
@@ -238,7 +258,10 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0.45,
-     "ms": 243,
+     "boundaryErrsS": [
+      0.45
+     ],
+     "ms": 238,
      "segs": [
       {
        "t0": 0,
@@ -262,12 +285,12 @@
    "id": "dev_init_like",
    "kind": "house 128, drumless ramp 128 to 150 over bars 13-20, half-time drop at 150",
    "dur": 63,
-   "evidenceMs": 216,
+   "evidenceMs": 237,
    "results": {
     "engine": {
-     "beatF": 0.906,
+     "beatF": 0.912,
      "beatFOff": 0.049,
-     "beatP": 0.909,
+     "beatP": 0.922,
      "beatR": 0.903,
      "beatMsMed": 3.1,
      "beatMsP95": 10,
@@ -275,6 +298,8 @@
      "bpmErr": 3.2,
      "acc1": 0.862,
      "acc1oct": 0.862,
+     "acc1All": 0.855,
+     "acc1octAll": 0.855,
      "coverage": 0.992,
      "perRegion": [
       {
@@ -299,19 +324,22 @@
        "n": 51
       }
      ],
-     "nChanges": 3,
+     "nChanges": 1,
      "truthTransitions": 1,
      "missed": 0,
-     "extra": 2,
+     "extra": 0,
      "boundaryErrS": 0,
+     "boundaryErrsS": [
+      0
+     ],
      "ms": 2846,
      "variable": true,
      "source": "dp-tracker"
     },
     "const": {
-     "beatF": 0.576,
-     "beatFOff": 0.195,
-     "beatP": 0.597,
+     "beatF": 0.582,
+     "beatFOff": 0.19,
+     "beatP": 0.611,
      "beatR": 0.556,
      "beatMsMed": 2.7,
      "beatMsP95": 65.8,
@@ -319,6 +347,8 @@
      "bpmErr": 11.32,
      "acc1": 0.427,
      "acc1oct": 0.427,
+     "acc1All": 0.427,
+     "acc1octAll": 0.427,
      "coverage": 1,
      "perRegion": [
       {
@@ -348,7 +378,8 @@
      "missed": 1,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 219,
+     "boundaryErrsS": [],
+     "ms": 241,
      "segs": [
       {
        "t0": 0,
@@ -360,9 +391,9 @@
      ]
     },
     "dp": {
-     "beatF": 0.882,
+     "beatF": 0.892,
      "beatFOff": 0,
-     "beatP": 0.975,
+     "beatP": 1,
      "beatR": 0.806,
      "beatMsMed": 2.7,
      "beatMsP95": 3,
@@ -370,6 +401,8 @@
      "bpmErr": 0.07,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 0.815,
+     "acc1octAll": 0.815,
      "coverage": 0.815,
      "perRegion": [
       {
@@ -399,7 +432,8 @@
      "missed": 1,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 909,
+     "boundaryErrsS": [],
+     "ms": 711,
      "segs": [
       {
        "t0": 0,
@@ -426,9 +460,9 @@
      ]
     },
     "ctf": {
-     "beatF": 0.899,
+     "beatF": 0.909,
      "beatFOff": 0,
-     "beatP": 0.976,
+     "beatP": 1,
      "beatR": 0.833,
      "beatMsMed": 2.8,
      "beatMsP95": 4.2,
@@ -436,6 +470,8 @@
      "bpmErr": 0.19,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 0.839,
+     "acc1octAll": 0.839,
      "coverage": 0.839,
      "perRegion": [
       {
@@ -465,6 +501,7 @@
      "missed": 1,
      "extra": 0,
      "boundaryErrS": null,
+     "boundaryErrsS": [],
      "ms": 530,
      "segs": [
       {
@@ -492,9 +529,9 @@
      ]
     },
     "tempogram": {
-     "beatF": 0.845,
+     "beatF": 0.855,
      "beatFOff": 0.008,
-     "beatP": 0.956,
+     "beatP": 0.982,
      "beatR": 0.757,
      "beatMsMed": 1.6,
      "beatMsP95": 4.1,
@@ -502,6 +539,8 @@
      "bpmErr": 0.32,
      "acc1": 0.98,
      "acc1oct": 0.98,
+     "acc1All": 0.774,
+     "acc1octAll": 0.774,
      "coverage": 0.79,
      "perRegion": [
       {
@@ -531,7 +570,8 @@
      "missed": 1,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 578,
+     "boundaryErrsS": [],
+     "ms": 620,
      "segs": [
       {
        "t0": 0,
@@ -563,12 +603,12 @@
    "id": "dev_ramp",
    "kind": "ramp 128 to 150 over bars 9-16, drums throughout",
    "dur": 42.7,
-   "evidenceMs": 155,
+   "evidenceMs": 303,
    "results": {
     "engine": {
-     "beatF": 0.984,
+     "beatF": 0.995,
      "beatFOff": 0,
-     "beatP": 0.979,
+     "beatP": 1,
      "beatR": 0.99,
      "beatMsMed": 2.8,
      "beatMsP95": 7.1,
@@ -576,6 +616,8 @@
      "bpmErr": 1.37,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 0.988,
+     "acc1octAll": 0.988,
      "coverage": 0.988,
      "perRegion": [
       {
@@ -600,19 +642,22 @@
        "n": 25
       }
      ],
-     "nChanges": 3,
+     "nChanges": 2,
      "truthTransitions": 1,
      "missed": 0,
-     "extra": 1,
+     "extra": 0,
      "boundaryErrS": 0,
+     "boundaryErrsS": [
+      0
+     ],
      "ms": 2613,
      "variable": true,
      "source": "dp-tracker"
     },
     "const": {
-     "beatF": 0.578,
-     "beatFOff": 0.183,
-     "beatP": 0.593,
+     "beatF": 0.587,
+     "beatFOff": 0.186,
+     "beatP": 0.614,
      "beatR": 0.563,
      "beatMsMed": 3.4,
      "beatMsP95": 63.2,
@@ -620,6 +665,8 @@
      "bpmErr": 10.02,
      "acc1": 0.458,
      "acc1oct": 0.458,
+     "acc1All": 0.458,
+     "acc1octAll": 0.458,
      "coverage": 1,
      "perRegion": [
       {
@@ -649,7 +696,8 @@
      "missed": 1,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 156,
+     "boundaryErrsS": [],
+     "ms": 304,
      "segs": [
       {
        "t0": 0,
@@ -661,9 +709,9 @@
      ]
     },
     "dp": {
-     "beatF": 0.964,
-     "beatFOff": 0.01,
-     "beatP": 0.959,
+     "beatF": 0.979,
+     "beatFOff": 0.011,
+     "beatP": 0.989,
      "beatR": 0.969,
      "beatMsMed": 2.3,
      "beatMsP95": 10.9,
@@ -671,6 +719,8 @@
      "bpmErr": 0.52,
      "acc1": 0.976,
      "acc1oct": 0.976,
+     "acc1All": 0.976,
+     "acc1octAll": 0.976,
      "coverage": 1,
      "perRegion": [
       {
@@ -700,7 +750,10 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0,
-     "ms": 444,
+     "boundaryErrsS": [
+      0
+     ],
+     "ms": 674,
      "segs": [
       {
        "t0": 0,
@@ -727,9 +780,9 @@
      ]
     },
     "ctf": {
-     "beatF": 0.979,
+     "beatF": 0.995,
      "beatFOff": 0,
-     "beatP": 0.969,
+     "beatP": 1,
      "beatR": 0.99,
      "beatMsMed": 2.7,
      "beatMsP95": 13.9,
@@ -737,6 +790,8 @@
      "bpmErr": 0.51,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -766,7 +821,10 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0,
-     "ms": 403,
+     "boundaryErrsS": [
+      0
+     ],
+     "ms": 571,
      "segs": [
       {
        "t0": 0,
@@ -793,9 +851,9 @@
      ]
     },
     "tempogram": {
-     "beatF": 0.841,
-     "beatFOff": 0.062,
-     "beatP": 0.828,
+     "beatF": 0.854,
+     "beatFOff": 0.063,
+     "beatP": 0.854,
      "beatR": 0.854,
      "beatMsMed": 3.1,
      "beatMsP95": 39.6,
@@ -803,6 +861,8 @@
      "bpmErr": 2.52,
      "acc1": 0.819,
      "acc1oct": 0.819,
+     "acc1All": 0.819,
+     "acc1octAll": 0.819,
      "coverage": 1,
      "perRegion": [
       {
@@ -832,7 +892,10 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0,
-     "ms": 166,
+     "boundaryErrsS": [
+      0
+     ],
+     "ms": 317,
      "segs": [
       {
        "t0": 0,
@@ -856,12 +919,12 @@
    "id": "dev_aba",
    "kind": "128 -> 150 -> 128 BPM, 12 bars each",
    "dur": 65.2,
-   "evidenceMs": 217,
+   "evidenceMs": 257,
    "results": {
     "engine": {
-     "beatF": 0.986,
+     "beatF": 0.997,
      "beatFOff": 0,
-     "beatP": 0.979,
+     "beatP": 1,
      "beatR": 0.993,
      "beatMsMed": 3,
      "beatMsP95": 7.1,
@@ -869,6 +932,8 @@
      "bpmErr": 1.47,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 0.992,
+     "acc1octAll": 0.992,
      "coverage": 0.992,
      "perRegion": [
       {
@@ -898,14 +963,18 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0,
+     "boundaryErrsS": [
+      0,
+      0
+     ],
      "ms": 3076,
      "variable": true,
      "source": "dp-tracker"
     },
     "const": {
-     "beatF": 0.777,
-     "beatFOff": 0.099,
-     "beatP": 0.791,
+     "beatF": 0.786,
+     "beatFOff": 0.1,
+     "beatP": 0.809,
      "beatR": 0.764,
      "beatMsMed": 3.7,
      "beatMsP95": 48.5,
@@ -913,6 +982,8 @@
      "bpmErr": 6.73,
      "acc1": 0.695,
      "acc1oct": 0.695,
+     "acc1All": 0.695,
+     "acc1octAll": 0.695,
      "coverage": 1,
      "perRegion": [
       {
@@ -942,7 +1013,8 @@
      "missed": 2,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 219,
+     "boundaryErrsS": [],
+     "ms": 260,
      "segs": [
       {
        "t0": 0,
@@ -954,9 +1026,9 @@
      ]
     },
     "dp": {
-     "beatF": 0.983,
+     "beatF": 0.993,
      "beatFOff": 0.007,
-     "beatP": 0.973,
+     "beatP": 0.993,
      "beatR": 0.993,
      "beatMsMed": 0.7,
      "beatMsP95": 3.6,
@@ -964,6 +1036,8 @@
      "bpmErr": 0.19,
      "acc1": 0.992,
      "acc1oct": 0.992,
+     "acc1All": 0.992,
+     "acc1octAll": 0.992,
      "coverage": 1,
      "perRegion": [
       {
@@ -993,7 +1067,11 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0.22,
-     "ms": 414,
+     "boundaryErrsS": [
+      0.03,
+      0.41
+     ],
+     "ms": 558,
      "segs": [
       {
        "t0": 0,
@@ -1019,9 +1097,9 @@
      ]
     },
     "ctf": {
-     "beatF": 0.986,
+     "beatF": 0.997,
      "beatFOff": 0,
-     "beatP": 0.979,
+     "beatP": 1,
      "beatR": 0.993,
      "beatMsMed": 1.3,
      "beatMsP95": 2.5,
@@ -1029,6 +1107,8 @@
      "bpmErr": 0.19,
      "acc1": 0.992,
      "acc1oct": 0.992,
+     "acc1All": 0.992,
+     "acc1octAll": 0.992,
      "coverage": 1,
      "perRegion": [
       {
@@ -1058,7 +1138,11 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0.39,
-     "ms": 315,
+     "boundaryErrsS": [
+      0.52,
+      0.26
+     ],
+     "ms": 406,
      "segs": [
       {
        "t0": 0,
@@ -1084,9 +1168,9 @@
      ]
     },
     "tempogram": {
-     "beatF": 0.983,
+     "beatF": 0.993,
      "beatFOff": 0.007,
-     "beatP": 0.973,
+     "beatP": 0.993,
      "beatR": 0.993,
      "beatMsMed": 0.7,
      "beatMsP95": 3.6,
@@ -1094,6 +1178,8 @@
      "bpmErr": 0.19,
      "acc1": 0.992,
      "acc1oct": 0.992,
+     "acc1All": 0.992,
+     "acc1octAll": 0.992,
      "coverage": 1,
      "perRegion": [
       {
@@ -1123,7 +1209,11 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0.15,
-     "ms": 242,
+     "boundaryErrsS": [
+      0.03,
+      0.26
+     ],
+     "ms": 291,
      "segs": [
       {
        "t0": 0,
@@ -1154,12 +1244,12 @@
    "id": "dev_multi",
    "kind": "100 -> 128 -> 140 steps, then a 4-bar ramp to 150",
    "dur": 68.4,
-   "evidenceMs": 248,
+   "evidenceMs": 301,
    "results": {
     "engine": {
-     "beatF": 0.508,
-     "beatFOff": 0.094,
-     "beatP": 0.58,
+     "beatF": 0.512,
+     "beatFOff": 0.095,
+     "beatP": 0.591,
      "beatR": 0.451,
      "beatMsMed": 2.7,
      "beatMsP95": 7.4,
@@ -1167,6 +1257,8 @@
      "bpmErr": 29.92,
      "acc1": 0.28,
      "acc1oct": 0.28,
+     "acc1All": 0.276,
+     "acc1octAll": 0.276,
      "coverage": 0.985,
      "perRegion": [
       {
@@ -1205,11 +1297,15 @@
        "n": 24
       }
      ],
-     "nChanges": 12,
+     "nChanges": 2,
      "truthTransitions": 3,
      "missed": 1,
-     "extra": 10,
+     "extra": 0,
      "boundaryErrS": 0.12,
+     "boundaryErrsS": [
+      0.23,
+      0
+     ],
      "ms": 3069,
      "variable": true,
      "source": "dp-tracker"
@@ -1225,6 +1321,8 @@
      "bpmErr": null,
      "acc1": null,
      "acc1oct": null,
+     "acc1All": 0,
+     "acc1octAll": 0,
      "coverage": 0,
      "perRegion": [
       {
@@ -1268,7 +1366,8 @@
      "missed": 3,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 249,
+     "boundaryErrsS": [],
+     "ms": 302,
      "segs": [
       {
        "unknown": true,
@@ -1281,9 +1380,9 @@
      ]
     },
     "dp": {
-     "beatF": 0.986,
+     "beatF": 0.997,
      "beatFOff": 0,
-     "beatP": 0.979,
+     "beatP": 1,
      "beatR": 0.993,
      "beatMsMed": 2.1,
      "beatMsP95": 11.2,
@@ -1291,6 +1390,8 @@
      "bpmErr": 0.49,
      "acc1": 0.993,
      "acc1oct": 0.993,
+     "acc1All": 0.993,
+     "acc1octAll": 0.993,
      "coverage": 1,
      "perRegion": [
       {
@@ -1334,7 +1435,12 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0.15,
-     "ms": 520,
+     "boundaryErrsS": [
+      0.4,
+      0.04,
+      0
+     ],
+     "ms": 725,
      "segs": [
       {
        "t0": 0,
@@ -1367,9 +1473,9 @@
      ]
     },
     "ctf": {
-     "beatF": 0.952,
+     "beatF": 0.962,
      "beatFOff": 0.014,
-     "beatP": 0.945,
+     "beatP": 0.965,
      "beatR": 0.958,
      "beatMsMed": 2.5,
      "beatMsP95": 21.8,
@@ -1377,6 +1483,8 @@
      "bpmErr": 1.01,
      "acc1": 0.948,
      "acc1oct": 0.948,
+     "acc1All": 0.948,
+     "acc1octAll": 0.948,
      "coverage": 1,
      "perRegion": [
       {
@@ -1420,7 +1528,12 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 1.16,
-     "ms": 358,
+     "boundaryErrsS": [
+      0.48,
+      2.99,
+      0
+     ],
+     "ms": 438,
      "segs": [
       {
        "t0": 0,
@@ -1453,9 +1566,9 @@
      ]
     },
     "tempogram": {
-     "beatF": 0.979,
+     "beatF": 0.99,
      "beatFOff": 0,
-     "beatP": 0.973,
+     "beatP": 0.993,
      "beatR": 0.986,
      "beatMsMed": 1.5,
      "beatMsP95": 11.2,
@@ -1463,6 +1576,8 @@
      "bpmErr": 0.69,
      "acc1": 0.985,
      "acc1oct": 0.985,
+     "acc1All": 0.985,
+     "acc1octAll": 0.985,
      "coverage": 1,
      "perRegion": [
       {
@@ -1506,7 +1621,12 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0.33,
-     "ms": 272,
+     "boundaryErrsS": [
+      0.73,
+      0.25,
+      0
+     ],
+     "ms": 328,
      "segs": [
       {
        "t0": 0,
@@ -1544,12 +1664,12 @@
    "id": "dev_const",
    "kind": "constant (control)",
    "dur": 61,
-   "evidenceMs": 212,
+   "evidenceMs": 281,
    "results": {
     "engine": {
-     "beatF": 0.984,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.977,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 3,
      "beatMsP95": 7.1,
@@ -1557,6 +1677,8 @@
      "bpmErr": 1.21,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 0.992,
+     "acc1octAll": 0.992,
      "coverage": 0.992,
      "perRegion": [
       {
@@ -1572,14 +1694,15 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": null,
+     "boundaryErrsS": [],
      "ms": 2816,
      "variable": false,
      "source": "dp-tracker"
     },
     "const": {
-     "beatF": 0.984,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.977,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 2.3,
      "beatMsP95": 4.6,
@@ -1587,6 +1710,8 @@
      "bpmErr": 0.01,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -1602,7 +1727,8 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 214,
+     "boundaryErrsS": [],
+     "ms": 283,
      "segs": [
       {
        "t0": 0,
@@ -1614,9 +1740,9 @@
      ]
     },
     "dp": {
-     "beatF": 0.984,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.977,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 2.3,
      "beatMsP95": 4.6,
@@ -1624,6 +1750,8 @@
      "bpmErr": 0.01,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -1639,7 +1767,8 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 303,
+     "boundaryErrsS": [],
+     "ms": 385,
      "segs": [
       {
        "t0": 0,
@@ -1651,9 +1780,9 @@
      ]
     },
     "ctf": {
-     "beatF": 0.984,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.977,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 2.3,
      "beatMsP95": 4.6,
@@ -1661,6 +1790,8 @@
      "bpmErr": 0.01,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -1676,21 +1807,22 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 267,
+     "boundaryErrsS": [],
+     "ms": 339,
      "segs": [
       {
        "t0": 0,
        "t1": 61,
        "bpm": 127.99,
-       "z": 19.9,
+       "z": 11.8,
        "hit": 0.98
       }
      ]
     },
     "tempogram": {
-     "beatF": 0.984,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.977,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 2.3,
      "beatMsP95": 4.6,
@@ -1698,6 +1830,8 @@
      "bpmErr": 0.01,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -1713,7 +1847,8 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 233,
+     "boundaryErrsS": [],
+     "ms": 309,
      "segs": [
       {
        "t0": 0,
@@ -1730,12 +1865,12 @@
    "id": "dev_halftime_drop",
    "kind": "constant 150; half-time feel from bar 17 (control)",
    "dur": 52.2,
-   "evidenceMs": 176,
+   "evidenceMs": 206,
    "results": {
     "engine": {
-     "beatF": 0.984,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.977,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 3,
      "beatMsP95": 7.2,
@@ -1743,6 +1878,8 @@
      "bpmErr": 2.03,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 0.99,
+     "acc1octAll": 0.99,
      "coverage": 0.99,
      "perRegion": [
       {
@@ -1758,14 +1895,15 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": null,
+     "boundaryErrsS": [],
      "ms": 2625,
      "variable": false,
      "source": "dp-tracker"
     },
     "const": {
-     "beatF": 0.984,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.977,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 1.4,
      "beatMsP95": 3.5,
@@ -1773,6 +1911,8 @@
      "bpmErr": 0.01,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -1788,7 +1928,8 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 178,
+     "boundaryErrsS": [],
+     "ms": 209,
      "segs": [
       {
        "t0": 0,
@@ -1800,9 +1941,9 @@
      ]
     },
     "dp": {
-     "beatF": 0.984,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.977,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 1.4,
      "beatMsP95": 3.5,
@@ -1810,6 +1951,8 @@
      "bpmErr": 0.01,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -1825,21 +1968,22 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 292,
+     "boundaryErrsS": [],
+     "ms": 326,
      "segs": [
       {
        "t0": 0,
        "t1": 52.2,
        "bpm": 150.01,
-       "z": 16.6,
+       "z": 10.1,
        "hit": 0.74
       }
      ]
     },
     "ctf": {
-     "beatF": 0.984,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.977,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 1.4,
      "beatMsP95": 3.5,
@@ -1847,6 +1991,8 @@
      "bpmErr": 0.01,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -1862,21 +2008,22 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 213,
+     "boundaryErrsS": [],
+     "ms": 249,
      "segs": [
       {
        "t0": 0,
        "t1": 52.2,
        "bpm": 150.01,
-       "z": 16.6,
+       "z": 10.5,
        "hit": 0.74
       }
      ]
     },
     "tempogram": {
-     "beatF": 0.984,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.977,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 1.4,
      "beatMsP95": 3.5,
@@ -1884,6 +2031,8 @@
      "bpmErr": 0.01,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -1899,7 +2048,8 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 192,
+     "boundaryErrsS": [],
+     "ms": 224,
      "segs": [
       {
        "t0": 0,
@@ -1916,11 +2066,11 @@
    "id": "dev_offbeat",
    "kind": "constant 140; all drums on off-beats (control)",
    "dur": 55.9,
-   "evidenceMs": 186,
+   "evidenceMs": 278,
    "results": {
     "engine": {
      "beatF": 0,
-     "beatFOff": 0.988,
+     "beatFOff": 0.992,
      "beatP": 0,
      "beatR": 0,
      "beatMsMed": null,
@@ -1929,6 +2079,8 @@
      "bpmErr": 0.34,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 0.991,
+     "acc1octAll": 0.991,
      "coverage": 0.991,
      "perRegion": [
       {
@@ -1944,13 +2096,14 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": null,
+     "boundaryErrsS": [],
      "ms": 2677,
      "variable": false,
      "source": "dp-tracker"
     },
     "const": {
      "beatF": 0,
-     "beatFOff": 0.988,
+     "beatFOff": 0.992,
      "beatP": 0,
      "beatR": 0,
      "beatMsMed": null,
@@ -1959,6 +2112,8 @@
      "bpmErr": 0.01,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -1974,7 +2129,8 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 188,
+     "boundaryErrsS": [],
+     "ms": 293,
      "segs": [
       {
        "t0": 0,
@@ -1987,7 +2143,7 @@
     },
     "dp": {
      "beatF": 0,
-     "beatFOff": 0.988,
+     "beatFOff": 0.992,
      "beatP": 0,
      "beatR": 0,
      "beatMsMed": null,
@@ -1996,6 +2152,8 @@
      "bpmErr": 0.01,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -2011,20 +2169,21 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 283,
+     "boundaryErrsS": [],
+     "ms": 546,
      "segs": [
       {
        "t0": 0,
        "t1": 55.8,
        "bpm": 139.99,
-       "z": 17.9,
+       "z": 11.4,
        "hit": 0.98
       }
      ]
     },
     "ctf": {
      "beatF": 0,
-     "beatFOff": 0.988,
+     "beatFOff": 0.992,
      "beatP": 0,
      "beatR": 0,
      "beatMsMed": null,
@@ -2033,6 +2192,8 @@
      "bpmErr": 0.01,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -2048,20 +2209,21 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 245,
+     "boundaryErrsS": [],
+     "ms": 336,
      "segs": [
       {
        "t0": 0,
        "t1": 55.8,
        "bpm": 139.99,
-       "z": 17.9,
+       "z": 11.3,
        "hit": 0.98
       }
      ]
     },
     "tempogram": {
      "beatF": 0,
-     "beatFOff": 0.988,
+     "beatFOff": 0.992,
      "beatP": 0,
      "beatR": 0,
      "beatMsMed": null,
@@ -2070,6 +2232,8 @@
      "bpmErr": 0.01,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -2085,7 +2249,8 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 207,
+     "boundaryErrsS": [],
+     "ms": 302,
      "segs": [
       {
        "t0": 0,
@@ -2102,12 +2267,12 @@
    "id": "dev_ramp_short",
    "kind": "ramp 120 to 140 over 2 bars (short transition)",
    "dur": 49.3,
-   "evidenceMs": 176,
+   "evidenceMs": 170,
    "results": {
     "engine": {
-     "beatF": 0.986,
+     "beatF": 0.995,
      "beatFOff": 0,
-     "beatP": 0.981,
+     "beatP": 1,
      "beatR": 0.99,
      "beatMsMed": 3.1,
      "beatMsP95": 7,
@@ -2115,6 +2280,8 @@
      "bpmErr": 0.33,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 0.99,
+     "acc1octAll": 0.99,
      "coverage": 0.99,
      "perRegion": [
       {
@@ -2139,19 +2306,22 @@
        "n": 40
       }
      ],
-     "nChanges": 3,
+     "nChanges": 2,
      "truthTransitions": 1,
      "missed": 0,
-     "extra": 1,
+     "extra": 0,
      "boundaryErrS": 0,
+     "boundaryErrsS": [
+      0
+     ],
      "ms": 2445,
      "variable": true,
      "source": "dp-tracker"
     },
     "const": {
-     "beatF": 0.653,
-     "beatFOff": 0.139,
-     "beatP": 0.673,
+     "beatF": 0.663,
+     "beatFOff": 0.141,
+     "beatP": 0.695,
      "beatR": 0.635,
      "beatMsMed": 1.6,
      "beatMsP95": 46.7,
@@ -2159,6 +2329,8 @@
      "bpmErr": 9.06,
      "acc1": 0.531,
      "acc1oct": 0.531,
+     "acc1All": 0.531,
+     "acc1octAll": 0.531,
      "coverage": 1,
      "perRegion": [
       {
@@ -2188,7 +2360,8 @@
      "missed": 1,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 177,
+     "boundaryErrsS": [],
+     "ms": 172,
      "segs": [
       {
        "t0": 0,
@@ -2200,9 +2373,9 @@
      ]
     },
     "dp": {
-     "beatF": 0.981,
+     "beatF": 0.995,
      "beatFOff": 0,
-     "beatP": 0.972,
+     "beatP": 1,
      "beatR": 0.99,
      "beatMsMed": 2.4,
      "beatMsP95": 7.8,
@@ -2210,6 +2383,8 @@
      "bpmErr": 0.43,
      "acc1": 0.958,
      "acc1oct": 0.958,
+     "acc1All": 0.958,
+     "acc1octAll": 0.958,
      "coverage": 1,
      "perRegion": [
       {
@@ -2239,7 +2414,10 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0,
-     "ms": 254,
+     "boundaryErrsS": [
+      0
+     ],
+     "ms": 272,
      "segs": [
       {
        "t0": 0,
@@ -2258,9 +2436,9 @@
      ]
     },
     "ctf": {
-     "beatF": 0.981,
+     "beatF": 0.995,
      "beatFOff": 0,
-     "beatP": 0.972,
+     "beatP": 1,
      "beatR": 0.99,
      "beatMsMed": 2.4,
      "beatMsP95": 7.8,
@@ -2268,6 +2446,8 @@
      "bpmErr": 0.43,
      "acc1": 0.958,
      "acc1oct": 0.958,
+     "acc1All": 0.958,
+     "acc1octAll": 0.958,
      "coverage": 1,
      "perRegion": [
       {
@@ -2297,7 +2477,10 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0,
-     "ms": 210,
+     "boundaryErrsS": [
+      0
+     ],
+     "ms": 219,
      "segs": [
       {
        "t0": 0,
@@ -2316,9 +2499,9 @@
      ]
     },
     "tempogram": {
-     "beatF": 0.976,
+     "beatF": 0.99,
      "beatFOff": 0.01,
-     "beatP": 0.971,
+     "beatP": 1,
      "beatR": 0.981,
      "beatMsMed": 2.7,
      "beatMsP95": 2.7,
@@ -2326,6 +2509,8 @@
      "bpmErr": 0.42,
      "acc1": 0.958,
      "acc1oct": 0.958,
+     "acc1All": 0.958,
+     "acc1octAll": 0.958,
      "coverage": 1,
      "perRegion": [
       {
@@ -2355,7 +2540,10 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0,
-     "ms": 190,
+     "boundaryErrsS": [
+      0
+     ],
+     "ms": 189,
      "segs": [
       {
        "t0": 0,
@@ -2382,9 +2570,9 @@
    "evidenceMs": 165,
    "results": {
     "engine": {
-     "beatF": 0.742,
-     "beatFOff": 0.119,
-     "beatP": 0.767,
+     "beatF": 0.754,
+     "beatFOff": 0.11,
+     "beatP": 0.793,
      "beatR": 0.719,
      "beatMsMed": 2.4,
      "beatMsP95": 7.4,
@@ -2392,6 +2580,8 @@
      "bpmErr": 9.23,
      "acc1": 0.681,
      "acc1oct": 0.681,
+     "acc1All": 0.667,
+     "acc1octAll": 0.667,
      "coverage": 0.978,
      "perRegion": [
       {
@@ -2416,11 +2606,14 @@
        "n": 13
       }
      ],
-     "nChanges": 2,
+     "nChanges": 4,
      "truthTransitions": 1,
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0,
+     "boundaryErrsS": [
+      0
+     ],
      "ms": 2431,
      "variable": true,
      "source": "dp-tracker"
@@ -2436,6 +2629,8 @@
      "bpmErr": null,
      "acc1": null,
      "acc1oct": null,
+     "acc1All": 0,
+     "acc1octAll": 0,
      "coverage": 0,
      "perRegion": [
       {
@@ -2465,6 +2660,7 @@
      "missed": 1,
      "extra": 0,
      "boundaryErrS": null,
+     "boundaryErrsS": [],
      "ms": 166,
      "segs": [
       {
@@ -2478,9 +2674,9 @@
      ]
     },
     "dp": {
-     "beatF": 0.979,
+     "beatF": 0.995,
      "beatFOff": 0,
-     "beatP": 0.969,
+     "beatP": 1,
      "beatR": 0.99,
      "beatMsMed": 4.5,
      "beatMsP95": 26.6,
@@ -2488,6 +2684,8 @@
      "bpmErr": 0.83,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -2517,7 +2715,10 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0,
-     "ms": 823,
+     "boundaryErrsS": [
+      0
+     ],
+     "ms": 1054,
      "segs": [
       {
        "t0": 0,
@@ -2544,9 +2745,9 @@
      ]
     },
     "ctf": {
-     "beatF": 0.979,
+     "beatF": 0.995,
      "beatFOff": 0,
-     "beatP": 0.969,
+     "beatP": 1,
      "beatR": 0.99,
      "beatMsMed": 3.5,
      "beatMsP95": 52.6,
@@ -2554,6 +2755,8 @@
      "bpmErr": 1.09,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -2583,7 +2786,10 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0,
-     "ms": 554,
+     "boundaryErrsS": [
+      0
+     ],
+     "ms": 415,
      "segs": [
       {
        "t0": 0,
@@ -2624,9 +2830,9 @@
      ]
     },
     "tempogram": {
-     "beatF": 0.643,
-     "beatFOff": 0.141,
-     "beatP": 0.621,
+     "beatF": 0.653,
+     "beatFOff": 0.144,
+     "beatP": 0.64,
      "beatR": 0.667,
      "beatMsMed": 6.6,
      "beatMsP95": 67.6,
@@ -2634,6 +2840,8 @@
      "bpmErr": 7.78,
      "acc1": 0.548,
      "acc1oct": 0.548,
+     "acc1All": 0.548,
+     "acc1octAll": 0.548,
      "coverage": 1,
      "perRegion": [
       {
@@ -2663,7 +2871,10 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0,
-     "ms": 209,
+     "boundaryErrsS": [
+      0
+     ],
+     "ms": 180,
      "segs": [
       {
        "t0": 0,
@@ -2687,12 +2898,12 @@
    "id": "dev_silent_step",
    "kind": "step 120 to 135 inside a 16-bar drumless section (the exact place is unobservable)",
    "dur": 60.6,
-   "evidenceMs": 261,
+   "evidenceMs": 211,
    "results": {
     "engine": {
-     "beatF": 0.712,
-     "beatFOff": 0.137,
-     "beatP": 0.73,
+     "beatF": 0.718,
+     "beatFOff": 0.138,
+     "beatP": 0.742,
      "beatR": 0.695,
      "beatMsMed": 3.5,
      "beatMsP95": 64.3,
@@ -2700,6 +2911,8 @@
      "bpmErr": 7.66,
      "acc1": 0.576,
      "acc1oct": 0.576,
+     "acc1All": 0.571,
+     "acc1octAll": 0.571,
      "coverage": 0.992,
      "perRegion": [
       {
@@ -2729,14 +2942,15 @@
      "missed": 1,
      "extra": 1,
      "boundaryErrS": null,
+     "boundaryErrsS": [],
      "ms": 2679,
      "variable": true,
      "source": "dp-tracker"
     },
     "const": {
-     "beatF": 0.735,
-     "beatFOff": 0.137,
-     "beatP": 0.713,
+     "beatF": 0.743,
+     "beatFOff": 0.138,
+     "beatP": 0.729,
      "beatR": 0.758,
      "beatMsMed": 3.2,
      "beatMsP95": 60.4,
@@ -2744,6 +2958,8 @@
      "bpmErr": 6.05,
      "acc1": 0.597,
      "acc1oct": 0.597,
+     "acc1All": 0.597,
+     "acc1octAll": 0.597,
      "coverage": 1,
      "perRegion": [
       {
@@ -2773,7 +2989,8 @@
      "missed": 1,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 264,
+     "boundaryErrsS": [],
+     "ms": 213,
      "segs": [
       {
        "t0": 0,
@@ -2785,9 +3002,9 @@
      ]
     },
     "dp": {
-     "beatF": 0.973,
+     "beatF": 0.984,
      "beatFOff": 0.008,
-     "beatP": 0.969,
+     "beatP": 0.992,
      "beatR": 0.977,
      "beatMsMed": 1.8,
      "beatMsP95": 2.1,
@@ -2795,6 +3012,8 @@
      "bpmErr": 0.39,
      "acc1": 0.975,
      "acc1oct": 0.975,
+     "acc1All": 0.975,
+     "acc1octAll": 0.975,
      "coverage": 1,
      "perRegion": [
       {
@@ -2824,7 +3043,10 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 1.4,
-     "ms": 499,
+     "boundaryErrsS": [
+      1.4
+     ],
+     "ms": 372,
      "segs": [
       {
        "t0": 0,
@@ -2843,9 +3065,9 @@
      ]
     },
     "ctf": {
-     "beatF": 0.984,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.977,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 1.8,
      "beatMsP95": 2.3,
@@ -2853,6 +3075,8 @@
      "bpmErr": 0.01,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -2882,7 +3106,10 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0.04,
-     "ms": 350,
+     "boundaryErrsS": [
+      0.04
+     ],
+     "ms": 268,
      "segs": [
       {
        "t0": 0,
@@ -2901,9 +3128,9 @@
      ]
     },
     "tempogram": {
-     "beatF": 0.781,
+     "beatF": 0.792,
      "beatFOff": 0.009,
-     "beatP": 0.966,
+     "beatP": 1,
      "beatR": 0.656,
      "beatMsMed": 1.9,
      "beatMsP95": 3.9,
@@ -2911,6 +3138,8 @@
      "bpmErr": 0.2,
      "acc1": 0.988,
      "acc1oct": 0.988,
+     "acc1All": 0.672,
+     "acc1octAll": 0.672,
      "coverage": 0.681,
      "perRegion": [
       {
@@ -2940,7 +3169,8 @@
      "missed": 1,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 805,
+     "boundaryErrsS": [],
+     "ms": 676,
      "segs": [
       {
        "t0": 0,
@@ -2972,12 +3202,12 @@
    "id": "dev_slow_fills",
    "kind": "constant 92; double-time snare rolls and 16th hats from bar 17 (control)",
    "dur": 84.5,
-   "evidenceMs": 333,
+   "evidenceMs": 302,
    "results": {
     "engine": {
-     "beatF": 0.988,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.984,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 12.6,
      "beatMsP95": 12.9,
@@ -2985,6 +3215,8 @@
      "bpmErr": 0,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 0.988,
+     "acc1octAll": 0.988,
      "coverage": 0.988,
      "perRegion": [
       {
@@ -3000,14 +3232,15 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": null,
+     "boundaryErrsS": [],
      "ms": 2983,
      "variable": false,
      "source": "constant-fit"
     },
     "const": {
-     "beatF": 0.988,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.984,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 2,
      "beatMsP95": 5.2,
@@ -3015,6 +3248,8 @@
      "bpmErr": 0.01,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -3030,7 +3265,8 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 334,
+     "boundaryErrsS": [],
+     "ms": 304,
      "segs": [
       {
        "t0": 0,
@@ -3042,9 +3278,9 @@
      ]
     },
     "dp": {
-     "beatF": 0.988,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.984,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 2,
      "beatMsP95": 5.2,
@@ -3052,6 +3288,8 @@
      "bpmErr": 0.01,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -3067,21 +3305,22 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 621,
+     "boundaryErrsS": [],
+     "ms": 573,
      "segs": [
       {
        "t0": 0,
        "t1": 84.4,
        "bpm": 91.99,
-       "z": 20.9,
+       "z": 12.7,
        "hit": 0.98
       }
      ]
     },
     "ctf": {
-     "beatF": 0.988,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.984,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 2,
      "beatMsP95": 5.2,
@@ -3089,6 +3328,8 @@
      "bpmErr": 0.01,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -3104,21 +3345,22 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 495,
+     "boundaryErrsS": [],
+     "ms": 458,
      "segs": [
       {
        "t0": 0,
        "t1": 84.4,
        "bpm": 91.99,
-       "z": 20.9,
+       "z": 12.1,
        "hit": 0.98
       }
      ]
     },
     "tempogram": {
-     "beatF": 0.988,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.984,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 2,
      "beatMsP95": 5.2,
@@ -3126,6 +3368,8 @@
      "bpmErr": 0.01,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 1,
+     "acc1octAll": 1,
      "coverage": 1,
      "perRegion": [
       {
@@ -3141,7 +3385,8 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 384,
+     "boundaryErrsS": [],
+     "ms": 331,
      "segs": [
       {
        "t0": 0,
@@ -3158,12 +3403,12 @@
    "id": "dev_slow_step",
    "kind": "step 88 to 98 BPM at bar 17 (slow tempi, a 11 % step)",
    "dur": 83.8,
-   "evidenceMs": 290,
+   "evidenceMs": 300,
    "results": {
     "engine": {
-     "beatF": 0.988,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.984,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 2.8,
      "beatMsP95": 7,
@@ -3171,6 +3416,8 @@
      "bpmErr": 0.45,
      "acc1": 1,
      "acc1oct": 1,
+     "acc1All": 0.988,
+     "acc1octAll": 0.988,
      "coverage": 0.988,
      "perRegion": [
       {
@@ -3188,19 +3435,22 @@
        "n": 77
       }
      ],
-     "nChanges": 2,
+     "nChanges": 1,
      "truthTransitions": 1,
      "missed": 0,
-     "extra": 1,
+     "extra": 0,
      "boundaryErrS": 0,
+     "boundaryErrsS": [
+      0
+     ],
      "ms": 3025,
      "variable": true,
      "source": "dp-tracker"
     },
     "const": {
-     "beatF": 0.608,
-     "beatFOff": 0.104,
-     "beatP": 0.623,
+     "beatF": 0.613,
+     "beatFOff": 0.097,
+     "beatP": 0.633,
      "beatR": 0.594,
      "beatMsMed": 1.9,
      "beatMsP95": 50.6,
@@ -3208,6 +3458,8 @@
      "bpmErr": 4.68,
      "acc1": 0.533,
      "acc1oct": 0.533,
+     "acc1All": 0.533,
+     "acc1octAll": 0.533,
      "coverage": 1,
      "perRegion": [
       {
@@ -3230,7 +3482,8 @@
      "missed": 1,
      "extra": 0,
      "boundaryErrS": null,
-     "ms": 293,
+     "boundaryErrsS": [],
+     "ms": 304,
      "segs": [
       {
        "t0": 0,
@@ -3242,9 +3495,9 @@
      ]
     },
     "dp": {
-     "beatF": 0.988,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.984,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 1.5,
      "beatMsP95": 3.8,
@@ -3252,6 +3505,8 @@
      "bpmErr": 0.07,
      "acc1": 0.994,
      "acc1oct": 0.994,
+     "acc1All": 0.994,
+     "acc1octAll": 0.994,
      "coverage": 1,
      "perRegion": [
       {
@@ -3274,7 +3529,10 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0.35,
-     "ms": 628,
+     "boundaryErrsS": [
+      0.35
+     ],
+     "ms": 571,
      "segs": [
       {
        "t0": 0,
@@ -3293,9 +3551,9 @@
      ]
     },
     "ctf": {
-     "beatF": 0.988,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.984,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 1.5,
      "beatMsP95": 3.8,
@@ -3303,6 +3561,8 @@
      "bpmErr": 0.07,
      "acc1": 0.994,
      "acc1oct": 0.994,
+     "acc1All": 0.994,
+     "acc1octAll": 0.994,
      "coverage": 1,
      "perRegion": [
       {
@@ -3325,7 +3585,10 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0.33,
-     "ms": 443,
+     "boundaryErrsS": [
+      0.33
+     ],
+     "ms": 404,
      "segs": [
       {
        "t0": 0,
@@ -3344,9 +3607,9 @@
      ]
     },
     "tempogram": {
-     "beatF": 0.988,
+     "beatF": 0.996,
      "beatFOff": 0,
-     "beatP": 0.984,
+     "beatP": 1,
      "beatR": 0.992,
      "beatMsMed": 1.5,
      "beatMsP95": 3.8,
@@ -3354,6 +3617,8 @@
      "bpmErr": 0.07,
      "acc1": 0.994,
      "acc1oct": 0.994,
+     "acc1All": 0.994,
+     "acc1octAll": 0.994,
      "coverage": 1,
      "perRegion": [
       {
@@ -3376,7 +3641,10 @@
      "missed": 0,
      "extra": 0,
      "boundaryErrS": 0.2,
-     "ms": 331,
+     "boundaryErrsS": [
+      0.2
+     ],
+     "ms": 332,
      "segs": [
       {
        "t0": 0,

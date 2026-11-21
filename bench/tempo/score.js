@@ -36,21 +36,25 @@ const within = (p, t, tol) => Math.abs(p / t - 1) <= tol;
 const oct = (p, t) => [1, 0.5, 2, 1 / 3, 3].some(k => within(p, t * k, 0.04));
 
 function score(T, pred, ms) {
-  const beats = pred.beats.filter(t => t >= 0), m = matchBeats(beats, T.beats), P = m.tp / (beats.length || 1), Rc = m.tp / T.beats.length, F = P + Rc ? 2 * P * Rc / (P + Rc) : 0;
+  // Predicted beats before the first or after the last ANNOTATED beat are not scored: the fixtures' audio keeps sounding after the last annotated beat, and counting those
+  // beats as false positives capped every beat F near 0.984 whatever the method did (found in review).
+  const lo = T.beats[0] - BEAT_TOL, hi = T.beats[T.beats.length - 1] + BEAT_TOL, beats = pred.beats.filter(t => t >= lo && t <= hi), m = matchBeats(beats, T.beats), P = m.tp / (beats.length || 1), Rc = m.tp / T.beats.length, F = P + Rc ? 2 * P * Rc / (P + Rc) : 0;
   // off-beat lock: the same beats moved half a beat later score as well (or better) against the truth, so the tempo is right and the phase is half a beat out (issue #50)
   const half = beats.slice(0, -1).map((t, i) => t + (beats[i + 1] - t) / 2), mh = matchBeats(half, T.beats), Ph = mh.tp / (half.length || 1), Rh = mh.tp / T.beats.length, Foff = Ph + Rh ? 2 * Ph * Rh / (Ph + Rh) : 0;
   // tempo error sampled every 0.5 s across the truth beats' span
   const t0 = T.beats[0], t1 = T.beats[T.beats.length - 1], samples = []; for (let t = t0; t < t1; t += 0.5) { const p = pred.tempo(t); samples.push({ t, truth: truthBpmAt(T, t), pred: p }); }
   const used = samples.filter(s => s.pred != null), mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
   const bpmErr = mean(used.map(s => Math.abs(s.pred - s.truth))), acc1 = mean(used.map(s => within(s.pred, s.truth, 0.04) ? 1 : 0)), acc1oct = mean(used.map(s => oct(s.pred, s.truth) ? 1 : 0));
+  // Acc1 above is over the stretches the prediction commits to, so abstaining raises it. These two count an unknown stretch as wrong: the number to compare methods by.
+  const acc1All = mean(samples.map(s => s.pred != null && within(s.pred, s.truth, 0.04) ? 1 : 0)), acc1octAll = mean(samples.map(s => s.pred != null && oct(s.pred, s.truth) ? 1 : 0));
   const perRegion = T.regions.map(r => { const rs = used.filter(s => s.t >= r.t0 && s.t < r.t1);
     return { bpm: r.bpmStart === r.bpmEnd ? r.bpmStart : `${r.bpmStart}-${r.bpmEnd}`, acc1: mean(rs.map(s => within(s.pred, s.truth, 0.04) ? 1 : 0)), acc1oct: mean(rs.map(s => oct(s.pred, s.truth) ? 1 : 0)), bpmErr: mean(rs.map(s => Math.abs(s.pred - s.truth))), n: rs.length }; });
   const tr = transitions(T), ch = pred.changes || [], hitT = tr.map(([a, b]) => ch.some(c => c >= a - TOL_S && c <= b + TOL_S)), hitC = ch.map(c => tr.some(([a, b]) => c >= a - TOL_S && c <= b + TOL_S));
   const bErr = tr.map(([a, b]) => { const near = ch.filter(c => c >= a - TOL_S && c <= b + TOL_S); return near.length ? Math.min(...near.map(c => c < a ? a - c : c > b ? c - b : 0)) : null; }).filter(v => v != null);
   return { beatF: +F.toFixed(3), beatFOff: +Foff.toFixed(3), beatP: +P.toFixed(3), beatR: +Rc.toFixed(3), beatMsMed: m.err.length ? +pct(m.err, 0.5).toFixed(1) : null, beatMsP95: m.err.length ? +pct(m.err, 0.95).toFixed(1) : null, worstMs: m.err.length ? +Math.max(...m.err).toFixed(1) : null,
-    bpmErr: bpmErr == null ? null : +bpmErr.toFixed(2), acc1: acc1 == null ? null : +acc1.toFixed(3), acc1oct: acc1oct == null ? null : +acc1oct.toFixed(3), coverage: +(used.length / (samples.length || 1)).toFixed(3),
+    bpmErr: bpmErr == null ? null : +bpmErr.toFixed(2), acc1: acc1 == null ? null : +acc1.toFixed(3), acc1oct: acc1oct == null ? null : +acc1oct.toFixed(3), acc1All: +acc1All.toFixed(3), acc1octAll: +acc1octAll.toFixed(3), coverage: +(used.length / (samples.length || 1)).toFixed(3),
     perRegion: perRegion.map(r => ({ ...r, acc1: r.acc1 == null ? null : +r.acc1.toFixed(2), acc1oct: r.acc1oct == null ? null : +r.acc1oct.toFixed(2), bpmErr: r.bpmErr == null ? null : +r.bpmErr.toFixed(1) })),
-    nChanges: ch.length, truthTransitions: tr.length, missed: hitT.filter(h => !h).length, extra: hitC.filter(h => !h).length, boundaryErrS: bErr.length ? +mean(bErr).toFixed(2) : null, ms: ms == null ? null : Math.round(ms) };
+    nChanges: ch.length, truthTransitions: tr.length, missed: hitT.filter(h => !h).length, extra: hitC.filter(h => !h).length, boundaryErrS: bErr.length ? +mean(bErr).toFixed(2) : null, boundaryErrsS: bErr.map(v => +v.toFixed(2)), ms: ms == null ? null : Math.round(ms) };
 }
 
 /* segments (from segment.js: { a, b, bpm, phase, period } in frames, or ramp segments { a, b, bpm0, bpm1, beats }) -> a prediction */
@@ -63,13 +67,21 @@ function fromSegments(comb, segs, o = {}) {
   changes.sort((x, y) => x - y);
   return { beats, tempo, changes };
 }
-/* the engine's own tracked beats (a.grid.beats, seconds) as a prediction: local tempo from the median of 9 neighbouring intervals; "changes" are where that
-   local tempo leaves +-3 % of the track median (the same rule TimeMap uses to call a track variable), one change per excursion edge */
+/* the engine's own tracked beats (a.grid.beats, seconds) as a prediction. Local tempo is the median of 9 neighbouring intervals (the window TimeMap uses). It is then cut into
+   stretches the way the candidates' stretches are counted: a stretch ends when 4 consecutive local tempi all sit more than 3 % from the stretch's running median, and the new
+   stretch starts at the first of them; neighbouring stretches whose medians are within 3 % are one. A change is one stretch boundary. (The first version counted both edges of every
+   excursion from the whole-track median, which double-counted a wandering tracker and missed a step between two tempi that are both far from the median.) `variable` is
+   TimeMap's own rule: any local tempo more than 3 % from the median. */
 function fromBeats(beats, o = {}) {
   const iv = beats.slice(1).map((t, i) => t - beats[i]), loc = i => { const w = iv.slice(Math.max(0, i - 4), Math.min(iv.length, i + 5)).sort((a, b) => a - b); return 60 / w[w.length >> 1]; };
-  const lt = iv.map((_, i) => loc(i)), med = [...lt].sort((a, b) => a - b)[lt.length >> 1], tol = o.tol ?? 0.03;
+  const lt = iv.map((_, i) => loc(i)), tol = o.tol ?? 0.03, need = o.persist ?? 4, med = a => { const w = [...a].sort((x, y) => x - y); return w[w.length >> 1]; };
   const tempo = t => { let lo = 0, hi = iv.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (beats[m] <= t) lo = m; else hi = m - 1; } return t < beats[0] || t > beats[beats.length - 1] ? null : lt[lo]; };
-  const changes = []; let inside = false; lt.forEach((v, i) => { const out = Math.abs(v / med - 1) > tol; if (out !== inside) { changes.push(beats[i]); inside = out; } });
-  return { beats, tempo, changes, variable: changes.length > 0 };
+  let runs = [{ start: 0, vals: [] }], dev = [];
+  lt.forEach((v, i) => { const cur = runs[runs.length - 1];
+    if (cur.vals.length && Math.abs(v / med(cur.vals) - 1) > tol) { dev.push([i, v]); if (dev.length >= need && dev.every(([, w]) => Math.abs(w / med(dev.map(d => d[1])) - 1) <= tol)) { runs.push({ start: dev[0][0], vals: dev.map(d => d[1]) }); dev = []; } else if (dev.length >= need) dev.shift(); }
+    else { dev = []; cur.vals.push(v); } });
+  for (let k = 1; k < runs.length;) { if (Math.abs(med(runs[k].vals) / med(runs[k - 1].vals) - 1) <= tol) { runs[k - 1].vals.push(...runs[k].vals); runs.splice(k, 1); } else k++; }
+  const changes = runs.slice(1).map(r => beats[r.start]), m0 = med(lt);
+  return { beats, tempo, changes, variable: lt.some(v => Math.abs(v / m0 - 1) > tol) };
 }
 module.exports = { loadTruth, score, fromSegments, fromBeats, truthBpmAt, transitions, TOL_S };

@@ -10,11 +10,12 @@ available it was run privately (no audio, stems or annotations are in the reposi
 ## Answer in short
 
 1. **Yes, on synthetic audio.** A penalised change-point search over a comb table (`dp`, below) recovers steps, ramps, returns (A-B-A) and several changes with the engine's own
-   onset evidence, and reports a drumless stretch as unknown instead of inventing a tempo. On the 13 dev fixtures it takes beat F from 0.867 (engine) to 0.969, mean BPM error from
-   6.14 to 0.33, and reports **0 extra tempo changes against the engine's 17**. On the 9 holdout fixtures the picture is the same where the method works, and shows two
+   onset evidence, and reports a drumless stretch as unknown instead of inventing a tempo. On the 9 variable-tempo dev fixtures it takes beat F from 0.875 (engine) to 0.981, mean BPM error from
+   6.14 to 0.33 and Acc1 (an unknown stretch counted as wrong) from 0.813 to 0.967. Both the engine and the candidates report essentially no *false* tempo changes (the first draft of this report
+   said 17 against 0; that was a scoring defect, see "Scoring fixes"): what separates them is whether the beat grid follows the music. On the holdout fixtures the picture is the same where the method works, and shows two
    limits (below): the octave of the first stretch, and a drumless ramp.
-2. **The engine already follows some changes and loses others.** It follows a 128 to 150 step (beat F 0.988), a 128 to 150 ramp (0.984) and a 120 to 140 two-bar ramp (0.986), and loses a 100 to 132 step (0.609), a 110 to 140
-   long ramp (0.742) and a four-tempo track (0.508, 10 false changes). Whether it follows a change depends on the size and speed of the change relative to its single beat length.
+2. **The engine already follows some changes and loses others.** It follows a 128 to 150 step (beat F 0.996), a 128 to 150 ramp (0.995) and a 120 to 140 two-bar ramp (0.995), and loses a 100 to 132 step (0.616, holdout), a 110 to 140
+   long ramp (0.754), a step inside a drumless section (0.718) and a four-tempo track (0.512). Whether it follows a change depends on the size and speed of the change relative to its single beat length.
 3. **Best candidate: `dp`** (exact optimal partition by dynamic programming, then merge same-tempo neighbours, fit ramps in low-evidence runs, keep octave continuity).
    `ctf` (the coarse-to-fine proposal, top down) is as accurate on dev, faster, and less reliable on real music (one false 4:3 stretch on a steady track) and needs a two-split look-ahead to
    find A-B-A. The tempogram + Viterbi variant is the weakest on ramps and drumless stretches.
@@ -57,72 +58,83 @@ Device: Apple M1, macOS 27.2.1, Node 24.19.0, Chromium for the engine row.
   * *unknown*: a stretch with z below 5 (its best grid does not stand out from the tempo scan) is reported as unknown, not as a tempo;
   * *octave continuity*: each known stretch is moved by a factor 1/2, 1 or 2 to the octave nearest to the stretch before it, the first against the engine's own whole-track tempo.
 
+## Scoring fixes made after review
+
+A review of the first version of this report found defects in `bench/tempo/score.js`; the ones below were confirmed and fixed (`tests/tempo-score.test.js`, 14 checks; two of them reproduced on the old scorer before the fix).
+The candidates and their settings were **not** changed: only the scoring and the stored results (`bench/baselines/tempo-map/`, all three re-scored).
+
+1. **Beat F was capped.** Predicted beats after the last annotated beat (the audio keeps sounding) counted as false positives, so no method could score above about 0.984 (old scorer on a perfect grid with two tail beats: 0.992). Beats outside the annotated span are no longer scored.
+2. **The engine's changes were counted unfairly.** Its beats were turned into "changes" at both edges of every excursion from the track median (a single step counted twice; old scorer: a clean 120 to 150 step gave 2 changes), while the candidates' changes were one per stretch boundary.
+   Both now use one rule: a change is a stretch boundary (4 consecutive local tempi more than 3 % from the stretch's median start a new stretch). **This removes the first draft's claim "0 extra changes against the engine's 17": the engine's extra changes are 1 (dev) and 0 (holdout).**
+   The first draft's headline was an artefact; the real differences are in the grid (beat F, Acc1), not in the count of changes.
+3. **Acc1 rewarded abstaining.** It was averaged over the stretches a method commits to. Both the all-time version (unknown counted wrong) and the committed-only version are reported, and the all-time one ranks the methods.
+4. **"Worst boundary error" was the largest per-fixture mean**, not the worst transition. It is now the worst single transition (`boundaryErrsS`); `ctf`'s worst is 2.99 s on dev.
+
 ## Fixtures and what is measured
 
 22 tempo fixtures (13 dev, 9 holdout; `dev_slow_fills` and `dev_slow_step` were added to dev after the first holdout run, see below), 50 to 130 s each, 4/4 with kick, clap and hats, a pad and a bass.
 Controls (no tempo change, the feel changes): `const`, `halftime_drop`, `offbeat` (all drums on off-beats), `dnb_double` / `slow_fills` (double-time snare rolls). Metrics (`bench/tempo/score.js`):
-beat F within 70 ms; beat timing error (median, p95, worst); time-weighted BPM error; **Acc1** (within 4 %) and **octave-tolerant Acc1** (1/2, 2, 1/3, 3 times also accepted), reported separately;
+beat F within 70 ms; beat timing error (median, p95, worst); time-weighted BPM error; **Acc1** (within 4 %) and **octave-tolerant Acc1** (1/2, 2, 1/3, 3 times also accepted), reported separately, each over the stretches a method commits to **and** over all time with an unknown stretch counted as wrong (compare methods by the second: abstaining raises the first);
 per-region Acc1 so a long section cannot hide a short one (all of it is in the JSON files); transitions found, missed and extra (tolerance 3 s either side of a step or a ramp's span);
 coverage (the share of the track committed to a tempo; the rest is unknown); latency. "Extra" counts predicted tempo changes that match no truth transition.
 
 ### Results: dev (13 fixtures, frozen settings; `bench/baselines/tempo-map/dev.*`)
 
-| Variable-tempo fixtures (9) | beat F | BPM err | Acc1 | Acc1 octave-tolerant | coverage | transitions found of 12 | missed | extra | median ms |
-|---|---|---|---|---|---|---|---|---|---|
-| engine (its own tracked beats; ms is the whole analysis) | 0.867 | 6.14 | 0.822 | 0.822 | 0.988 | 10 | 2 | 17 | 2846 |
-| const | 0.511 | 8.28 | 0.540 | 0.540 | 0.778 | 0 | 12 | 0 | 221 |
-| **dp** | **0.969** | **0.33** | **0.988** | 0.988 | 0.979 | 11 | 1 | **0** | 457 |
-| ctf | 0.970 | 0.39 | 0.988 | 0.988 | 0.982 | 11 | 1 | 0 | 394 |
-| tempogram | 0.891 | 1.38 | 0.917 | 0.917 | 0.941 | 10 | 2 | 0 | 254 |
+| Variable-tempo fixtures (9) | beat F | BPM err | Acc1 over committed stretches | Acc1, unknown counted wrong | octave-tolerant, unknown counted wrong | coverage | transitions found of 12 | missed | extra | median ms |
+|---|---|---|---|---|---|---|---|---|---|---|
+| engine (its own tracked beats; ms is the whole analysis) | 0.875 | 6.14 | 0.822 | 0.813 | 0.813 | 0.988 | 10 | 2 | 1 | 2846 |
+| const | 0.517 | 8.28 | 0.54 | 0.42 | 0.42 | 0.778 | 0 | 12 | 0 | 241 |
+| **dp** | 0.981 | 0.33 | 0.988 | 0.967 | 0.967 | 0.979 | 11 | 1 | 0 | 571 |
+| ctf | 0.982 | 0.39 | 0.988 | 0.97 | 0.97 | 0.982 | 11 | 1 | 0 | 406 |
+| tempogram | 0.902 | 1.38 | 0.917 | 0.859 | 0.859 | 0.941 | 10 | 2 | 0 | 317 |
 
-Constant-tempo controls (4): every candidate and the engine have 0 tempo changes; BPM error 0.01 (engine 0.90); beat F 0.739 for all, which is the off-beat fixture scoring 0 for everyone
+Constant-tempo controls (4): every candidate and the engine have 0 tempo changes; BPM error 0.01 (engine 0.90); mean beat F 0.747 for all (the three other controls score 0.996 and the off-beat fixture scores 0 for everyone)
 (below). The engine's `ms` includes the whole analysis (notes, chords, drums), the candidates' only the evidence and the search, so the two are not a speed comparison.
 
-| Fixture | engine: beat F / Acc1 / found (extra) | dp | ctf | tempogram |
+| Fixture | engine: beat F / Acc1 (unknown wrong) / found (extra) | dp | ctf | tempogram |
 |---|---|---|---|---|
-| dev_step (128 to 150) | 0.988 / 1 / 1 of 1 (1) | 0.984 / 1 / 1 of 1 (0) | 0.984 / 1 / 1 of 1 (0) | 0.984 / 0.991 / 1 of 1 (0) |
-| dev_init_like (house, drumless ramp, half-time drop) | 0.906 / 0.862 / 1 of 1 (2) | 0.882 / 1 / 0 of 1 (0) | 0.899 / 1 / 0 of 1 (0) | 0.845 / 0.98 / 0 of 1 (0) |
-| dev_ramp (128 to 150 over 8 bars) | 0.984 / 1 / 1 of 1 (1) | 0.964 / 0.976 / 1 of 1 (0) | 0.979 / 1 / 1 of 1 (0) | 0.841 / 0.819 / 1 of 1 (0) |
-| dev_aba (128, 150, 128) | 0.986 / 1 / 2 of 2 (0) | 0.983 / 0.992 / 2 of 2 (0) | 0.986 / 0.992 / 2 of 2 (0) | 0.983 / 0.992 / 2 of 2 (0) |
-| dev_multi (100, 128, 140, ramp to 150) | **0.508 / 0.28** / 2 of 3 (**10**) | 0.986 / 0.993 / 3 of 3 (0) | 0.952 / 0.948 / 3 of 3 (0) | 0.979 / 0.985 / 3 of 3 (0) |
-| dev_ramp_short (2 bars) | 0.986 / 1 / 1 of 1 (1) | 0.981 / 0.958 / 1 of 1 (0) | 0.981 / 0.958 / 1 of 1 (0) | 0.976 / 0.958 / 1 of 1 (0) |
-| dev_ramp_long (16 bars, 110 to 140) | **0.742 / 0.681** / 1 of 1 (0) | 0.979 / 1 / 1 of 1 (0) | 0.979 / 1 / 1 of 1 (0) | 0.643 / 0.548 / 1 of 1 (0) |
-| dev_silent_step (120 to 135 inside 16 drumless bars) | **0.712 / 0.576** / 0 of 1 (1) | 0.973 / 0.975 / 1 of 1 (0) | 0.984 / 1 / 1 of 1 (0) | 0.781 / 0.988 / 0 of 1 (0) |
-| dev_slow_step (88 to 98) | 0.988 / 1 / 1 of 1 (1) | 0.988 / 0.994 / 1 of 1 (0) | 0.988 / 0.994 / 1 of 1 (0) | 0.988 / 0.994 / 1 of 1 (0) |
+| dev_step | 0.996 / 0.991 / 1 of 1 (0) | 0.996 / 1 / 1 of 1 (0) | 0.996 / 1 / 1 of 1 (0) | 0.996 / 0.991 / 1 of 1 (0) |
+| dev_init_like | 0.912 / 0.855 / 1 of 1 (0) | 0.892 / 0.815 / 0 of 1 (0) | 0.909 / 0.839 / 0 of 1 (0) | 0.855 / 0.774 / 0 of 1 (0) |
+| dev_ramp | 0.995 / 0.988 / 1 of 1 (0) | 0.979 / 0.976 / 1 of 1 (0) | 0.995 / 1 / 1 of 1 (0) | 0.854 / 0.819 / 1 of 1 (0) |
+| dev_aba | 0.997 / 0.992 / 2 of 2 (0) | 0.993 / 0.992 / 2 of 2 (0) | 0.997 / 0.992 / 2 of 2 (0) | 0.993 / 0.992 / 2 of 2 (0) |
+| dev_multi | 0.512 / 0.276 / 2 of 3 (0) | 0.997 / 0.993 / 3 of 3 (0) | 0.962 / 0.948 / 3 of 3 (0) | 0.99 / 0.985 / 3 of 3 (0) |
+| dev_ramp_short | 0.995 / 0.99 / 1 of 1 (0) | 0.995 / 0.958 / 1 of 1 (0) | 0.995 / 0.958 / 1 of 1 (0) | 0.99 / 0.958 / 1 of 1 (0) |
+| dev_ramp_long | 0.754 / 0.667 / 1 of 1 (0) | 0.995 / 1 / 1 of 1 (0) | 0.995 / 1 / 1 of 1 (0) | 0.653 / 0.548 / 1 of 1 (0) |
+| dev_silent_step | 0.718 / 0.571 / 0 of 1 (1) | 0.984 / 0.975 / 1 of 1 (0) | 0.996 / 1 / 1 of 1 (0) | 0.792 / 0.672 / 0 of 1 (0) |
+| dev_slow_step | 0.996 / 0.988 / 1 of 1 (0) | 0.996 / 0.994 / 1 of 1 (0) | 0.996 / 0.994 / 1 of 1 (0) | 0.996 / 0.994 / 1 of 1 (0) |
 
 ### Results: holdout (9 fixtures, other tempi and seeds), in two steps
 
 **First look** (frozen settings, before any change made because of the holdout; `holdout-first-look.*`, reproduce with `--no-coalesce` and no `--anchor`). It exposed an octave failure that no
 dev fixture had: `holdout_dnb_double` (constant 87 BPM) was read at 174, because hats on the eighth notes make 174 as good a grid as 87 (the comb cannot tell them apart; the
-engine can, through its own octave rule), and the 90 BPM stretch of `hol_multi` at 180. Control BPM error: 21.8 (dp, ctf). Variable fixtures: dp beat F 0.937, Acc1 0.937 (octave-tolerant 0.991).
+engine can, through its own octave rule), and the 90 BPM stretch of `hol_multi` at 180. Control BPM error: 21.8 (dp, ctf). Variable fixtures: dp beat F 0.947, Acc1 0.892 over all time (octave-tolerant 0.947).
 
 **After** (octave continuity added, `holdout-final.*`; the holdout is **no longer blind** for this change, because the failure it fixes was found there. I added two slow dev fixtures to
 check the rule on data that did not influence it, and it held there; a fresh holdout is needed before this number is a claim):
 
-| Variable-tempo fixtures (5) | beat F | BPM err | Acc1 | Acc1 octave-tolerant | transitions found of 8 | missed | extra |
-|---|---|---|---|---|---|---|---|
-| engine | 0.659 | 16.20 | 0.510 | 0.510 | 6 | 2 | 0 |
-| dp | 0.937 | 5.17 | 0.937 | 0.991 | 7 | 1 | 0 |
-| ctf | 0.929 | 5.81 | 0.898 | 0.953 | 7 | 1 | 1 |
-| tempogram | 0.895 | 6.27 | 0.856 | 0.910 | 8 | 0 | 0 |
+| Variable-tempo fixtures (5) | beat F | BPM err | Acc1 over committed stretches | Acc1, unknown counted wrong | octave-tolerant, unknown counted wrong | coverage | transitions found of 8 | missed | extra | median ms |
+|---|---|---|---|---|---|---|---|---|---|---|
+| engine (its own tracked beats; ms is the whole analysis) | 0.666 | 16.20 | 0.51 | 0.502 | 0.502 | 0.985 | 6 | 2 | 0 | 2922 |
+| **dp** | 0.947 | 5.17 | 0.937 | 0.892 | 0.947 | 0.956 | 7 | 1 | 0 | 614 |
+| ctf | 0.939 | 5.81 | 0.898 | 0.898 | 0.953 | 1 | 7 | 1 | 1 | 398 |
+| tempogram | 0.905 | 6.27 | 0.856 | 0.856 | 0.91 | 1 | 8 | 0 | 0 | 279 |
 
 Controls (4): 0 changes for everyone, BPM error 0.01 for the candidates (0.57 engine). The remaining dp gap is `hol_multi`: its first stretch (90 BPM) is read at 180 (Acc1 0.69, octave-tolerant 0.96),
 because the first stretch is placed against the engine's whole-track tempo and the engine's number for a track spanning 90 to 132 BPM is arbitrary.
 
-| Fixture | engine: beat F / Acc1 / found (extra) | dp | ctf |
+| Fixture | engine: beat F / Acc1 (unknown wrong) / found (extra) | dp | ctf |
 |---|---|---|---|
-| hol_step (100 to 132) | **0.609 / 0.436** / 0 of 1 (0) | 0.984 / 0.993 / 1 of 1 (0) | 0.984 / 1 / 1 of 1 (0) |
-| hol_init_like | **0.598 / 0.422** / 1 of 1 (0) | 0.865 / 1 / 0 of 1 (0) | 0.871 / 0.846 / 1 of 1 (0) |
-| hol_ramp | **0.644 / 0.485** / 1 of 1 (0) | 0.979 / 1 / 1 of 1 (0) | 0.979 / 1 / 1 of 1 (0) |
-| hol_aba (100, 132, 100) | 0.773 / 0.718 / 2 of 2 (0) | 0.990 / 1 / 2 of 2 (0) | 0.955 / 0.962 / 1 of 2 (1) |
-| hol_multi (90, 100, 118, 132) | 0.671 / 0.487 / 2 of 3 (0) | 0.866 / 0.690 / 3 of 3 (0) | 0.854 / 0.684 / 3 of 3 (0) |
+| hol_step | 0.616 / 0.43 / 0 of 1 (0) | 0.996 / 0.993 / 1 of 1 (0) | 0.996 / 1 / 1 of 1 (0) |
+| hol_init_like | 0.604 / 0.416 / 1 of 1 (0) | 0.875 / 0.779 / 0 of 1 (0) | 0.88 / 0.846 / 1 of 1 (0) |
+| hol_ramp | 0.654 / 0.475 / 1 of 1 (0) | 0.995 / 1 / 1 of 1 (0) | 0.995 / 1 / 1 of 1 (0) |
+| hol_aba | 0.778 / 0.709 / 2 of 2 (0) | 0.997 / 1 / 2 of 2 (0) | 0.962 / 0.962 / 1 of 2 (1) |
+| hol_multi | 0.677 / 0.481 / 2 of 3 (0) | 0.874 / 0.69 / 3 of 3 (0) | 0.862 / 0.684 / 3 of 3 (0) |
 
 ## What the engine does on these fixtures (the baseline the issue asked for)
 
 The engine's tracker follows the 128 to 150 step, the 128 to 150 ramp of `dev_ramp` and the 120 to 140 two-bar ramp, and fails on others: the pattern is not "tempo changes break it" but "some do". Its constant fit (`tempoFit`)
-accepts only the slow constant fixture (`dev_slow_fills`) and refuses the three other 60 s constant ones (the tracker's beats stand there, and they score beat F 0.984). On the four-tempo
-`dev_multi` the tracker produces 12 "changes" for 3 real ones and stays on the first tempo (Acc1 1 on the 100 BPM region, 0 on the other four). Local-tempo noise is why: TimeMap calls a stretch a change when the local tempo
-(a 9-beat window) leaves 3 % of the median, which also fires inside a tracker that is merely wandering.
+accepts only the slow constant fixture (`dev_slow_fills`) and refuses the three other 60 s constant ones (the tracker's beats stand there, and they score beat F 0.996). On the four-tempo
+`dev_multi` the engine's beats report 2 of the 3 changes and no extra one, yet stay on the first tempo (Acc1 1 on the 100 BPM region, 0 on the other four): the problem is the grid it lays down, not a count of changes.
 
 ## Tempo versus rhythmic feel (the issue's hypothesis 5)
 
