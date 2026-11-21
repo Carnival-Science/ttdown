@@ -1,0 +1,2272 @@
+{
+ "manifest": "test-songs/tempo-map-fixtures/manifest-holdout.json",
+ "params": {
+  "lambda": 12,
+  "gamma": 0.35,
+  "minSec": 8,
+  "kappa": 0.6,
+  "stepSec": 2,
+  "prior": 0,
+  "windowSec": 12,
+  "zmin": 5,
+  "hmin": 0.5
+ },
+ "flags": [
+  "--engine",
+  "--anchor"
+ ],
+ "rows": [
+  {
+   "id": "hol_step",
+   "kind": "step 100 to 132 BPM at bar 17",
+   "dur": 68.5,
+   "evidenceMs": 251,
+   "results": {
+    "engine": {
+     "beatF": 0.609,
+     "beatFOff": 0.022,
+     "beatP": 0.563,
+     "beatR": 0.664,
+     "beatMsMed": 2.9,
+     "beatMsP95": 7.1,
+     "worstMs": 7.9,
+     "bpmErr": 18.55,
+     "acc1": 0.436,
+     "acc1oct": 0.436,
+     "coverage": 0.985,
+     "perRegion": [
+      {
+       "bpm": 100,
+       "acc1": 0,
+       "acc1oct": 0,
+       "bpmErr": 32.5,
+       "n": 75
+      },
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0.5,
+       "n": 58
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 1,
+     "missed": 1,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 2922,
+     "variable": false,
+     "source": "dp-tracker"
+    },
+    "const": {
+     "beatF": 0.636,
+     "beatFOff": 0.124,
+     "beatP": 0.675,
+     "beatR": 0.602,
+     "beatMsMed": 0.7,
+     "beatMsP95": 51.9,
+     "worstMs": 57,
+     "bpmErr": 13.75,
+     "acc1": 0.57,
+     "acc1oct": 0.57,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 100,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 77
+      },
+      {
+       "bpm": 132,
+       "acc1": 0,
+       "acc1oct": 0,
+       "bpmErr": 32,
+       "n": 58
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 1,
+     "missed": 1,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 256,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 68.5,
+       "bpm": 100.01,
+       "z": 8.7,
+       "hit": 0.61
+      }
+     ]
+    },
+    "dp": {
+     "beatF": 0.984,
+     "beatFOff": 0,
+     "beatP": 0.977,
+     "beatR": 0.992,
+     "beatMsMed": 1.7,
+     "beatMsP95": 3.8,
+     "worstMs": 4.1,
+     "bpmErr": 0.25,
+     "acc1": 0.993,
+     "acc1oct": 0.993,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 100,
+       "acc1": 0.99,
+       "acc1oct": 0.99,
+       "bpmErr": 0.4,
+       "n": 77
+      },
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 58
+      }
+     ],
+     "nChanges": 1,
+     "truthTransitions": 1,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": 0.48,
+     "ms": 472,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 37.9,
+       "bpm": 100.01,
+       "z": 12.2,
+       "hit": 1
+      },
+      {
+       "t0": 37.9,
+       "t1": 68.5,
+       "bpm": 131.99,
+       "z": 11.9,
+       "hit": 0.97
+      }
+     ]
+    },
+    "ctf": {
+     "beatF": 0.984,
+     "beatFOff": 0,
+     "beatP": 0.977,
+     "beatR": 0.992,
+     "beatMsMed": 1.7,
+     "beatMsP95": 3.8,
+     "worstMs": 4.1,
+     "bpmErr": 0.01,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 100,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 77
+      },
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 58
+      }
+     ],
+     "nChanges": 1,
+     "truthTransitions": 1,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": 0.04,
+     "ms": 331,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 38.4,
+       "bpm": 100.01,
+       "z": 12.3,
+       "hit": 1
+      },
+      {
+       "t0": 38.4,
+       "t1": 68.5,
+       "bpm": 131.99,
+       "z": 11.9,
+       "hit": 0.97
+      }
+     ]
+    },
+    "tempogram": {
+     "beatF": 0.973,
+     "beatFOff": 0,
+     "beatP": 0.962,
+     "beatR": 0.984,
+     "beatMsMed": 0.6,
+     "beatMsP95": 1.1,
+     "worstMs": 1.3,
+     "bpmErr": 0.48,
+     "acc1": 0.985,
+     "acc1oct": 0.985,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 100,
+       "acc1": 0.97,
+       "acc1oct": 0.97,
+       "bpmErr": 0.8,
+       "n": 77
+      },
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 58
+      }
+     ],
+     "nChanges": 1,
+     "truthTransitions": 1,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": 0.96,
+     "ms": 277,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 37.4,
+       "bpm": 100.01,
+       "z": 12,
+       "hit": 1
+      },
+      {
+       "t0": 37.4,
+       "t1": 68.5,
+       "bpm": 131.99,
+       "z": 11.9,
+       "hit": 0.96
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "hol_init_like",
+   "kind": "house 100, drumless ramp 100 to 132 over bars 13-20, half-time drop at 132",
+   "dur": 75.6,
+   "evidenceMs": 275,
+   "results": {
+    "engine": {
+     "beatF": 0.598,
+     "beatFOff": 0.071,
+     "beatP": 0.557,
+     "beatR": 0.646,
+     "beatMsMed": 3.3,
+     "beatMsP95": 8.6,
+     "worstMs": 58.3,
+     "bpmErr": 17,
+     "acc1": 0.422,
+     "acc1oct": 0.422,
+     "coverage": 0.987,
+     "perRegion": [
+      {
+       "bpm": 100,
+       "acc1": 0,
+       "acc1oct": 0,
+       "bpmErr": 32.6,
+       "n": 56
+      },
+      {
+       "bpm": "100-132",
+       "acc1": 0.15,
+       "acc1oct": 0.15,
+       "bpmErr": 19,
+       "n": 34
+      },
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0.5,
+       "n": 57
+      }
+     ],
+     "nChanges": 2,
+     "truthTransitions": 1,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": 0,
+     "ms": 3026,
+     "variable": true,
+     "source": "dp-tracker"
+    },
+    "const": {
+     "beatF": 0.541,
+     "beatFOff": 0.164,
+     "beatP": 0.579,
+     "beatR": 0.507,
+     "beatMsMed": 0.6,
+     "beatMsP95": 60.5,
+     "worstMs": 67.5,
+     "bpmErr": 15.64,
+     "acc1": 0.43,
+     "acc1oct": 0.43,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 100,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 58
+      },
+      {
+       "bpm": "100-132",
+       "acc1": 0.18,
+       "acc1oct": 0.18,
+       "bpmErr": 14.9,
+       "n": 34
+      },
+      {
+       "bpm": 132,
+       "acc1": 0,
+       "acc1oct": 0,
+       "bpmErr": 32,
+       "n": 57
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 1,
+     "missed": 1,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 278,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 75.6,
+       "bpm": 100.01,
+       "z": 7.6,
+       "hit": 0.43
+      }
+     ]
+    },
+    "dp": {
+     "beatF": 0.865,
+     "beatFOff": 0.008,
+     "beatP": 0.974,
+     "beatR": 0.778,
+     "beatMsMed": 0.7,
+     "beatMsP95": 2.2,
+     "worstMs": 2.3,
+     "bpmErr": 0.02,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 0.779,
+     "perRegion": [
+      {
+       "bpm": 100,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 58
+      },
+      {
+       "bpm": "100-132",
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 1,
+       "n": 1
+      },
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 57
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 1,
+     "missed": 1,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 979,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 28.8,
+       "bpm": 100.01,
+       "z": 11.4,
+       "hit": 1
+      },
+      {
+       "unknown": true,
+       "t0": 28.8,
+       "t1": 45.1,
+       "bpm": 76.71,
+       "z": 2.2,
+       "hit": 0.14
+      },
+      {
+       "t0": 45.1,
+       "t1": 75.6,
+       "bpm": 131.99,
+       "z": 10.3,
+       "hit": 0.54
+      }
+     ]
+    },
+    "ctf": {
+     "beatF": 0.871,
+     "beatFOff": 0.028,
+     "beatP": 0.874,
+     "beatR": 0.868,
+     "beatMsMed": 1.5,
+     "beatMsP95": 18.8,
+     "worstMs": 59.5,
+     "bpmErr": 2.18,
+     "acc1": 0.846,
+     "acc1oct": 0.846,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 100,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 58
+      },
+      {
+       "bpm": "100-132",
+       "acc1": 0.32,
+       "acc1oct": 0.32,
+       "bpmErr": 9.5,
+       "n": 34
+      },
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 57
+      }
+     ],
+     "nChanges": 1,
+     "truthTransitions": 1,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": 0,
+     "ms": 385,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 41.9,
+       "bpm": 99.99,
+       "z": 10.3,
+       "hit": 0.7
+      },
+      {
+       "t0": 41.9,
+       "t1": 75.6,
+       "bpm": 131.99,
+       "z": 10,
+       "hit": 0.49
+      }
+     ]
+    },
+    "tempogram": {
+     "beatF": 0.858,
+     "beatFOff": 0.049,
+     "beatP": 0.855,
+     "beatR": 0.861,
+     "beatMsMed": 1.6,
+     "beatMsP95": 19,
+     "worstMs": 59.8,
+     "bpmErr": 1.84,
+     "acc1": 0.846,
+     "acc1oct": 0.846,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 100,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 58
+      },
+      {
+       "bpm": "100-132",
+       "acc1": 0.32,
+       "acc1oct": 0.32,
+       "bpmErr": 8,
+       "n": 34
+      },
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 57
+      }
+     ],
+     "nChanges": 1,
+     "truthTransitions": 1,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": 0,
+     "ms": 310,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 39.4,
+       "bpm": 99.99,
+       "z": 10.5,
+       "hit": 0.74
+      },
+      {
+       "t0": 39.4,
+       "t1": 75.6,
+       "bpm": 131.99,
+       "z": 9.8,
+       "hit": 0.45
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "hol_ramp",
+   "kind": "ramp 100 to 132 over bars 9-16, drums throughout",
+   "dur": 51.5,
+   "evidenceMs": 211,
+   "results": {
+    "engine": {
+     "beatF": 0.644,
+     "beatFOff": 0.058,
+     "beatP": 0.598,
+     "beatR": 0.698,
+     "beatMsMed": 3.2,
+     "beatMsP95": 7.9,
+     "worstMs": 8.4,
+     "bpmErr": 16.85,
+     "acc1": 0.485,
+     "acc1oct": 0.485,
+     "coverage": 0.98,
+     "perRegion": [
+      {
+       "bpm": 100,
+       "acc1": 0,
+       "acc1oct": 0,
+       "bpmErr": 32.5,
+       "n": 37
+      },
+      {
+       "bpm": "100-132",
+       "acc1": 0.58,
+       "acc1oct": 0.58,
+       "bpmErr": 13.6,
+       "n": 33
+      },
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0.5,
+       "n": 29
+      }
+     ],
+     "nChanges": 2,
+     "truthTransitions": 1,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": 0,
+     "ms": 2515,
+     "variable": true,
+     "source": "dp-tracker"
+    },
+    "const": {
+     "beatF": 0.541,
+     "beatFOff": 0.156,
+     "beatP": 0.576,
+     "beatR": 0.51,
+     "beatMsMed": 2.8,
+     "beatMsP95": 55,
+     "worstMs": 65.1,
+     "bpmErr": 13.94,
+     "acc1": 0.446,
+     "acc1oct": 0.446,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 100,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 39
+      },
+      {
+       "bpm": "100-132",
+       "acc1": 0.18,
+       "acc1oct": 0.18,
+       "bpmErr": 14.5,
+       "n": 33
+      },
+      {
+       "bpm": 132,
+       "acc1": 0,
+       "acc1oct": 0,
+       "bpmErr": 32,
+       "n": 29
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 1,
+     "missed": 1,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 213,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 51.4,
+       "bpm": 100.01,
+       "z": 6.5,
+       "hit": 0.48
+      }
+     ]
+    },
+    "dp": {
+     "beatF": 0.979,
+     "beatFOff": 0,
+     "beatP": 0.969,
+     "beatR": 0.99,
+     "beatMsMed": 2.1,
+     "beatMsP95": 8.6,
+     "worstMs": 33.4,
+     "bpmErr": 0.59,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 100,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 39
+      },
+      {
+       "bpm": "100-132",
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 1.8,
+       "n": 33
+      },
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 29
+      }
+     ],
+     "nChanges": 2,
+     "truthTransitions": 1,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": 0,
+     "ms": 637,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 21,
+       "bpm": 100.01,
+       "z": 9.5,
+       "hit": 1
+      },
+      {
+       "ramp": true,
+       "t0": 21,
+       "t1": 33.7,
+       "bpm": "103.3->128.1",
+       "z": 22.3,
+       "hit": 1
+      },
+      {
+       "t0": 33.7,
+       "t1": 51.4,
+       "bpm": 131.98,
+       "z": 8.9,
+       "hit": 0.92
+      }
+     ]
+    },
+    "ctf": {
+     "beatF": 0.979,
+     "beatFOff": 0,
+     "beatP": 0.969,
+     "beatR": 0.99,
+     "beatMsMed": 2.2,
+     "beatMsP95": 8.9,
+     "worstMs": 33.4,
+     "bpmErr": 0.6,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 100,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 39
+      },
+      {
+       "bpm": "100-132",
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 1.8,
+       "n": 33
+      },
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 29
+      }
+     ],
+     "nChanges": 2,
+     "truthTransitions": 1,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": 0,
+     "ms": 597,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 21,
+       "bpm": 100.01,
+       "z": 9.5,
+       "hit": 1
+      },
+      {
+       "ramp": true,
+       "t0": 21,
+       "t1": 33.6,
+       "bpm": "103.3->128.1",
+       "z": 22.8,
+       "hit": 1
+      },
+      {
+       "t0": 33.6,
+       "t1": 51.4,
+       "bpm": 131.98,
+       "z": 8.9,
+       "hit": 0.92
+      }
+     ]
+    },
+    "tempogram": {
+     "beatF": 0.792,
+     "beatFOff": 0.082,
+     "beatP": 0.772,
+     "beatR": 0.813,
+     "beatMsMed": 2.3,
+     "beatMsP95": 52.1,
+     "worstMs": 64.6,
+     "bpmErr": 3.66,
+     "acc1": 0.772,
+     "acc1oct": 0.772,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 100,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 39
+      },
+      {
+       "bpm": "100-132",
+       "acc1": 0.3,
+       "acc1oct": 0.3,
+       "bpmErr": 11.2,
+       "n": 33
+      },
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 29
+      }
+     ],
+     "nChanges": 1,
+     "truthTransitions": 1,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": 0,
+     "ms": 229,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 23.5,
+       "bpm": 100.02,
+       "z": 9.3,
+       "hit": 0.9
+      },
+      {
+       "t0": 23.5,
+       "t1": 51.4,
+       "bpm": 132.02,
+       "z": 7.9,
+       "hit": 0.6
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "hol_aba",
+   "kind": "100 -> 132 -> 100 BPM, 12 bars each",
+   "dur": 80.4,
+   "evidenceMs": 295,
+   "results": {
+    "engine": {
+     "beatF": 0.773,
+     "beatFOff": 0.087,
+     "beatP": 0.805,
+     "beatR": 0.743,
+     "beatMsMed": 2.9,
+     "beatMsP95": 7.4,
+     "worstMs": 8.4,
+     "bpmErr": 8.13,
+     "acc1": 0.718,
+     "acc1oct": 0.718,
+     "coverage": 0.987,
+     "perRegion": [
+      {
+       "bpm": 100,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0.6,
+       "n": 56
+      },
+      {
+       "bpm": 132,
+       "acc1": 0,
+       "acc1oct": 0,
+       "bpmErr": 27.3,
+       "n": 44
+      },
+      {
+       "bpm": 100,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0.6,
+       "n": 56
+      }
+     ],
+     "nChanges": 2,
+     "truthTransitions": 2,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": 1.53,
+     "ms": 2872,
+     "variable": true,
+     "source": "dp-tracker"
+    },
+    "const": {
+     "beatF": 0.417,
+     "beatFOff": 0.419,
+     "beatP": 0.433,
+     "beatR": 0.403,
+     "beatMsMed": 6.4,
+     "beatMsP95": 55.4,
+     "worstMs": 63.6,
+     "bpmErr": 8.95,
+     "acc1": 0.722,
+     "acc1oct": 0.722,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 100,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0.1,
+       "n": 58
+      },
+      {
+       "bpm": 132,
+       "acc1": 0,
+       "acc1oct": 0,
+       "bpmErr": 31.9,
+       "n": 44
+      },
+      {
+       "bpm": 100,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0.1,
+       "n": 56
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 2,
+     "missed": 2,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 297,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 80.4,
+       "bpm": 100.08,
+       "z": 6.9,
+       "hit": 0.39
+      }
+     ]
+    },
+    "dp": {
+     "beatF": 0.99,
+     "beatFOff": 0,
+     "beatP": 0.986,
+     "beatR": 0.993,
+     "beatMsMed": 0.9,
+     "beatMsP95": 2.1,
+     "worstMs": 2.3,
+     "bpmErr": 0.01,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 100,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 58
+      },
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 44
+      },
+      {
+       "bpm": 100,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 56
+      }
+     ],
+     "nChanges": 2,
+     "truthTransitions": 2,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": 0.02,
+     "ms": 571,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 28.8,
+       "bpm": 100.01,
+       "z": 10.9,
+       "hit": 1
+      },
+      {
+       "t0": 28.8,
+       "t1": 50.6,
+       "bpm": 131.99,
+       "z": 10.8,
+       "hit": 1
+      },
+      {
+       "t0": 50.6,
+       "t1": 80.4,
+       "bpm": 100.01,
+       "z": 10.8,
+       "hit": 0.98
+      }
+     ]
+    },
+    "ctf": {
+     "beatF": 0.955,
+     "beatFOff": 0.014,
+     "beatP": 0.946,
+     "beatR": 0.965,
+     "beatMsMed": 0.8,
+     "beatMsP95": 1.9,
+     "worstMs": 18.1,
+     "bpmErr": 1.22,
+     "acc1": 0.962,
+     "acc1oct": 0.962,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 100,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 58
+      },
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 44
+      },
+      {
+       "bpm": 100,
+       "acc1": 0.89,
+       "acc1oct": 0.89,
+       "bpmErr": 3.4,
+       "n": 56
+      }
+     ],
+     "nChanges": 2,
+     "truthTransitions": 2,
+     "missed": 1,
+     "extra": 1,
+     "boundaryErrS": 0.01,
+     "ms": 394,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 28.8,
+       "bpm": 100.01,
+       "z": 10.8,
+       "hit": 1
+      },
+      {
+       "t0": 28.8,
+       "t1": 53.8,
+       "bpm": 131.99,
+       "z": 13.4,
+       "hit": 0.87
+      },
+      {
+       "t0": 53.8,
+       "t1": 80.4,
+       "bpm": 100.01,
+       "z": 10.5,
+       "hit": 0.98
+      }
+     ]
+    },
+    "tempogram": {
+     "beatF": 0.983,
+     "beatFOff": 0,
+     "beatP": 0.979,
+     "beatR": 0.986,
+     "beatMsMed": 0.9,
+     "beatMsP95": 2,
+     "worstMs": 2.3,
+     "bpmErr": 0.41,
+     "acc1": 0.987,
+     "acc1oct": 0.987,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 100,
+       "acc1": 0.98,
+       "acc1oct": 0.98,
+       "bpmErr": 0.6,
+       "n": 58
+      },
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 44
+      },
+      {
+       "bpm": 100,
+       "acc1": 0.98,
+       "acc1oct": 0.98,
+       "bpmErr": 0.6,
+       "n": 56
+      }
+     ],
+     "nChanges": 2,
+     "truthTransitions": 2,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": 0.57,
+     "ms": 329,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 28.5,
+       "bpm": 100.01,
+       "z": 10.8,
+       "hit": 1
+      },
+      {
+       "t0": 28.5,
+       "t1": 51.4,
+       "bpm": 131.99,
+       "z": 10.6,
+       "hit": 0.98
+      },
+      {
+       "t0": 51.4,
+       "t1": 80.4,
+       "bpm": 100.01,
+       "z": 10.7,
+       "hit": 0.98
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "hol_multi",
+   "kind": "90 -> 100 -> 118 steps, then a 4-bar ramp to 132",
+   "dur": 80.1,
+   "evidenceMs": 295,
+   "results": {
+    "engine": {
+     "beatF": 0.671,
+     "beatFOff": 0.108,
+     "beatP": 0.616,
+     "beatR": 0.736,
+     "beatMsMed": 2.9,
+     "beatMsP95": 7.4,
+     "worstMs": 8.2,
+     "bpmErr": 20.46,
+     "acc1": 0.487,
+     "acc1oct": 0.487,
+     "coverage": 0.987,
+     "perRegion": [
+      {
+       "bpm": 90,
+       "acc1": 0,
+       "acc1oct": 0,
+       "bpmErr": 45.7,
+       "n": 41
+      },
+      {
+       "bpm": 100,
+       "acc1": 0,
+       "acc1oct": 0,
+       "bpmErr": 32.5,
+       "n": 39
+      },
+      {
+       "bpm": 118,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0.6,
+       "n": 32
+      },
+      {
+       "bpm": "118-132",
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0.9,
+       "n": 16
+      },
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0.5,
+       "n": 28
+      }
+     ],
+     "nChanges": 2,
+     "truthTransitions": 3,
+     "missed": 1,
+     "extra": 0,
+     "boundaryErrS": 0,
+     "ms": 3019,
+     "variable": true,
+     "source": "dp-tracker"
+    },
+    "const": {
+     "beatF": 0,
+     "beatFOff": 0,
+     "beatP": 0,
+     "beatR": 0,
+     "beatMsMed": null,
+     "beatMsP95": null,
+     "worstMs": null,
+     "bpmErr": null,
+     "acc1": null,
+     "acc1oct": null,
+     "coverage": 0,
+     "perRegion": [
+      {
+       "bpm": 90,
+       "acc1": null,
+       "acc1oct": null,
+       "bpmErr": null,
+       "n": 0
+      },
+      {
+       "bpm": 100,
+       "acc1": null,
+       "acc1oct": null,
+       "bpmErr": null,
+       "n": 0
+      },
+      {
+       "bpm": 118,
+       "acc1": null,
+       "acc1oct": null,
+       "bpmErr": null,
+       "n": 0
+      },
+      {
+       "bpm": "118-132",
+       "acc1": null,
+       "acc1oct": null,
+       "bpmErr": null,
+       "n": 0
+      },
+      {
+       "bpm": 132,
+       "acc1": null,
+       "acc1oct": null,
+       "bpmErr": null,
+       "n": 0
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 3,
+     "missed": 3,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 297,
+     "segs": [
+      {
+       "unknown": true,
+       "t0": 0,
+       "t1": 80,
+       "bpm": 89.99,
+       "z": 4.5,
+       "hit": 0.33
+      }
+     ]
+    },
+    "dp": {
+     "beatF": 0.866,
+     "beatFOff": 0,
+     "beatP": 0.785,
+     "beatR": 0.965,
+     "beatMsMed": 1.2,
+     "beatMsP95": 11.1,
+     "worstMs": 55.1,
+     "bpmErr": 24.98,
+     "acc1": 0.69,
+     "acc1oct": 0.962,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 90,
+       "acc1": 0,
+       "acc1oct": 1,
+       "bpmErr": 90,
+       "n": 43
+      },
+      {
+       "bpm": 100,
+       "acc1": 0.97,
+       "acc1oct": 0.97,
+       "bpmErr": 0.5,
+       "n": 39
+      },
+      {
+       "bpm": 118,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 32
+      },
+      {
+       "bpm": "118-132",
+       "acc1": 0.69,
+       "acc1oct": 0.69,
+       "bpmErr": 3.6,
+       "n": 16
+      },
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 28
+      }
+     ],
+     "nChanges": 3,
+     "truthTransitions": 3,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": 0.28,
+     "ms": 646,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 21,
+       "bpm": 180.01,
+       "z": 9.5,
+       "hit": 0.62
+      },
+      {
+       "t0": 21,
+       "t1": 40,
+       "bpm": 100,
+       "z": 9.2,
+       "hit": 1
+      },
+      {
+       "t0": 40,
+       "t1": 61.8,
+       "bpm": 117.99,
+       "z": 9,
+       "hit": 0.86
+      },
+      {
+       "t0": 61.8,
+       "t1": 80,
+       "bpm": 132,
+       "z": 9.2,
+       "hit": 0.9
+      }
+     ]
+    },
+    "ctf": {
+     "beatF": 0.854,
+     "beatFOff": 0.006,
+     "beatP": 0.774,
+     "beatR": 0.951,
+     "beatMsMed": 1.9,
+     "beatMsP95": 3.1,
+     "worstMs": 54.6,
+     "bpmErr": 25.04,
+     "acc1": 0.684,
+     "acc1oct": 0.956,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 90,
+       "acc1": 0,
+       "acc1oct": 1,
+       "bpmErr": 90,
+       "n": 43
+      },
+      {
+       "bpm": 100,
+       "acc1": 0.97,
+       "acc1oct": 0.97,
+       "bpmErr": 0.5,
+       "n": 39
+      },
+      {
+       "bpm": 118,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 32
+      },
+      {
+       "bpm": "118-132",
+       "acc1": 0.63,
+       "acc1oct": 0.63,
+       "bpmErr": 4.2,
+       "n": 16
+      },
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 28
+      }
+     ],
+     "nChanges": 3,
+     "truthTransitions": 3,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": 0.26,
+     "ms": 434,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 21,
+       "bpm": 180.01,
+       "z": 9.5,
+       "hit": 0.62
+      },
+      {
+       "t0": 21,
+       "t1": 40.1,
+       "bpm": 100,
+       "z": 9.2,
+       "hit": 1
+      },
+      {
+       "t0": 40.1,
+       "t1": 62.8,
+       "bpm": 117.99,
+       "z": 8.9,
+       "hit": 0.82
+      },
+      {
+       "t0": 62.8,
+       "t1": 80,
+       "bpm": 131.99,
+       "z": 9,
+       "hit": 0.95
+      }
+     ]
+    },
+    "tempogram": {
+     "beatF": 0.87,
+     "beatFOff": 0,
+     "beatP": 0.787,
+     "beatR": 0.972,
+     "beatMsMed": 1.3,
+     "beatMsP95": 15.1,
+     "worstMs": 61.7,
+     "bpmErr": 24.98,
+     "acc1": 0.69,
+     "acc1oct": 0.962,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 90,
+       "acc1": 0,
+       "acc1oct": 1,
+       "bpmErr": 90,
+       "n": 43
+      },
+      {
+       "bpm": 100,
+       "acc1": 0.97,
+       "acc1oct": 0.97,
+       "bpmErr": 0.5,
+       "n": 39
+      },
+      {
+       "bpm": 118,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 32
+      },
+      {
+       "bpm": "118-132",
+       "acc1": 0.69,
+       "acc1oct": 0.69,
+       "bpmErr": 3.6,
+       "n": 16
+      },
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 28
+      }
+     ],
+     "nChanges": 3,
+     "truthTransitions": 3,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": 0.08,
+     "ms": 327,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 21.5,
+       "bpm": 180.01,
+       "z": 9.5,
+       "hit": 0.63
+      },
+      {
+       "t0": 21.5,
+       "t1": 40.4,
+       "bpm": 100,
+       "z": 9.2,
+       "hit": 1
+      },
+      {
+       "t0": 40.4,
+       "t1": 60.4,
+       "bpm": 117.99,
+       "z": 9.1,
+       "hit": 0.9
+      },
+      {
+       "t0": 60.4,
+       "t1": 80,
+       "bpm": 131.98,
+       "z": 9,
+       "hit": 0.84
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "hol_const",
+   "kind": "constant (control)",
+   "dur": 59.2,
+   "evidenceMs": 310,
+   "results": {
+    "engine": {
+     "beatF": 0.984,
+     "beatFOff": 0,
+     "beatP": 0.977,
+     "beatR": 0.992,
+     "beatMsMed": 3,
+     "beatMsP95": 7.3,
+     "worstMs": 8.3,
+     "bpmErr": 0.51,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 0.991,
+     "perRegion": [
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0.5,
+       "n": 115
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 0,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 2744,
+     "variable": false,
+     "source": "dp-tracker"
+    },
+    "const": {
+     "beatF": 0.984,
+     "beatFOff": 0,
+     "beatP": 0.977,
+     "beatR": 0.992,
+     "beatMsMed": 2.2,
+     "beatMsP95": 4.3,
+     "worstMs": 4.6,
+     "bpmErr": 0.01,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 116
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 0,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 314,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 59.1,
+       "bpm": 131.99,
+       "z": 15.1,
+       "hit": 0.98
+      }
+     ]
+    },
+    "dp": {
+     "beatF": 0.984,
+     "beatFOff": 0,
+     "beatP": 0.977,
+     "beatR": 0.992,
+     "beatMsMed": 2.2,
+     "beatMsP95": 4.3,
+     "worstMs": 4.6,
+     "bpmErr": 0.01,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 116
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 0,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 389,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 59.1,
+       "bpm": 131.99,
+       "z": 15.1,
+       "hit": 0.98
+      }
+     ]
+    },
+    "ctf": {
+     "beatF": 0.984,
+     "beatFOff": 0,
+     "beatP": 0.977,
+     "beatR": 0.992,
+     "beatMsMed": 2.2,
+     "beatMsP95": 4.3,
+     "worstMs": 4.6,
+     "bpmErr": 0.01,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 116
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 0,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 394,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 59.1,
+       "bpm": 131.99,
+       "z": 15.1,
+       "hit": 0.98
+      }
+     ]
+    },
+    "tempogram": {
+     "beatF": 0.984,
+     "beatFOff": 0,
+     "beatP": 0.977,
+     "beatR": 0.992,
+     "beatMsMed": 2.2,
+     "beatMsP95": 4.3,
+     "worstMs": 4.6,
+     "bpmErr": 0.01,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 132,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 116
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 0,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 335,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 59.1,
+       "bpm": 131.99,
+       "z": 15.1,
+       "hit": 0.98
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "hol_halftime_drop",
+   "kind": "constant 166; half-time feel from bar 17 (control)",
+   "dur": 47.3,
+   "evidenceMs": 166,
+   "results": {
+    "engine": {
+     "beatF": 0.984,
+     "beatFOff": 0,
+     "beatP": 0.977,
+     "beatR": 0.992,
+     "beatMsMed": 2.9,
+     "beatMsP95": 6.9,
+     "worstMs": 8,
+     "bpmErr": 0.71,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 0.989,
+     "perRegion": [
+      {
+       "bpm": 166,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0.7,
+       "n": 91
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 0,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 2548,
+     "variable": false,
+     "source": "dp-tracker"
+    },
+    "const": {
+     "beatF": 0.984,
+     "beatFOff": 0,
+     "beatP": 0.977,
+     "beatR": 0.992,
+     "beatMsMed": 1.1,
+     "beatMsP95": 2.3,
+     "worstMs": 2.5,
+     "bpmErr": 0.01,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 166,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 92
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 0,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 169,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 47.2,
+       "bpm": 166.01,
+       "z": 12.3,
+       "hit": 0.74
+      }
+     ]
+    },
+    "dp": {
+     "beatF": 0.984,
+     "beatFOff": 0,
+     "beatP": 0.977,
+     "beatR": 0.992,
+     "beatMsMed": 1.1,
+     "beatMsP95": 2.3,
+     "worstMs": 2.5,
+     "bpmErr": 0.01,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 166,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 92
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 0,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 202,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 47.2,
+       "bpm": 166.01,
+       "z": 12.3,
+       "hit": 0.74
+      }
+     ]
+    },
+    "ctf": {
+     "beatF": 0.984,
+     "beatFOff": 0,
+     "beatP": 0.977,
+     "beatR": 0.992,
+     "beatMsMed": 1.1,
+     "beatMsP95": 2.3,
+     "worstMs": 2.5,
+     "bpmErr": 0.01,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 166,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 92
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 0,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 198,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 47.2,
+       "bpm": 166.01,
+       "z": 12.3,
+       "hit": 0.74
+      }
+     ]
+    },
+    "tempogram": {
+     "beatF": 0.984,
+     "beatFOff": 0,
+     "beatP": 0.977,
+     "beatR": 0.992,
+     "beatMsMed": 1.1,
+     "beatMsP95": 2.3,
+     "worstMs": 2.5,
+     "bpmErr": 0.01,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 166,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 92
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 0,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 183,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 47.2,
+       "bpm": 166.01,
+       "z": 12.3,
+       "hit": 0.74
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "hol_offbeat",
+   "kind": "constant 122; all drums on off-beats (control)",
+   "dur": 64,
+   "evidenceMs": 333,
+   "results": {
+    "engine": {
+     "beatF": 0,
+     "beatFOff": 0.988,
+     "beatP": 0,
+     "beatR": 0,
+     "beatMsMed": null,
+     "beatMsP95": null,
+     "worstMs": null,
+     "bpmErr": 1.05,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 0.992,
+     "perRegion": [
+      {
+       "bpm": 122,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 1,
+       "n": 124
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 0,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 2746,
+     "variable": false,
+     "source": "dp-tracker"
+    },
+    "const": {
+     "beatF": 0,
+     "beatFOff": 0.988,
+     "beatP": 0,
+     "beatR": 0,
+     "beatMsMed": null,
+     "beatMsP95": null,
+     "worstMs": null,
+     "bpmErr": 0.01,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 122,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 125
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 0,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 335,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 63.9,
+       "bpm": 121.99,
+       "z": 14.6,
+       "hit": 0.98
+      }
+     ]
+    },
+    "dp": {
+     "beatF": 0,
+     "beatFOff": 0.988,
+     "beatP": 0,
+     "beatR": 0,
+     "beatMsMed": null,
+     "beatMsP95": null,
+     "worstMs": null,
+     "bpmErr": 0.01,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 122,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 125
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 0,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 474,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 63.9,
+       "bpm": 121.99,
+       "z": 19.7,
+       "hit": 0.98
+      }
+     ]
+    },
+    "ctf": {
+     "beatF": 0,
+     "beatFOff": 0.988,
+     "beatP": 0,
+     "beatR": 0,
+     "beatMsMed": null,
+     "beatMsP95": null,
+     "worstMs": null,
+     "bpmErr": 0.01,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 122,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 125
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 0,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 387,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 63.9,
+       "bpm": 121.99,
+       "z": 19.7,
+       "hit": 0.98
+      }
+     ]
+    },
+    "tempogram": {
+     "beatF": 0,
+     "beatFOff": 0.988,
+     "beatP": 0,
+     "beatR": 0,
+     "beatMsMed": null,
+     "beatMsP95": null,
+     "worstMs": null,
+     "bpmErr": 0.01,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 122,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 125
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 0,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 355,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 63.9,
+       "bpm": 121.99,
+       "z": 14.6,
+       "hit": 0.98
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "holdout_dnb_double",
+   "kind": "constant 87; double-time snare rolls from bar 17 (control)",
+   "dur": 89.3,
+   "evidenceMs": 316,
+   "results": {
+    "engine": {
+     "beatF": 0.988,
+     "beatFOff": 0,
+     "beatP": 0.984,
+     "beatR": 0.992,
+     "beatMsMed": 12.8,
+     "beatMsP95": 13,
+     "worstMs": 13,
+     "bpmErr": 0.01,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 0.989,
+     "perRegion": [
+      {
+       "bpm": 87,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 174
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 0,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 2968,
+     "variable": false,
+     "source": "constant-fit"
+    },
+    "const": {
+     "beatF": 0.988,
+     "beatFOff": 0,
+     "beatP": 0.984,
+     "beatR": 0.992,
+     "beatMsMed": 1.7,
+     "beatMsP95": 4.3,
+     "worstMs": 4.6,
+     "bpmErr": 0.01,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 87,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 176
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 0,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 318,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 89.2,
+       "bpm": 86.99,
+       "z": 13,
+       "hit": 0.98
+      }
+     ]
+    },
+    "dp": {
+     "beatF": 0.988,
+     "beatFOff": 0,
+     "beatP": 0.984,
+     "beatR": 0.992,
+     "beatMsMed": 1.7,
+     "beatMsP95": 4.3,
+     "worstMs": 4.6,
+     "bpmErr": 0.01,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 87,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 176
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 0,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 672,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 89.2,
+       "bpm": 86.99,
+       "z": 12.7,
+       "hit": 0.98
+      }
+     ]
+    },
+    "ctf": {
+     "beatF": 0.988,
+     "beatFOff": 0,
+     "beatP": 0.984,
+     "beatR": 0.992,
+     "beatMsMed": 1.7,
+     "beatMsP95": 4.3,
+     "worstMs": 4.6,
+     "bpmErr": 0.01,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 87,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 176
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 0,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 443,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 89.2,
+       "bpm": 86.99,
+       "z": 12.6,
+       "hit": 0.98
+      }
+     ]
+    },
+    "tempogram": {
+     "beatF": 0.988,
+     "beatFOff": 0,
+     "beatP": 0.984,
+     "beatR": 0.992,
+     "beatMsMed": 1.7,
+     "beatMsP95": 4.3,
+     "worstMs": 4.6,
+     "bpmErr": 0.01,
+     "acc1": 1,
+     "acc1oct": 1,
+     "coverage": 1,
+     "perRegion": [
+      {
+       "bpm": 87,
+       "acc1": 1,
+       "acc1oct": 1,
+       "bpmErr": 0,
+       "n": 176
+      }
+     ],
+     "nChanges": 0,
+     "truthTransitions": 0,
+     "missed": 0,
+     "extra": 0,
+     "boundaryErrS": null,
+     "ms": 354,
+     "segs": [
+      {
+       "t0": 0,
+       "t1": 89.2,
+       "bpm": 86.99,
+       "z": 13,
+       "hit": 0.98
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

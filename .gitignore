@@ -16,3 +16,6 @@ test-songs/arrangement-fixtures/truth/
 test-songs/melody-fixtures/*.wav
 test-songs/melody-fixtures/*.json
 test-songs/melody-fixtures/truth/
+test-songs/tempo-map-fixtures/*.wav
+test-songs/tempo-map-fixtures/*.json
+test-songs/tempo-map-fixtures/truth/
