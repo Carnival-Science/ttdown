@@ -63,7 +63,7 @@ async function capture(o) {
   const b = await pw.chromium.launch(); let rec;
   try {
     const p = await (await b.newContext({ viewport: { width: 1280, height: 860 } })).newPage(), errors = []; p.on("pageerror", e => errors.push(e.message));
-    await p.addInitScript(() => { const w = window; w.__ttBasicPitch = true; const W = w.Worker; w.Worker = class extends W { constructor(...a) { super(...a); this.addEventListener("message", e => { if (e.data && ((e.data.type === "done" && Array.isArray(e.data.notes)) || e.data.type === "error")) w.__bpDone = e.data;   // the analysis worker (PR #68) also posts "done", without notes }); } }; });
+    await p.addInitScript(() => { const w = window; w.__ttBasicPitch = true; const W = w.Worker; w.Worker = class extends W { constructor(...a) { super(...a); this.addEventListener("message", e => { if (e.data && ((e.data.type === "done" && Array.isArray(e.data.notes)) || e.data.type === "error")) w.__bpDone = e.data; }); } }; });
     await p.goto(target.url()); await p.waitForTimeout(400);
     const served = await target.verifyIdentity(p); // the page's own window.__build must be the build in the manifest checked above
     const t0 = Date.now(); await p.setInputFiles("#file", audio);
