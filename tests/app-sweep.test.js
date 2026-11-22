@@ -20,6 +20,11 @@ const SHOTS = process.env.TT_SWEEP_SHOTS;
   // rising: the workspace parts with a running entrance animation (the Web Animations API leaves nothing in the DOM afterwards)
   const state = p => p.evaluate(() => ({ canvas: !!document.querySelector('canvas.tt-sweep'), clip: document.querySelector('#out')?.style.clipPath || '',
     rising: document.getAnimations().filter(a => a.id === 'tt-enter' && a.playState !== 'finished').length }));
+  // How long until no part is still rising (ms), or null if one still is after 3 s. A rise waits for the page's next frame to start, so on
+  // a busy machine it can finish later than its own length; what must never happen is a part that keeps moving (or stays hidden).
+  const settled = async p => { const t = Date.now(); try {
+    await p.waitForFunction(() => !document.getAnimations().some(a => a.id === 'tt-enter' && a.playState !== 'finished'), null, { timeout: 3000, polling: 50 });
+    return Date.now() - t; } catch { return null; } };
 
   for (const motion of ['no-preference', 'reduce']) {
     const ctx = await b.newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: motion });
@@ -45,7 +50,9 @@ const SHOTS = process.env.TT_SWEEP_SHOTS;
     }
     await p.waitForTimeout(1800);
     const end = await state(p);
-    check(!end.canvas && !end.clip && !end.rising, `${motion}: afterwards the band is removed, nothing is clipped and nothing is still moving`);
+    check(!end.canvas && !end.clip, `${motion}: afterwards the band is removed and nothing is clipped${end.canvas || end.clip ? ` (band ${end.canvas}, clip "${end.clip}")` : ''}`);
+    const rest = await settled(p);
+    check(rest != null, `${motion}: and the parts come to rest (${rest == null ? 'still rising 3 s later' : rest ? rest + ' ms after that' : 'already'})`);
     if (SHOTS && motion === 'no-preference') await p.screenshot({ path: path.join(SHOTS, 'sweep-end.png') });
 
     if (motion === 'no-preference') {
@@ -55,18 +62,41 @@ const SHOTS = process.env.TT_SWEEP_SHOTS;
       const open = p.locator('#hist .h-open').first();
       check(await open.count() > 0, 'the saved teardown is listed after a reload');
       if (await open.count()) {
+        // Recorded as it happens, not sampled afterwards: on a slow runner the page can be busy right after the open, and the
+        // entrance (compositor clock) can be over before a sample lands. The log says whether it played and for how long.
+        await p.evaluate(() => {
+          const log = window.__enter = { t0: performance.now(), bandIn: null, bandOut: null, rises: [] };
+          new MutationObserver(ms => { for (const m of ms) {
+            for (const n of m.addedNodes) if (n.classList?.contains('tt-sweep') && log.bandIn == null) log.bandIn = performance.now();
+            for (const n of m.removedNodes) if (n.classList?.contains('tt-sweep') && log.bandOut == null) log.bandOut = performance.now();
+          } }).observe(document.body, { childList: true });
+          const animate = Element.prototype.animate;
+          Element.prototype.animate = function (k, o) {
+            const a = animate.call(this, k, o);
+            if (o && o.id === 'tt-enter') {
+              const r = { at: performance.now(), cancelled: null }; log.rises.push(r);
+              a.addEventListener('cancel', () => { r.cancelled = performance.now(); });
+            }
+            return a;
+          };
+        });
         await open.click();
         await p.waitForFunction(() => !!document.querySelector('#out.has-result'), null, { timeout: 30000 });
         const seen = [];
         for (let i = 0; i < 5; i++) { seen.push(await state(p)); await p.waitForTimeout(100); }
-        check(seen.some(s => s.canvas) && seen.some(s => s.rising >= 4), `opening a saved teardown from the empty stage sweeps and rises (band in ${seen.filter(s => s.canvas).length}/5 samples, up to ${Math.max(...seen.map(s => s.rising))} parts rising)`);
         await p.waitForTimeout(1800);
+        const log = await p.evaluate(() => window.__enter);
+        const band = log.bandIn != null && log.bandOut != null ? Math.round(log.bandOut - log.bandIn) : null;
+        const full = log.rises.filter(r => r.cancelled == null).length;
+        check(band != null && band >= 600 && full >= 4,
+          `opening a saved teardown from the empty stage sweeps and rises (band on screen ${band == null ? 'never' : band + ' ms'}, ${full} of ${log.rises.length} parts rose without being cut short; sampled: band in ${seen.filter(s => s.canvas).length}/5, up to ${Math.max(...seen.map(s => s.rising))} rising)`);
         // Swapping the open teardown for a saved one: the parts rise again, without the band.
         await p.click('#recent-btn'); await p.waitForTimeout(200); await p.locator('#hist .h-open').first().click();
         const swap = []; for (let i = 0; i < 4; i++) { swap.push(await state(p)); await p.waitForTimeout(80); }
         check(swap.every(s => !s.canvas && !s.clip) && swap.some(s => s.rising >= 4), `swapping one open teardown for another rises without the band (up to ${Math.max(...swap.map(s => s.rising))} parts rising)`);
         await p.waitForTimeout(900);
-        check((await state(p)).rising === 0, 'after the swap nothing is still moving');
+        const swapRest = await settled(p);
+        check(swapRest != null, `after the swap the parts come to rest (${swapRest == null ? 'still rising 3 s later' : swapRest ? swapRest + ' ms after that' : 'already'})`);
       }
     }
     if (motion === 'no-preference') {
