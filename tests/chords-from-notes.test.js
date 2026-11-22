@@ -75,13 +75,29 @@ for (const [bA, bF] of [[45, 42], [33, 30]]) {
   check(seq === "0:A 0:F#m 1:A 1:F#m 2:A 2:F#m 3:A 3:F#m", `9: A then F#m inside every bar, bass ${bA} -> ${bF}, both chords read in each bar: ${said(r).join(" | ")}`);
 }
 // 10: the bass moves up across C3 inside the bar (PR #59 review, C3 crossing). Each bar: A2 (or A1) with A major for 2.5 beats, then F#m whose
-// lowest note is F#3, so nothing sounds below C3. Pinned: sha256 of the regions from main (92de5bc), which has no guard.
-const WITHOUT_GUARD = { "120": "373f3c1348859f63", "100": "9699c63909cc0f80", "140": "e235b68f3c233690" };
+// lowest note is F#3, so nothing sounds below C3. Pinned: the CHORD SEQUENCE main (92de5bc, no guard) read, per tempo. The region TIMES were pinned
+// too (sha256), until chord boundaries were re-placed (docs/SYMBOLIC_CHORDS.md, "Chord boundaries"): the old reading put every F#m at beat 3
+// (or 4), half a beat to a beat before the 2.5 beats where the fixture changes it; every F#m region now starts at 2.5 beats, within 10 ms.
+const WITHOUT_GUARD = { "120": "0:A 0:F#m 1:A 1:F#m 2:A 2:F#m 3:A 3:F#m", "100": "0:A 0:F#m 1:A 1:F#m 2:A 3:F#m", "140": "0:A 1:F#m 2:A 2:F#m 3:A 3:F#m" };
 for (const bpm of [120, 100, 140]) for (const bA of [45, 33]) {
   const { a, G, bar } = song(bpm, 0, 4), notes = [];
   for (let b = 0; b < 4; b++) { const t0 = b * bar, tc = t0 + 2.5 * bar / 4; [bA, 57, 61, 64].forEach(m => notes.push({ on: t0, off: tc, midi: m })); [54, 57, 61, 66].forEach(m => notes.push({ on: tc, off: t0 + bar, midi: m })); }
-  const r = D.chordRegionsFromNotes(a, G, notes), h = crypto.createHash("sha256").update(JSON.stringify(r)).digest("hex").slice(0, 16), seq = r.regions.filter(x => x.c !== "–").map(x => `${x.bar}:${x.c}`).join(" ");
+  const r = D.chordRegionsFromNotes(a, G, notes), seq = r.regions.filter(x => x.c !== "–").map(x => `${x.bar}:${x.c}`).join(" ");
   if (bpm === 120) check(seq === "0:A 0:F#m 1:A 1:F#m 2:A 2:F#m 3:A 3:F#m", `10: bass ${bA} then F#3 (above C3) inside every bar at 120 BPM: both chords in each bar: ${said(r).join(" | ")}`);
-  check(h === WITHOUT_GUARD[bpm], `10: bass ${bA} then F#3 inside every bar at ${bpm} BPM reads exactly as without the guard (${h}): ${seq}`);
+  check(seq === WITHOUT_GUARD[bpm], `10: bass ${bA} then F#3 inside every bar at ${bpm} BPM reads the same chords as without the guard: ${seq}`);
+  const late = r.regions.filter(x => x.c === "F#m").map(x => x.t0 - x.bar * bar - 2.5 * bar / 4); check(late.length > 0 && late.every(d => Math.abs(d) < 0.01), `10: bass ${bA} at ${bpm} BPM: every F#m starts at 2.5 beats, where the fixture changes it (offsets ${late.map(d => d.toFixed(3)).join(", ")} s)`);
+}
+// 11: a change that is STRUCK on the "and" of beat 4 starts there, not an 8th earlier (the one-beat window used to let the next chord's
+// notes vote before they sounded). Eb under a held Eb voicing, F struck at 3.5 beats (bass F2 plus F A C), a lone D5 melody note in beat 4 that
+// belongs to neither chord; every bar, at 120 BPM (8th = 0.25 s) and at 105 BPM with bar 1 off the origin (8th = 0.2857 s).
+for (const [bpm, off] of [[120, 0], [105, 0.571]]) {
+  const bar = 240 / bpm, q = bar / 8, beats = [], downs = [], N = 6; for (let i = 0; i < N * 4; i++) beats.push(off + i * bar / 4); for (let b = 0; b < N; b++) downs.push(off + b * bar);
+  const a = { duration: off + N * bar, bpm, barSec: bar, nBars: N, firstDown: off, key: "C major", grid: { beats, downbeats: downs } }, G = TM.forAnalysis(a), notes = [];
+  for (let b = 0; b < N; b += 2) { const t = off + b * bar;
+    [39, 51, 55, 58].forEach(m => notes.push({ on: t, off: t + 7 * q, midi: m }));   // Eb, held to the "and" of 4
+    [41, 53, 57, 60, 65].forEach(m => notes.push({ on: t + 7 * q + 0.01, off: t + bar + 7 * q - 0.05, midi: m }));   // F, struck at 4&, held to the next 4&
+    notes.push({ on: t + 6 * q, off: t + 7 * q, midi: 74 }); }   // D5 in beat 4, a tone of neither chord
+  const r = D.chordRegionsFromNotes(a, G, notes), f = r.regions.filter(x => x.c === "F").map(x => x.t0 - (off + 7 * q));
+  check(f.length >= 1 && f.every(d => Math.abs(d - Math.round(d / (2 * bar)) * 2 * bar) < 0.03), `11: F starts where it is struck, on the 4& (${bpm} BPM: offsets ${f.map(x => x.toFixed(3)).join(", ")} s from 4&)`);
 }
 console.log(`chords-from-notes tests: ${pass} passed, ${fail} failed`); if (fail) process.exit(1);

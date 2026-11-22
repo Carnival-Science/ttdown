@@ -102,3 +102,33 @@ node bench/amt/compare-chords.js --ref "more please.mid" --offset -8.571 --bar1 
 The notes-based reading is much better in the arpeggio bars and about equal in the opening, but it **finds fewer chord changes in bars 1-8** (change F1 29% against 59%): it prefers a steady chord and misses short ones. Nothing was measured on any other real piece, on a piece with vocals or drums, or on the synthetic songs (the model cannot run in Node; their chord truth is for the audio detector's gate, which is unchanged). `tests/chords-from-notes.test.js` (in `npm test`) covers the reader on synthetic notes; `tests/app-basic-pitch.test.js` checks the regions in the page after the real model ran.
 
 Reproduce the table: dump the notes of the page (`window.__td.transcription`, bench build, `window.__ttBasicPitch = true`) and score `chordRegionsFromNotes` output and the audio regions with `bench/amt/chord-scoring.js` (`prepare`, `score`) against the annotation.
+
+## Chord boundaries: each change is re-placed by at most one 8th (2026-11-21)
+
+**Problem.** On *more please* the app's chord changes came an 8th note early (273 ms at 105 BPM): the F that is struck on the "and" of beat 4 started on beat 4, and the same at the Gm and the A♯. The cause is the evidence window. A chord at an 8th is scored from the notes in a one-beat window around it (`CFN.win`, half a beat each side), which is right for NAMING a chord (an arpeggio's notes all count) but lets the next chord's notes vote before they sound.
+
+**Change.** The names are decoded exactly as before. Afterwards each change is re-placed by at most one 8th, either way, by comparing four 8ths around it that are the same for every candidate position. The evidence for each 8th is what sounds *inside it*: a note that begins in it (within 40 ms of its edges, for the note model's onset jitter) counts double, a held-over note once, and the root bonus goes to the lowest note sounding in it. A bass note below C3 that is a tone of the new chord and not of the old one, struck in the first 8th of the new region and not in the one before, adds a small bonus: where an 8th has no evidence either way, the change goes to the first 8th in which the new chord's bass is struck. A region never collapses and never swaps places with a neighbour. Constants: `CFN.refine`, `attack` 2 (bass-register notes only), `jitter` 0.04, `anchor` 0.3, `refineMargin` 0.05.
+
+**Measured** on the one annotated track (`more please.mp3`, annotation v2, development reference, owner has not signed it off), the app's own note capture, `bench/amt/app-chord-check.js` for the scores and `bench/amt/chord-boundaries.js` for the timing:
+
+| | main (1775c8b) | this change |
+|---|---|---|
+| root (120 steps in the annotated ranges) | 88.3% | 93.3% |
+| root + triad | 79.8% | 82.8% |
+| chord-change F1 within ±150 ms (P / R) | 55.0% (65 / 48) | 76.9% (94 / 65) |
+| annotated changes with a boundary within 300 ms | 16 of 23 | 15 of 23 |
+| of those: more than 20 ms early / late / within 20 ms | 4 / 1 / 11 | 0 / 0 / 15 |
+| mean absolute boundary error (of the matched ones) | 96 ms | 13 ms |
+| boundaries with no annotated change near them | 3 | 1 |
+
+The 13 ms that is left is the annotation's own offset from the beat grid (every on-time boundary reads +12 to +14 ms), not an error of the reading. Not measured: any other track, with or without a chord annotation.
+
+A synthetic check with a known answer agrees: every bar of the fixture in `tests/chords-from-notes.test.js` (check 10) changes A to F♯m at 2.5 beats; main put every F♯m at beat 3 or 4 (250 to 300 ms early at 120 and 100 BPM); it is now at 2.5 beats, within 10 ms, at 100, 120 and 140 BPM. The chord names are unchanged in all of those cases.
+
+**What this does not fix, and the limits.**
+- The constants were chosen while looking at this track (an attack weight on every note, rather than bass notes only, moved the Gm to Dm change at 3.4.5 a step the wrong way, for instance), against an annotation that is a development reference. They have not been tested on a second annotated track, so the numbers above are on the data they were fitted to.
+- 8 of the 23 annotated changes still have no boundary near them: the F13 and F♯dim7 of bar 2 and similar chords that differ only by an extension or a seventh, which a major/minor-only vocabulary cannot name. That is the next step (diminished, then sevenths), not boundary placement.
+- A boundary moves by one 8th at most. A change the Viterbi pass puts two 8ths away is left there.
+- Chords that begin between two 8ths (a 16th-note anticipation) are still placed on an 8th.
+
+Reproduce: capture once with `app-chord-check.js capture`, then `node bench/amt/chord-boundaries.js --capture capture.json --annotation ann.json --baseline-repo DIR_OF_MAIN --list` and `app-chord-check.js score ... --baseline-repo DIR_OF_MAIN`. The capture of real music stays outside the repository.
