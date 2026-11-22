@@ -59,7 +59,7 @@
   const spans = $derived.by(() => { void a.timingCorrections; void chordBars; return (D.chordSpans(a, G) || []) as Span[]; });
   const regions = $derived(!!(a.chordRegions && a.chordRegions.regions && a.chordRegions.regions.length));
   const isChord = (c: string | undefined) => !!c && c !== "–";
-  const triad = (c: string) => { const m = c.endsWith("m"), r = NAMES.indexOf(m ? c.slice(0, -1) : c); return r < 0 ? [] : [48 + r, 48 + r + (m ? 3 : 4), 48 + r + 7]; };
+  const triad = (c: string): number[] => { const p = D.chordParse(c); return p.root < 0 ? [] : p.intervals.map((d: number) => 48 + p.root + d); };   // the chord's notes: a triad, or four for a seventh chord
   const barT = (b: number) => G.barStart(b);
   // The voicings of bars the person corrected are their own layer (drawn solid and dark), apart from the suggested ones (hollow purple): what the
   // analyzer suggested and what you decided never look alike.

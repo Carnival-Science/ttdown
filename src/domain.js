@@ -231,7 +231,11 @@ const CH_RHY = [
   { label: "pulsing 8th notes", steps: EVENS, len: 2 }
 ];
 const PROGS = { major: [[0, 4, 5, 3], [5, 3, 0, 4], [0, 5, 3, 4], [3, 0, 4, 5], [0, 3, 5, 4], [1, 4, 0, 5], [0, 2, 3, 4], [3, 4, 5, 5]], minor: [[0, 5, 2, 6], [0, 6, 5, 6], [5, 6, 0, 0], [0, 2, 6, 5], [3, 5, 0, 6], [0, 3, 5, 4], [0, 0, 5, 6], [0, 4, 5, 6]] };
-function chordFromName(c) { const m = c.endsWith("m"), r = NAMES.indexOf(m ? c.slice(0, -1) : c), base = 48 + r; return { name: c, root: r, notes: [base, base + (m ? 3 : 4), base + 7] }; }
+/* A chord name as a root and its intervals above it. The names the app writes: "C" (major), "Cm", "Cdim", "Cdim7", "Caug". The suffixes are matched
+   whole, so "Cm" is never read as the C of "Cm" with a leftover, and a name that is none of these gives root -1 (callers draw nothing). */
+const CHORD_QUALITIES = { "": [0, 4, 7], m: [0, 3, 7], dim: [0, 3, 6], dim7: [0, 3, 6, 9], aug: [0, 4, 8] };
+function chordParse(c) { const m = /^([A-G]#?)(m|dim7|dim|aug)?$/.exec(c || ""); if (!m) return { root: -1, quality: "", intervals: [] }; return { root: NAMES.indexOf(m[1]), quality: m[2] || "", intervals: CHORD_QUALITIES[m[2] || ""] }; }
+function chordFromName(c) { const p = chordParse(c), base = 48 + p.root; return { name: c, root: p.root, notes: p.intervals.map(d => base + d) }; }
 function chordFromDegree(k, d, seventh) {
   const base = 48 + k.root, n = i => base + k.sc[i % 7] + (i >= 7 ? 12 : 0);
   let notes = [n(d), n(d + 2), n(d + 4)]; if (seventh) notes.push(n(d + 6));
@@ -483,11 +487,11 @@ function songMidiFiles(a, opts) {
    outline; notes below C3 count more, and the lowest note is favoured as the root except over a pedal bass), one Viterbi pass with a
    cost per change (higher off the beat), equal neighbours merged. Same
    region format as the audio detector's chordRegions ({ t0, t1, bar, beat, endBar, endBeat, c }), so everything that shows or writes
-   chords follows. Major and minor triads only, like the audio detector, because every consumer builds triads from the name; the research
-   reader (bench/amt/symbolic-chords.js) also knows sevenths and sus chords. Constants are the research reader's, not tuned on anything
+   chords follows. Major, minor, diminished, diminished seventh and augmented (chordParse gives every consumer the notes of a name; a diminished
+   seventh must beat the triads by more evidence, CFN.exotic7 / exotic3); the research reader (bench/amt/symbolic-chords.js) also knows other sevenths and sus chords. Constants are the research reader's, not tuned on anything
    since. notes: [{ on, off, midi }] in audio seconds; G = TimeMap.forAnalysis(a). Returns null when there is nothing to read. */
-const CFN = { win: 0.5, other: 0.5, rootBass: 0.35, change: 0.9, offbeat: 0.5, nc: 0.25, minW: 0.05, bassW: 1.6, refine: true, attack: 2, jitter: 0.04, anchor: 0.3, refineMargin: 0.05 };
-const CFN_CH = []; for (let r = 0; r < 12; r++) for (const m of [0, 1]) CFN_CH.push({ name: NAMES[r] + (m ? "m" : ""), root: r, tones: [r, (r + (m ? 3 : 4)) % 12, (r + 7) % 12] });
+const CFN = { win: 0.5, other: 0.5, rootBass: 0.35, change: 0.9, offbeat: 0.5, nc: 0.25, minW: 0.05, bassW: 1.6, exotic7: 0.35, exotic3: 0.25, toneMin: 0.05, refine: true, attack: 2, jitter: 0.04, anchor: 0.3, refineMargin: 0.05 };
+const CFN_CH = []; for (let r = 0; r < 12; r++) for (const q of ["", "m", "dim", "dim7", "aug"]) CFN_CH.push({ name: NAMES[r] + q, root: r, exotic: q === "dim7" ? CFN.exotic7 : q === "dim" || q === "aug" ? CFN.exotic3 : 0, tones: CHORD_QUALITIES[q].map(d => (r + d) % 12) });
 function chordRegionsFromNotes(a, G, notes, opts) {   // opts.refine === false: the names' own boundaries, without the re-placement (tests and benchmarks)
   try {
     const nBars = a.nBars || Math.floor(a.duration / a.barSec); if (!G || !G.tracked || !(nBars > 0) || !notes || !notes.length) return null;
@@ -516,7 +520,8 @@ function chordRegionsFromNotes(a, G, notes, opts) {   // opts.refine === false: 
       for (const x of srt) { if (x.on >= hi) break; const o = Math.min(x.off, hi) - Math.max(x.on, lo); if (o <= 0) continue; const wt = o * (x.midi < 48 ? CFN.bassW : 1); w[((x.midi % 12) + 12) % 12] += wt; tot += wt;
         if (x.on < st.t1 && x.off > st.t0 && (low === null || x.midi < low)) low = x.midi; }
       const e = new Float64Array(K); if (tot < CFN.minW) { e.fill(-2); e[NC] = 0; return e; }
-      CFN_CH.forEach((c, k) => { let on = 0, off = 0; w.forEach((v, pc) => { if (c.tones.includes(pc)) on += v; else off += v; }); e[k] = (on - CFN.other * off) / tot + (!st.pedal && low != null && ((low % 12) + 12) % 12 === c.root ? CFN.rootBass : 0); });
+      CFN_CH.forEach((c, k) => { if (c.exotic && c.tones.some(pc => w[pc] < CFN.toneMin * tot)) { e[k] = -2; return; }   // a diminished or augmented chord needs EVERY one of its tones heard: no tone is inferred (PR #70 review: C3 F#3 A3 was read as Cdim7)
+        let on = 0, off = 0; w.forEach((v, pc) => { if (c.tones.includes(pc)) on += v; else off += v; }); e[k] = (on - CFN.other * off) / tot - c.exotic + (!st.pedal && low != null && ((low % 12) + 12) % 12 === c.root ? CFN.rootBass : 0); });
       e[NC] = CFN.nc; return e;
     });
     const back = Array.from({ length: n }, () => new Int16Array(K)); let prev = Float64Array.from(emit[0]);
@@ -885,7 +890,7 @@ function moodTags(a) {
   if (a.steady) t.push("Hypnotic, one groove");
   return t;
 }
-const chordNotes = c => { if (!c || c === "–") return ""; const m = c.endsWith("m"), r = NAMES.indexOf(m ? c.slice(0, -1) : c); return [0, m ? 3 : 4, 7].map(d => NAMES[(r + d) % 12]).join(" · "); };
+const chordNotes = c => { if (!c || c === "–") return ""; const p = chordParse(c); return p.root < 0 ? "" : p.intervals.map(d => NAMES[(p.root + d) % 12]).join(" · "); };
 function keyChords(key) { const r = NAMES.indexOf(key.split(" ")[0]), mi = /minor/.test(key), n = (d, m) => NAMES[(r + d) % 12] + (m ? "m" : "");
   return new Set(mi ? [n(0, 1), n(3), n(5, 1), n(7, 1), n(7), n(8), n(10)] : [n(0), n(2, 1), n(4, 1), n(5), n(7), n(9, 1), n(10)]); } // incl. the common borrowed chord (bVII / major V)
 function compress(list) { const out = []; list.forEach(c => { const last = out[out.length - 1]; if (last && last.c === c) last.n++; else out.push({ c, n: 1 }); }); return out.map(o => o.n > 1 ? `${o.c} ×${o.n}` : o.c).join("  ·  ") || "–"; }
@@ -1243,5 +1248,5 @@ const EXAMPLE = {
   sections: [{ label: "Intro", startBar: 0, bars: 16 }, { label: "Build", startBar: 16, bars: 8 }, { label: "Drop", startBar: 24, bars: 32 }, { label: "Breakdown", startBar: 56, bars: 16 }, { label: "Build", startBar: 72, bars: 8 }, { label: "Drop", startBar: 80, bars: 24 }, { label: "Outro", startBar: 104, bars: 15 }].map(s => Object.assign(s, { start: +(s.startBar * 1.92).toFixed(1), end: +((s.startBar + s.bars) * 1.92).toFixed(1) })),
   barSec: 1.92, nBars: 119, balance: [17, 33, 19, 15, 10, 6], width: 0.31, loudRms: -8.9, crest: 8.2, peakDb: -0.3
 };
-return Object.freeze({ transcriptionFromNotes, chordRegionsFromNotes, chordSpans, transcribedSteps, partMidi, midiModes, allPartsMidi, smfFile, refTempo, chordNamesText, noDrumsFound, drumsAbsence, exportGate, recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
+return Object.freeze({ transcriptionFromNotes, chordRegionsFromNotes, chordParse, chordFromName, chordSpans, transcribedSteps, partMidi, midiModes, allPartsMidi, smfFile, refTempo, chordNamesText, noDrumsFound, drumsAbsence, exportGate, recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
 });
