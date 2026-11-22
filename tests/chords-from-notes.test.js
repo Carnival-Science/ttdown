@@ -134,4 +134,16 @@ for (const [bpm, off] of [[120, 0], [105, 0.571]]) {
     hold(notes, 0, 2 * BAR - 0.05, [43, 55, 58, 62]); hold(notes, 0.5, 0.75, [66]);
     check(D.chordRegionsFromNotes(a, G, notes).regions.filter(x => x.c !== "–").map(x => x.c).join(" ") === "Gm", "13: Gm with a passing F# (a tone of F#dim7) stays Gm"); }
 }
+// 13: no chord tone is inferred (PR #70 review). Three sustained notes C3 F#3 A3 are F#dim over C, not Cdim7 with an E-flat nobody played; the
+// diminished seventh is read when all four tones are there; its four notes reach the chord roll's MIDI.
+{ const { a, G } = mk(), run = ms => { const notes = ms.map(m => ({ on: 0, off: 3.9, midi: m })); return D.chordRegionsFromNotes(a, G, notes).regions.filter(x => x.c !== "–").map(x => x.c).join(" "); };
+  check(run([48, 54, 57]) === "F#dim" && run([54, 57, 60]) === "F#dim", `13: C3 F#3 A3 (and F#3 A3 C4) is F#dim, not a dim7 with a tone nobody played (${run([48, 54, 57])})`);
+  check(run([48, 51, 54, 57]) === "Cdim7" && run([42, 57, 60, 63]) === "F#dim7", `13: all four tones played: a diminished seventh (${run([48, 51, 54, 57])}, ${run([42, 57, 60, 63])})`);
+  check(run([48, 51, 54]) === "Cdim" && run([48, 52, 56]) === "Caug" && !/dim7/.test(run([48, 54])) && !/dim|aug/.test(run([48, 55])), `13: a diminished or augmented chord needs all its tones: Cdim, Caug from three, no dim from two (${run([48, 51, 54])}, ${run([48, 52, 56])}, ${run([48, 54])}, ${run([48, 55])})`);
+  // the chord roll's MIDI: Gm, F#dim7 (beats 3-4), Gm; the F#dim7 region writes four notes
+  const { decodeMidi } = require("./lib/smf"), TMg = TM.forAnalysis(a), notes = []; const hold = (on, off, ms) => ms.forEach(m => notes.push({ on, off, midi: m }));
+  hold(0, 0.95, [43, 55, 58, 62]); hold(1, BAR - 0.02, [42, 57, 60, 63]); hold(BAR, 2 * BAR - 0.02, [43, 55, 58, 62]);
+  a.chordRegions = D.chordRegionsFromNotes(a, TMg, notes); a.chords = { bars: ["Gm", "Gm"] };
+  const m = D.partMidi(a, "chords", { timing: "original", grid: TMg }), d = m && decodeMidi(m.data), at = t => (d ? d.notes.filter(n => Math.abs(n.onTick / 480 * (60 / (d.tempos[0] ? d.tempos[0].bpm : 120)) - t) < 0.05).map(n => n.pitch).sort((x, y) => x - y).join() : "");
+  check(!!d && at(1) === "54,57,60,63" && at(0) === "55,58,62", `13: the roll's chord MIDI writes the four notes of the F#dim7 (${d ? at(1) : "no file"}) and three for the Gm (${d ? at(0) : ""})`); }
 console.log(`chords-from-notes tests: ${pass} passed, ${fail} failed`); if (fail) process.exit(1);

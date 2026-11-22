@@ -490,7 +490,7 @@ function songMidiFiles(a, opts) {
    chords follows. Major, minor, diminished, diminished seventh and augmented (chordParse gives every consumer the notes of a name; a diminished
    seventh must beat the triads by more evidence, CFN.exotic7 / exotic3); the research reader (bench/amt/symbolic-chords.js) also knows other sevenths and sus chords. Constants are the research reader's, not tuned on anything
    since. notes: [{ on, off, midi }] in audio seconds; G = TimeMap.forAnalysis(a). Returns null when there is nothing to read. */
-const CFN = { win: 0.5, other: 0.5, rootBass: 0.35, change: 0.9, offbeat: 0.5, nc: 0.25, minW: 0.05, bassW: 1.6, exotic7: 0.35, exotic3: 0.25, refine: true, attack: 2, jitter: 0.04, anchor: 0.3, refineMargin: 0.05 };
+const CFN = { win: 0.5, other: 0.5, rootBass: 0.35, change: 0.9, offbeat: 0.5, nc: 0.25, minW: 0.05, bassW: 1.6, exotic7: 0.35, exotic3: 0.25, toneMin: 0.05, refine: true, attack: 2, jitter: 0.04, anchor: 0.3, refineMargin: 0.05 };
 const CFN_CH = []; for (let r = 0; r < 12; r++) for (const q of ["", "m", "dim", "dim7", "aug"]) CFN_CH.push({ name: NAMES[r] + q, root: r, exotic: q === "dim7" ? CFN.exotic7 : q === "dim" || q === "aug" ? CFN.exotic3 : 0, tones: CHORD_QUALITIES[q].map(d => (r + d) % 12) });
 function chordRegionsFromNotes(a, G, notes, opts) {   // opts.refine === false: the names' own boundaries, without the re-placement (tests and benchmarks)
   try {
@@ -520,7 +520,8 @@ function chordRegionsFromNotes(a, G, notes, opts) {   // opts.refine === false: 
       for (const x of srt) { if (x.on >= hi) break; const o = Math.min(x.off, hi) - Math.max(x.on, lo); if (o <= 0) continue; const wt = o * (x.midi < 48 ? CFN.bassW : 1); w[((x.midi % 12) + 12) % 12] += wt; tot += wt;
         if (x.on < st.t1 && x.off > st.t0 && (low === null || x.midi < low)) low = x.midi; }
       const e = new Float64Array(K); if (tot < CFN.minW) { e.fill(-2); e[NC] = 0; return e; }
-      CFN_CH.forEach((c, k) => { let on = 0, off = 0; w.forEach((v, pc) => { if (c.tones.includes(pc)) on += v; else off += v; }); e[k] = (on - CFN.other * off) / tot - c.exotic + (!st.pedal && low != null && ((low % 12) + 12) % 12 === c.root ? CFN.rootBass : 0); });
+      CFN_CH.forEach((c, k) => { if (c.exotic && c.tones.some(pc => w[pc] < CFN.toneMin * tot)) { e[k] = -2; return; }   // a diminished or augmented chord needs EVERY one of its tones heard: no tone is inferred (PR #70 review: C3 F#3 A3 was read as Cdim7)
+        let on = 0, off = 0; w.forEach((v, pc) => { if (c.tones.includes(pc)) on += v; else off += v; }); e[k] = (on - CFN.other * off) / tot - c.exotic + (!st.pedal && low != null && ((low % 12) + 12) % 12 === c.root ? CFN.rootBass : 0); });
       e[NC] = CFN.nc; return e;
     });
     const back = Array.from({ length: n }, () => new Int16Array(K)); let prev = Float64Array.from(emit[0]);
