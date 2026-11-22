@@ -54,4 +54,12 @@ check(su.nq === 0 && su.root === 1 && su.tri === 0, `no third / uncertain: root 
 
 // names
 check(JSON.stringify([parse("F#dim7"), parse("D#maj7"), parse("Cm7b5"), parse("Gsus4"), parse("A#m"), parse("N")]) === JSON.stringify([{ root: "F#", triad: "dim", seventh: "dim7" }, { root: "D#", triad: "maj", seventh: "maj7" }, { root: "C", triad: "dim", seventh: "min7" }, { root: "G", triad: "sus", seventh: "none" }, { root: "A#", triad: "min", seventh: "none" }, null]), "chord names parse to root, triad class and seventh");
+
+// matchOneToOne (bench/amt/chord-boundaries.js; PR #69 review): a boundary is never counted for two annotated changes
+{ const { matchOneToOne: M } = require("../bench/amt/chord-scoring"), pairs = (est, ref, w = 0.3) => M(est, ref, w).map(p => p.slice(0, 2).join(":")).sort().join(" ");
+  check(M([1.125], [1.0, 1.25], 0.3).length === 1, "one prediction between two annotated changes: one matched, one missed (the review's example)");
+  check(M([1.0, 1.25], [1.0, 1.25], 0.3).length === 2 && M([1.0, 1.25], [1.0, 1.25], 0.3).every(p => Math.abs(p[2]) < 1e-9), "two and two, each to its own");
+  check(pairs([1.1, 1.3], [1.0, 1.2], 0.15) === "0:0 1:1", "a greedy nearest-first pairing would take 1.1<->1.2 (error 0.1) and strand the others; the matching pairs 0:0 and 1:1");
+  check(M([2.0], [1.0], 0.3).length === 0 && M([], [1.0], 0.3).length === 0 && M([1.0], [], 0.3).length === 0, "nothing within the window, and empty lists: no pairs");
+  const big = M([0.0, 0.2, 0.4], [0.1, 0.3], 0.15); check(big.length === 2 && Math.abs(big.reduce((x, p) => x + Math.abs(p[2]), 0) - 0.2) < 1e-9, "of equal-size matchings it takes the smaller total error (0.2)"); }
 console.log(`amt chord scoring tests: ${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

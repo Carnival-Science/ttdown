@@ -100,4 +100,17 @@ for (const [bpm, off] of [[120, 0], [105, 0.571]]) {
   const r = D.chordRegionsFromNotes(a, G, notes), f = r.regions.filter(x => x.c === "F").map(x => x.t0 - (off + 7 * q));
   check(f.length >= 1 && f.every(d => Math.abs(d - Math.round(d / (2 * bar)) * 2 * bar) < 0.03), `11: F starts where it is struck, on the 4& (${bpm} BPM: offsets ${f.map(x => x.toFixed(3)).join(", ")} s from 4&)`);
 }
+// 12: a change is re-placed ONCE, by at most one 8th (PR #69 review: the refinement loop met a boundary it had just moved forward and moved it
+// again, so a change could land two 8ths from where the decoding put it). 300 pseudo-random fixtures (held and arpeggiated chords of 1-6 8ths,
+// some with a silent 8th between, a stray melody note): wherever the chord sequence is the same with and without the re-placement
+// (opts.refine = false), no boundary differs by more than one 8th. Before the fix, 3 of ~2400 boundaries moved two 8ths.
+{ let seed = 1; const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  const CH = [[45, 57, 60, 64], [41, 57, 60, 65], [43, 55, 58, 62], [38, 57, 62, 65], [39, 55, 58, 63], [48, 60, 64, 67], [43, 59, 62, 67]];
+  let bounds = 0, over = 0, compared = 0;
+  for (let it = 0; it < 300; it++) { const { a, G } = mk(), q = BAR / 8, N = NB, notes = []; let t = 0;
+    while (t < 6 * 8) { const len = 1 + Math.floor(rnd() * 6), gap = rnd() < 0.3 ? 1 : 0, c = CH[Math.floor(rnd() * CH.length)], on = t * q, off = Math.min(6 * 8, t + len - gap) * q - 0.02, arp = rnd() < 0.4;
+      c.forEach((m, i) => notes.push(arp ? { on: on + i * q * 0.5, off, midi: m } : { on, off, midi: m })); if (rnd() < 0.5) notes.push({ on: on + q * Math.floor(rnd() * len), off: on + q * (1 + Math.floor(rnd() * len)), midi: 60 + Math.floor(rnd() * 14) }); t += len; }
+    const A = D.chordRegionsFromNotes(a, G, notes, { refine: false }), B = D.chordRegionsFromNotes(a, G, notes); if (!A || !B || A.regions.map(r => r.c).join() !== B.regions.map(r => r.c).join()) continue;
+    compared++; for (let i = 1; i < B.regions.length; i++) { bounds++; if (Math.abs(B.regions[i].t0 - A.regions[i].t0) > q + 1e-6) over++; } }
+  check(compared > 100 && bounds > 500 && over === 0, `12: no change moves more than one 8th from where the decoding put it (${over} of ${bounds} boundaries in ${compared} fixtures)`); }
 console.log(`chords-from-notes tests: ${pass} passed, ${fail} failed`); if (fail) process.exit(1);

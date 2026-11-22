@@ -32,4 +32,19 @@ function score(P, R, tol = 0.15) {
   const p = est.length ? hit / est.length : 0, r = ref.length ? hit / ref.length : 0, barsInRanges = P.ranges.reduce((x, g) => x + (g.t1 - g.t0) / P.bar, 0);
   return { root: root / n, tri: nq ? tri / nq : 0, sev: nq ? sev / nq : 0, P: p, R: r, F: p + r ? 2 * p * r / (p + r) : 0, perBar: est.length / barsInRanges, nEst: est.length, nRef: ref.length, n, nq };
 }
-module.exports = { parse, prepare, score };
+/* One-to-one matching of a reading's boundaries to the annotated changes, within `win` seconds: the MOST pairs possible, and among
+ * matchings with that many pairs the smallest total timing error. Both lists are sorted, and for a sum of absolute differences a best
+ * matching never crosses, so a dynamic program over (annotated i, boundary j) is exact. Returns [[refIndex, estIndex, signed error s]]. */
+function matchOneToOne(est, ref, win) {
+  const E = est.map((t, j) => [t, j]).sort((x, y) => x[0] - y[0]), Rf = ref.map((t, i) => [t, i]).sort((x, y) => x[0] - y[0]), n = Rf.length, m = E.length;
+  const best = Array.from({ length: n + 1 }, () => Array.from({ length: m + 1 }, () => ({ k: 0, err: 0, from: null })));
+  const better = (p, q) => p.k > q.k || (p.k === q.k && p.err < q.err - 1e-12);
+  for (let i = 0; i <= n; i++) for (let j = 0; j <= m; j++) { if (!i && !j) continue; let c = { k: -1, err: 0, from: null };
+    if (i && better(best[i - 1][j], c)) c = { k: best[i - 1][j].k, err: best[i - 1][j].err, from: "r" };
+    if (j && better(best[i][j - 1], c)) c = { k: best[i][j - 1].k, err: best[i][j - 1].err, from: "e" };
+    if (i && j) { const d = E[j - 1][0] - Rf[i - 1][0]; if (Math.abs(d) <= win) { const p = { k: best[i - 1][j - 1].k + 1, err: best[i - 1][j - 1].err + Math.abs(d), from: "p" }; if (better(p, c)) c = p; } }
+    best[i][j] = c; }
+  const out = []; let i = n, j = m; while (i || j) { const c = best[i][j]; if (c.from === "p") { out.push([Rf[i - 1][1], E[j - 1][1], E[j - 1][0] - Rf[i - 1][0]]); i--; j--; } else if (c.from === "r") i--; else j--; }
+  return out;
+}
+module.exports = { parse, prepare, score, matchOneToOne };

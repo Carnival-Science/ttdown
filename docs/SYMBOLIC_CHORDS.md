@@ -107,19 +107,19 @@ Reproduce the table: dump the notes of the page (`window.__td.transcription`, be
 
 **Problem.** On *more please* the app's chord changes came an 8th note early (273 ms at 105 BPM): the F that is struck on the "and" of beat 4 started on beat 4, and the same at the Gm and the A♯. The cause is the evidence window. A chord at an 8th is scored from the notes in a one-beat window around it (`CFN.win`, half a beat each side), which is right for NAMING a chord (an arpeggio's notes all count) but lets the next chord's notes vote before they sound.
 
-**Change.** The names are decoded exactly as before. Afterwards each change is re-placed by at most one 8th, either way, by comparing four 8ths around it that are the same for every candidate position. The evidence for each 8th is what sounds *inside it*: a note that begins in it (within 40 ms of its edges, for the note model's onset jitter) counts double, a held-over note once, and the root bonus goes to the lowest note sounding in it. A bass note below C3 that is a tone of the new chord and not of the old one, struck in the first 8th of the new region and not in the one before, adds a small bonus: where an 8th has no evidence either way, the change goes to the first 8th in which the new chord's bass is struck. A region never collapses and never swaps places with a neighbour. Constants: `CFN.refine`, `attack` 2 (bass-register notes only), `jitter` 0.04, `anchor` 0.3, `refineMargin` 0.05.
+**Change.** The names are decoded exactly as before. Afterwards each change is re-placed by at most one 8th, either way, by comparing four 8ths around it that are the same for every candidate position. The evidence for each 8th is what sounds *inside it*: a note that begins in it (within 40 ms of its edges, for the note model's onset jitter) counts double, a held-over note once, and the root bonus goes to the lowest note sounding in it. A bass note below C3 that is a tone of the new chord and not of the old one, struck in the first 8th of the new region and not in the one before, adds a small bonus: where an 8th has no evidence either way, the change goes to the first 8th in which the new chord's bass is struck. A region never collapses and never swaps places with a neighbour. Each change is re-placed once, from where the decoding put it (a first version re-met a boundary it had just moved and could move it two 8ths; `tests/chords-from-notes.test.js` check 12 compares 300 pseudo-random fixtures with and without the re-placement, `opts.refine = false`). Constants: `CFN.refine`, `attack` 2 (bass-register notes only), `jitter` 0.04, `anchor` 0.3, `refineMargin` 0.05.
 
-**Measured** on the one annotated track (`more please.mp3`, annotation v2, development reference, owner has not signed it off), the app's own note capture, `bench/amt/app-chord-check.js` for the scores and `bench/amt/chord-boundaries.js` for the timing:
+**Measured** on the one annotated track (`more please.mp3`, annotation v2, development reference, owner has not signed it off), the app's own note capture, `bench/amt/app-chord-check.js` for the scores and `bench/amt/chord-boundaries.js` for the timing (one-to-one matching, `matchOneToOne` in `bench/amt/chord-scoring.js`; a first version could count one boundary for two annotated changes, which changed main's figures from 16 matched / 96 ms to 15 / 83 ms):
 
 | | main (1775c8b) | this change |
 |---|---|---|
-| root (120 steps in the annotated ranges) | 88.3% | 92.5% |
+| root (120 steps in the annotated ranges) | 88.3% | 91.7% |
 | root + triad | 79.8% | 81.8% |
-| chord-change F1 within ±150 ms (P / R) | 55.0% (65 / 48) | 71.8% (88 / 61) |
-| annotated changes with a boundary within 300 ms | 16 of 23 | 15 of 23 |
-| of those: more than 20 ms early / late / within 20 ms | 4 / 1 / 11 | 1 / 0 / 14 |
-| mean absolute boundary error (of the matched ones) | 96 ms | 30 ms |
-| boundaries with no annotated change near them | 3 | 2 |
+| chord-change F1 within ±150 ms (P / R) | 55.0% (65 / 48) | 70.0% (82 / 61) |
+| annotated changes matched one-to-one to a boundary within 300 ms | 15 of 23 | 15 of 23 |
+| of those: more than 20 ms early / late / within 20 ms | 4 / 0 / 11 | 1 / 0 / 14 |
+| mean absolute boundary error (of the matched ones) | 83 ms | 30 ms |
+| reading boundaries in the annotated ranges left unmatched | 2 | 2 |
 
 The 13 ms that most boundaries still show is the annotation's own offset from the beat grid (every on-time boundary reads +12 to +14 ms), not an error of the reading. One boundary is still an 8th early (the Dm7 of bar 3, annotated 3.4.5, 273 ms early, as on main): the reading has no bass or other evidence there that tells Gm from Dm. Not measured: any other track, with or without a chord annotation.
 

@@ -488,7 +488,7 @@ function songMidiFiles(a, opts) {
    since. notes: [{ on, off, midi }] in audio seconds; G = TimeMap.forAnalysis(a). Returns null when there is nothing to read. */
 const CFN = { win: 0.5, other: 0.5, rootBass: 0.35, change: 0.9, offbeat: 0.5, nc: 0.25, minW: 0.05, bassW: 1.6, refine: true, attack: 2, jitter: 0.04, anchor: 0.3, refineMargin: 0.05 };
 const CFN_CH = []; for (let r = 0; r < 12; r++) for (const m of [0, 1]) CFN_CH.push({ name: NAMES[r] + (m ? "m" : ""), root: r, tones: [r, (r + (m ? 3 : 4)) % 12, (r + 7) % 12] });
-function chordRegionsFromNotes(a, G, notes) {
+function chordRegionsFromNotes(a, G, notes, opts) {   // opts.refine === false: the names' own boundaries, without the re-placement (tests and benchmarks)
   try {
     const nBars = a.nBars || Math.floor(a.duration / a.barSec); if (!G || !G.tracked || !(nBars > 0) || !notes || !notes.length) return null;
     const steps = [], dur = a.duration;
@@ -533,7 +533,8 @@ function chordRegionsFromNotes(a, G, notes) {
       if (tot < CFN.minW) return 0; let on = 0, off = 0; w.forEach((v, pc) => { if (c.tones.includes(pc)) on += v; else off += v; });
       return (on - CFN.other * off) / tot + (!st.pedal && low != null && ((low % 12) + 12) % 12 === c.root ? CFN.rootBass : 0); };
     const attacks = (st, k, not) => { const c = CFN_CH[k], o = CFN_CH[not]; for (const x of srt) { if (x.on >= st.t1 - CFN.jitter) break; const pc = ((x.midi % 12) + 12) % 12; if (x.on >= st.t0 - CFN.jitter && x.midi < 48 && c.tones.includes(pc) && !o.tones.includes(pc)) return true; } return false; };   // a bass tone the old chord does not have: a held pedal note shared by both is no evidence of the change
-    if (CFN.refine) for (let q = 1; q < n; q++) { const A = path[q - 1], B = path[q]; if (A === B || A === NC || B === NC) continue;
+    const orig = path.slice();   // each change is re-placed ONCE, from where the decoding put it: a change moved forward must not be met again as the loop goes on
+    if (CFN.refine && !(opts && opts.refine === false)) for (let q = 1; q < n; q++) { const A = orig[q - 1], B = orig[q]; if (A === B || A === NC || B === NC) continue;
       let lo = q - 1; while (lo > 0 && path[lo - 1] === A) lo--; let hi = q; while (hi + 1 < n && path[hi + 1] === B) hi++;   // A covers lo..q-1, B covers q..hi
       const fit = p => { let v = 0; for (let j = Math.max(lo, q - 2); j <= Math.min(hi, q + 1); j++) v += narrow(steps[j], j < p ? A : B); return v + (attacks(steps[p], B, A) && !attacks(steps[p - 1], B, A) ? CFN.anchor : 0); };   // the same four 8ths for every candidate, so the scores compare
       let bestP = q, bestV = fit(q) + CFN.refineMargin; for (const p of [q - 1, q + 1]) { if (p <= lo || p > hi) continue; const v = fit(p); if (v > bestV) { bestV = v; bestP = p; } }
