@@ -22,7 +22,10 @@ fs.mkdirSync(OUT, { recursive: true });
   const analyse = async (p, file) => { await p.setInputFiles("#file", file); await p.waitForFunction(() => /ready|Couldn/.test(document.querySelector("#status").textContent), null, { timeout: 120000 }); await p.waitForTimeout(300); };
   const tabBtn = (p, name) => p.locator(`#explorer [role="tab"]:has-text("${name}")`);
   const menu = async p => { if (!(await p.locator(".midi-pop[data-open]").count())) { await p.click(".phead .midi"); await p.waitForTimeout(200); } return p.locator(".midi-pop"); };
-  const choose = async (p, name, value) => { const m = await menu(p); await m.locator(`input[name="midi-${name}"][value="${value}"]`).check(); await p.waitForTimeout(80); };
+  // parts are checkboxes (any combination): choosing "hook" ticks only Notes/Melody, "all" ticks all three; the other names are radios
+  const choose = async (p, name, value) => { const m = await menu(p);
+    if (name === "part") for (const id of ["hook", "bass", "chords"]) { const box = m.locator(`input[name="midi-part"][value="${id}"]`), want = value === "all" || value === id; if (want !== await box.isChecked()) await box.setChecked(want); }
+    else await m.locator(`input[name="midi-${name}"][value="${value}"]`).check(); await p.waitForTimeout(80); };
   const modes = p => p.evaluate(() => Object.fromEntries([...document.querySelectorAll('.midi-pop input[name="midi-timing"]')].map(i => [i.value, { disabled: i.disabled, checked: i.checked, why: (i.closest("label").querySelector(".why") || {}).textContent || "" }])));
   const dl = p => p.locator(".midi-pop .dl");
   const selectSection = async (p, si) => { await p.locator("#explorer .seg").nth(si).click(); await p.waitForTimeout(200); };
@@ -36,7 +39,7 @@ fs.mkdirSync(OUT, { recursive: true });
     await tabBtn(p, "Piano roll").click(); await p.waitForSelector('#explorer .detail [data-part="roll"]'); await p.waitForTimeout(150);
     const m = await menu(p);
     const labels = await m.locator("label.opt").allInnerTexts();
-    check(["Melody", "Bass", "Chords (suggested)", "All parts (multitrack MIDI)", "Selected section", "Visible range", "Whole track", "Original timing", "Follow tempo map", "Quantized"].every(w => labels.some(l => l.startsWith(w))), `${f}: one MIDI menu offers each part, all parts, three ranges and three timings`);
+    check(["Melody", "Bass", "Chords (suggested)", "Selected section", "Visible range", "Whole track", "Original timing", "Follow tempo map", "Quantized"].every(w => labels.some(l => l.startsWith(w))), `${f}: one MIDI menu offers each part as a checkbox, three ranges and three timings`);
     let md = await modes(p);
     check(Object.values(md).every(x => !x.disabled || x.why.trim().length > 5), `${f}: every unavailable timing shows its reason, none is hidden`);
     check(!md.quantized.disabled && md.quantized.checked, `${f}: on a steady 4/4 track Quantized is available straight away (no bar-line confirmation step) and is the default`);
@@ -59,11 +62,27 @@ fs.mkdirSync(OUT, { recursive: true });
     check(cd.notes.length === withChord * 3 && /SUGGESTED voicings/.test(cd.tracks[0].text[0].text), `${f}: Chords MIDI is one suggested triad per detected bar (${cd.notes.length} notes, ${withChord} bars), labelled as suggested`);
     // all parts and the other timings, once the domain provides them
     await menu(p);
-    if (await domainHas(p, "allPartsMidi")) {
-      await choose(p, "part", "all"); await choose(p, "range", "whole");
+    { await choose(p, "part", "all"); await choose(p, "range", "whole");
       const ad = await grab(/^pop127_Amaj - all parts .*\.mid$/, "all_parts");
-      check(ad.tracks.length >= 4, `${f}: All parts is one multitrack file (${ad.tracks.length} tracks: tempo + parts)`);
-    } else check(/Not available/.test(await (await menu(p)).locator('label:has(input[value="all"])').innerText()), `${f}: All parts says it is not available in this version yet (domain.allPartsMidi missing)`);
+      check(ad.tracks.length >= 4, `${f}: all three parts ticked is one multitrack file (${ad.tracks.length} tracks: tempo + parts)`); }
+    // mix and match: Melody + Bass without the suggested chords, as one multitrack file and as a zip of one file each; nothing ticked downloads nothing
+    { let m2 = await menu(p); await choose(p, "range", "whole"); await choose(p, "timing", "quantized"); await choose(p, "part", "all");
+      check(await m2.locator('[data-layout]').count() === 1 && /Download all 3 parts/.test(await dl(p).innerText()), `${f}: three ticked parts offer how to write them, and the button says "all 3 parts"`);
+      await m2.locator('input[name="midi-part"][value="chords"]').uncheck(); await p.waitForTimeout(80);
+      const label = await dl(p).innerText();
+      check(/Download (Melody|Notes) \+ Bass/.test(label) && !/Chords/.test(label), `${f}: unticking Chords leaves "${label.slice(0, 40)}"`);
+      const two = await grab(/^pop127_Amaj - (Melody|Notes) \+ (Bass|808) .*\.mid$/, "melody_bass"), names = two.tracks.map(t => t.name);
+      check(two.tracks.length === 3 && !names.some(n => /Chords/.test(n)) && names.some(n => /Bass|808/.test(n)) && two.notes.length > 0, `${f}: Melody + Bass is one file with a tempo track and exactly those two parts (${names.join(" | ")}), no suggested chords`);
+      m2 = await menu(p); // a download closes the menu
+      await m2.locator('input[name="midi-layout"][value="zip"]').check(); await p.waitForTimeout(80);
+      check(/\.zip\)?$/.test(await dl(p).innerText()), `${f}: the button names the zip`);
+      const [dz] = await Promise.all([p.waitForEvent("download"), dl(p).click()]), zf = path.join(OUT, `${f}_melody_bass.zip`); await dz.saveAs(zf); const zb = fs.readFileSync(zf), entries = [];
+      for (let i = 0; i + 46 < zb.length; i++) if (zb.readUInt32LE(i) === 0x02014b50) { const n = zb.readUInt16LE(i + 28); entries.push(zb.toString("utf8", i + 46, i + 46 + n)); }
+      check(/\.zip$/.test(dz.suggestedFilename()) && entries.length === 2 && entries.every(e => /\.mid$/.test(e)) && !entries.some(e => /Chords/.test(e)), `${f}: the zip holds one .mid per ticked part (${entries.join(" | ")})`);
+      m2 = await menu(p);
+      await m2.locator('input[name="midi-layout"][value="one"]').check();
+      await m2.locator('input[name="midi-part"][value="hook"]').uncheck(); await m2.locator('input[name="midi-part"][value="bass"]').uncheck(); await p.waitForTimeout(80);
+      check(await dl(p).isDisabled() && /Tick a part/.test(await dl(p).innerText()) && await m2.locator('[data-layout]').count() === 0, `${f}: with nothing ticked the button is off and says so`); }
     await menu(p); md = await modes(p);
     if (!md.original.disabled) {
       await choose(p, "part", "hook"); await choose(p, "range", "section"); await choose(p, "timing", "original");
@@ -118,6 +137,17 @@ fs.mkdirSync(OUT, { recursive: true });
       check(!md.original.disabled ? md.original.checked || md["tempo-map"].checked : md.original.why.length > 5, `drift_fast: a timing that follows the audio is offered instead and chosen by default (original ${md.original.disabled ? "off" : "on"}, tempo map ${md["tempo-map"].disabled ? "off: " + md["tempo-map"].why.slice(0, 40) : "on"})`); }
     else check(true, "drift_fast: nothing was read to write, so the menu is off");
     check(await p.locator('#explorer [data-part="roll"]').innerText().then(t => /Quantized MIDI is unavailable/.test(t) && /tempo/i.test(t)), "drift_fast: the roll says quantized MIDI is unavailable, and why (the tempo)");
+    await p.close(); }
+
+  { // the notice can be closed without bringing the drum tools back (a small line with the way back stays); a click on it brings them
+    const p = await open(); await analyse(p, path.join(SONGS, "pop127_Amaj.wav"));
+    // the analyzer finds no kick or snare anywhere (a replaced result, as after a correction: same object shape, same grid)
+    await p.evaluate(() => window.__tdReplace(y => { const off = v => v.map(() => false); y.pattern.kick = off(y.pattern.kick); y.pattern.snare = off(y.pattern.snare); if (y.pattern.ghost) { y.pattern.ghost.kick = off(y.pattern.ghost.kick || []); y.pattern.ghost.snare = off(y.pattern.ghost.snare || []); } (y.drumParts || []).forEach(pt => { pt.kick = off(pt.kick); pt.snare = off(pt.snare); }); }));
+    await p.waitForTimeout(300);
+    await p.locator("#explorer [data-drumless-close]").click(); await p.waitForTimeout(200);
+    check(await p.locator("#explorer [data-drumless]").count() === 0 && await tabBtn(p, "Rhythm").count() === 0 && await p.locator('#explorer button:has-text("Drums")').count() === 0 && await p.locator("#explorer [data-drumless-min]").count() === 1, "closing the no-drums notice leaves the drum tools hidden and one small line with the way back");
+    await p.locator("#explorer [data-drumless-min] button").click(); await p.waitForTimeout(200);
+    check(await tabBtn(p, "Rhythm").count() === 1 && await p.locator("#explorer [data-drumless-min]").count() === 0, "the small line brings the drum tools back");
     await p.close(); }
 
   { const p = await open(); await analyse(p, path.join(SONGS, "pop127_Amaj.wav"));
