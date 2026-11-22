@@ -6,6 +6,7 @@
 // non-enumerable grid/__buf across (docs/SVELTE_MIGRATION.md §0). There is no example teardown: until a track is analysed, nothing
 // is shown, so the page never presents numbers that were not measured from the user's audio.
 import { engine, bufferOf, withHidden, type AnalysisResult } from "../engine";
+import { analyzeOffThread, analyzeDecodedOffThread } from "../engine/run";
 import { domain } from "../domain";
 import { loadHist, saveHist, deleteHist, clearHist } from "../storage/data";
 import { notify, pending } from "../ui/toast";
@@ -25,8 +26,9 @@ class Teardown {
   rev = $state(0);
   /** A new teardown on screen (a fresh analysis or a saved one opened): views start fresh. */
   mountId = $state(0);
-  /** Bumped only when an analysis finishes (not when a saved teardown is opened): the view plays its reveal sweep. */
-  analysedId = $state(0);
+  /** How the new teardown arrives (set with each mountId): its parts rise in, and `sweep` (an analysis finished, or a saved teardown
+   *  opened onto the empty stage) also plays the shader band. Swapping one open teardown for another only rises. */
+  entrance = $state.raw<{ id: number; sweep: boolean }>({ id: 0, sweep: false });
   /** Index of the selected section on the timeline. */
   selected = $state(0);
   audioURL = $state<string | null>(null);
@@ -120,7 +122,7 @@ class Teardown {
     const newURL = URL.createObjectURL(file); let adopted = false;
     this.status = { text: this.status.text, err: false };
     try {
-      const a = await engine.analyze(file, (p, msg) => { if (!current()) return; this.progress = p; this.status = { text: msg, err: false }; }, false, ctl.signal);
+      const a = await analyzeOffThread(file, (p, msg) => { if (!current()) return; this.progress = p; this.status = { text: msg, err: false }; }, ctl.signal);
       if (!current()) return;
       a.title = (this.titleTyped && this.title.trim()) || file.name.replace(/\.[^.]+$/, "");
       this.title = a.title; this.titleTyped = false;
@@ -128,7 +130,7 @@ class Teardown {
       this.status = { text: `Teardown ready for “${a.title}”.`, err: false };
       const oldURL = this.audioURL; this.audioURL = newURL; adopted = true;
       this.bpNotes = null; this.transcribing = false; this.notesUpgradedAt = 0;
-      this.selected = 0; this.show(a); this.mountId++; this.analysedId++; this.save(a); this.ctl = null; this.running = false;
+      this.selected = 0; this.show(a); this.mountId++; this.entrance = { id: this.mountId, sweep: true }; this.save(a); this.ctl = null; this.running = false;
       if (oldURL) URL.revokeObjectURL(oldURL);
       void this.transcribeNotes(job);
     } catch (e) {
@@ -143,11 +145,13 @@ class Teardown {
   }
   /** Open a saved teardown: stops any analysis in progress; saved teardowns have no audio. */
   open(saved: AnalysisResult) {
+    const fromHome = !this.result, wasRunning = this.running;
     this.supersede("Opened a saved teardown, so the analysis in progress was stopped.");
     if (this.audioURL) URL.revokeObjectURL(this.audioURL);
     this.audioURL = null; this.buffer = null; this.selected = 0; this.bpNotes = null; this.transcribing = false;
     this.title = saved.title || ""; this.titleTyped = false;
-    this.show(saved); this.mountId++;
+    if (!wasRunning) this.status = { text: `Teardown ready for “${saved.title || "Untitled"}”.`, err: false }; // not the home screen's "Choose an audio file…"
+    this.show(saved); this.mountId++; this.entrance = { id: this.mountId, sweep: fromHome };
   }
   /* ---- corrections (Phase 2d). A tempo or first-downbeat correction re-runs the analysis from the SAME audio with that value fixed, so
      everything built on the bar grid is fresh; the result is a new analysis, not a patch. Chord and drum edits made before it are
@@ -162,7 +166,7 @@ class Teardown {
     const current = () => job === this.job;
     this.status = { text: forced.bpm ? `Analysing again at ${forced.bpm} BPM…` : "Analysing again with bar 1 moved…", err: false }; this.progress = 0;
     try {
-      const a = await engine.analyzeDecoded(buf, (p, msg) => { if (!current()) return; this.progress = p; this.status = { text: msg, err: false }; }, false, ctl.signal, forced);
+      const a = await analyzeDecodedOffThread(buf, (p, msg) => { if (!current()) return; this.progress = p; this.status = { text: msg, err: false }; }, ctl.signal, forced);
       if (!current()) return false;
       a.title = cur.title;
       // what survives: the recorded corrections that do not depend on the bar grid, and the key if the user set it

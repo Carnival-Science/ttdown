@@ -13,7 +13,8 @@
   import Workspace from "./teardown/Workspace.svelte";
   import DropVeil from "./teardown/DropVeil.svelte";
   import { workspace } from "./lib/state/workspace.svelte";
-  import { sweepReveal, stopSweep } from "./lib/ui/sweep";
+  import { sweepReveal, stopSweep, sweeping } from "./lib/ui/sweep";
+  import { enterWorkspace, stopEntrance } from "./lib/ui/entrance";
   import { faviconWorking } from "./lib/ui/favicon";
   import Scene, { type SceneState } from "./lib/ui/art/Scene.svelte";
 
@@ -34,9 +35,15 @@
   const over = (e: DragEvent) => { if (!hasFiles(e)) return; e.preventDefault(); px = e.clientX; py = e.clientY; };
   const leave = (e: DragEvent) => { if (hasFiles(e)) depth = Math.max(0, depth - 1); };
   $effect(() => { workspace.dragging = depth > 0; });
-  // A finished analysis develops onto the page behind a shader band (not a saved teardown being reopened).
+  // A teardown arriving on the stage: the discs wash into the background (the scene below), a shader band crosses the window and the
+  // workspace's parts rise in as it uncovers them. Swapping one open teardown for another only rises (lib/ui/entrance.ts).
   let stage: HTMLElement | undefined = $state();
-  $effect(() => { if (teardown.analysedId > 0) void sweepReveal(stage); return stopSweep; });
+  $effect(() => {
+    const e = teardown.entrance; if (!e.id) return;
+    if (e.sweep) void sweepReveal(stage);
+    enterWorkspace(stage, sweeping());
+    return () => { stopSweep(); stopEntrance(); };
+  });
   // ONE scene of discs for the whole session; the state only changes its depth of field (lib/ui/art/Scene.svelte). A teardown on screen keeps
   // the wash behind it even while a new file is analysed, so nothing moves behind the work.
   const scene = $derived<SceneState>(depth > 0 ? "drop" : teardown.result ? "workspace" : teardown.running ? "analyse" : "idle");
