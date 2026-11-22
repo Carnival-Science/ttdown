@@ -132,3 +132,26 @@ A synthetic check with a known answer agrees: every bar of the fixture in `tests
 - Chords that begin between two 8ths (a 16th-note anticipation) are still placed on an 8th.
 
 Reproduce: capture once with `app-chord-check.js capture`, then `node bench/amt/chord-boundaries.js --capture capture.json --annotation ann.json --baseline-repo DIR_OF_MAIN --list` and `app-chord-check.js score ... --baseline-repo DIR_OF_MAIN`. The capture of real music stays outside the repository.
+
+## Chord vocabulary: diminished, diminished seventh and augmented (2026-11-22)
+
+**Problem.** The reader chose among 24 chords (12 major, 12 minor), so the chromatic F♯dim7 that steps into the Gm in *more please* (bar 2 beat 4, and again in bar 24) had to be called F♯m or Gm. Every consumer built a triad from the name with `endsWith("m")`.
+
+**Change.** Candidates are now major, minor, diminished (`Bdim`), diminished seventh (`F#dim7`) and augmented (`Caug`), 60 in all. `chordParse(name)` in `src/domain.js` is the one place that turns a name into a root and intervals, and `chordFromName`, `chordNotes` and the roll's voicing (`PianoRollPanel.svelte`) use it, so a dim7 is drawn, exported to MIDI and spelled with four notes; a name it does not know (a seventh, a sus) gives no notes instead of a wrong triad. A four-note diminished seventh is the same four notes from four roots; the lowest note picks the root. The new chords must earn their place: an emission cost of 0.25 (dim, aug) and 0.35 (dim7) is subtracted, so that a minor chord with a passing tone is not turned into a diminished one (test 12 of `tests/chords-from-notes.test.js`).
+
+**Measured** on *more please* (annotation v2, development reference, the app's own capture), against the previous commit (boundary placement, #69, f229697):
+
+| | before | after |
+|---|---|---|
+| root | 92.5% | 92.5% |
+| root + triad | 81.8% | 85.9% |
+| chord-change F1 (P / R) | 71.8% (88 / 61) | 75.0% (88 / 65) |
+| annotated changes with a boundary within 300 ms | 15 of 23 | 16 of 23 |
+| diminished chords in the whole 40-bar reading | 0 | 3, all F♯dim7: bar 2 beat 4 (annotated there), bar 10 beat 3.5, bar 24 beat 3 (annotated there) |
+
+**What this does not show.**
+- The two costs were chosen while looking at this track, from the range that gives exactly the F♯dim7s and no other diminished chord in the 40 bars (one cost for all three, tried at 0.15 / 0.25 / 0.35 / 0.5: nine, six, three and no diminished chords in the 40 bars; then dim and aug lowered to 0.25 so that a plain diminished triad beats a minor one with a missing fifth, which at 0.2 turned the bar 24 chord into F♯dim and at 0.1 added Adim and G♯dim). The owner's note on the app's earlier output (F♯dim7 missing; the A♯ bars right) is the only check on the unannotated bars. No second piece.
+- At a dim7 cost of 0.15 the reading also found Ddim7 at bar 4 beat 3 (annotated, low-medium confidence, "Ddim7") and Ddim7 in bars 27 and 31, where the owner's earlier review accepted A♯; at 0.35 the annotated Ddim7 is not read. That trade is made in favour of fewer false chords.
+- A chord that lasts one beat (an 8th plus change cost) is only read when its notes are strong; test 12 uses two beats.
+- Still not read: dominant, minor and major sevenths, half-diminished, sus, inversions, ninths and other extensions. The annotation's F13, Gm7, Gm11 and similar remain Gm/F-triads. Enharmonic spelling (E♭ for D♯) is a separate step.
+- The audio detector (used when there are no notes) is unchanged: major and minor only.

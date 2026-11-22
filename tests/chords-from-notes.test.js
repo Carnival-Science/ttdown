@@ -113,4 +113,25 @@ for (const [bpm, off] of [[120, 0], [105, 0.571]]) {
     const A = D.chordRegionsFromNotes(a, G, notes, { refine: false }), B = D.chordRegionsFromNotes(a, G, notes); if (!A || !B || A.regions.map(r => r.c).join() !== B.regions.map(r => r.c).join()) continue;
     compared++; for (let i = 1; i < B.regions.length; i++) { bounds++; if (Math.abs(B.regions[i].t0 - A.regions[i].t0) > q + 1e-6) over++; } }
   check(compared > 100 && bounds > 500 && over === 0, `12: no change moves more than one 8th from where the decoding put it (${over} of ${bounds} boundaries in ${compared} fixtures)`); }
+// 13: diminished, diminished seventh and augmented chords can be read and named (docs/SYMBOLIC_CHORDS.md, "Chord vocabulary"). The regression is
+// the more please bar 2: F#dim7 resolving into Gm, which a major/minor-only reader had to call F#m or Gm.
+{ const parse = D.chordParse; check(parse("F#dim7").root === 6 && parse("F#dim7").intervals.join() === "0,3,6,9" && parse("Bdim").intervals.join() === "0,3,6" && parse("Caug").intervals.join() === "0,4,8" && parse("Dm").intervals.join() === "0,3,7" && parse("A#").intervals.join() === "0,4,7", "13: chordParse reads \"\", m, dim, dim7 and aug names");
+  check(parse("H").root === -1 && parse("Gm7").root === -1 && parse("Dmaj").root === -1 && parse("").root === -1 && parse(null).root === -1, "13: a name that is none of those gives root -1 (and no notes), not a guess");
+  check(D.chordFromName("F#dim7").notes.join() === "54,57,60,63" && D.chordFromName("Dm").notes.join() === "50,53,57" && D.chordFromName("Caug").notes.join() === "48,52,56", "13: chordFromName writes four notes for a dim7 and three otherwise");
+  check(D.chordNotes("F#dim7") === "F# · A · C · D#" && D.chordNotes("Bdim") === "B · D · F" && D.chordNotes("Dm") === "D · F · A", "13: chordNotes spells them");
+  const hold = (notes, on, off, ms) => ms.forEach(m => notes.push({ on, off, midi: m })), at = (r, n) => r.regions.filter(x => x.c !== "–").map(x => `${x.bar}.${x.beat} ${x.c}`).join(" | ");
+  { const { a, G } = mk(), notes = []; for (let b = 0; b < 4; b += 2) { const t = b * BAR;
+      hold(notes, t, t + 0.95, [43, 55, 58, 62]); hold(notes, t + 1, t + BAR - 0.02, [42, 57, 60, 63]);   // Gm for two beats, F#dim7 for beats 3 and 4
+      hold(notes, t + BAR, t + 2 * BAR - 0.02, [43, 55, 58, 62]); }                                       // then Gm for the next bar
+    const r = D.chordRegionsFromNotes(a, G, notes), reg = r.regions.filter(x => x.c !== "–");
+    check(reg.map(x => x.c).join(" ") === "Gm F#dim7 Gm F#dim7 Gm", `13: Gm, F#dim7 for beats 3-4, Gm again (${at(r)})`);
+    check(reg.filter(x => x.c === "F#dim7").every(x => x.beat === 2), `13: the F#dim7 starts on beat 3 (${at(r)})`); }
+  { const { a, G } = mk(), notes = []; hold(notes, 0, BAR - 0.05, [47, 59, 62, 65]); hold(notes, BAR, 2 * BAR - 0.05, [48, 60, 64, 68]);
+    const r = D.chordRegionsFromNotes(a, G, notes), reg = r.regions.filter(x => x.c !== "–"); check(reg.map(x => x.c).join(" ") === "Bdim Caug", `13: a diminished triad and an augmented triad are named (${at(r)})`); }
+  { const { a, G } = mk(), notes = []; ["C", "G", "Am", "F"].forEach((c, b) => P[c].forEach(m => notes.push({ on: b * BAR, off: b * BAR + BAR - 0.05, midi: m })));
+    check(D.chordRegionsFromNotes(a, G, notes).regions.filter(x => x.c !== "–").map(x => x.c).join(" ") === "C G Am F", "13: an ordinary C G Am F stays major and minor (no diminished or augmented chord appears)"); }
+  { const { a, G } = mk(), notes = [];   // a minor chord with a passing note that would make a dim7 out of three of its notes must stay minor
+    hold(notes, 0, 2 * BAR - 0.05, [43, 55, 58, 62]); hold(notes, 0.5, 0.75, [66]);
+    check(D.chordRegionsFromNotes(a, G, notes).regions.filter(x => x.c !== "–").map(x => x.c).join(" ") === "Gm", "13: Gm with a passing F# (a tone of F#dim7) stays Gm"); }
+}
 console.log(`chords-from-notes tests: ${pass} passed, ${fail} failed`); if (fail) process.exit(1);

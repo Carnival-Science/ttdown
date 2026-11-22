@@ -9,7 +9,7 @@ export interface Domain {
   // data
   BANDS: string[]; COLORS: Record<string, string>;
   // time and keys
-  fmtT: (s: number) => string; tdId: (a: any) => string; fixSectionTimes: Fn; transcriptionFromNotes: Fn; chordRegionsFromNotes: Fn; keyInfo: Fn; keyChords: Fn; chordNotes: Fn; chordFromDegree: Fn; recomputeLoop: Fn;
+  fmtT: (s: number) => string; tdId: (a: any) => string; fixSectionTimes: Fn; transcriptionFromNotes: Fn; chordRegionsFromNotes: Fn; chordParse: (c: string) => { root: number; quality: string; intervals: number[] }; keyInfo: Fn; keyChords: Fn; chordNotes: Fn; chordFromDegree: Fn; recomputeLoop: Fn;
   // drum steps
   posOf: Fn; stepsText: Fn;
   // corrections
