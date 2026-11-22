@@ -28,7 +28,7 @@
 
   let { index }: { index: number } = $props();
   const D = domain as any;
-  const { partMidi, keyChords, chordNotes, keyInfo, chordFromDegree, recomputeLoop, recordCorrection, chordNamesText } = D;
+  const { partMidi, keyChords, chordNotes, keyInfo, chordFromDegree, recomputeLoop, recordCorrection, chordNamesText, chordTimingText, chordTimingCsv } = D;
   const a = $derived(teardown.result as any);
   const s = $derived(a.sections[index] as any);
   const G = $derived(gridOf(a));
@@ -207,6 +207,16 @@
     const text = chordNamesText(a, s);
     try { await navigator.clipboard.writeText(text); notify("success", "Copied: " + text); } catch { notify("warning", "Couldn't copy. The chords are: " + text); }
   }
+  async function copyChordTiming() {
+    const text = chordTimingText(a, s, G);
+    if (!text) { notify("warning", "There are no chords in this section."); return; }
+    try { await navigator.clipboard.writeText(text); notify("success", "Copied the chords with their times, in the audio's own timing."); } catch { notify("warning", "Couldn't copy. The chords are:\n" + text); }
+  }
+  async function saveChordCsv() {
+    const csv = chordTimingCsv(a, s, G);
+    if (csv.split("\n").length < 3) { notify("warning", "There are no chords in this section."); return; }
+    try { await saveFile(`${base} - chords bars ${s.startBar + 1}-${s.startBar + s.bars} (timed).csv`.replace(/[\\/:*?"<>|]+/g, ""), csv, "text/csv"); notify("success", "Saved the chord list with bar, beat and seconds, in the audio's own timing."); } catch (e) { notify("error", "Couldn't save the file" + ((e as Error)?.message ? ": " + (e as Error).message.slice(0, 80) : ".")); }
+  }
   const TIMINGS: { id: Timing; label: string }[] = [{ id: "original", label: "Original timing" }, { id: "tempo-map", label: "Follow tempo map" }, { id: "quantized", label: "Quantized" }];
   const PART_PICKS = $derived<{ id: Part; label: string }[]>([{ id: "hook", label: poly ? "Notes (above C3)" : "Melody" }, { id: "bass", label: "Bass" }, { id: "chords", label: "Chords (suggested)" }]);
   const RANGES: { id: RangePick; label: string }[] = [{ id: "section", label: "Selected section" }, { id: "visible", label: "Visible range" }, { id: "whole", label: "Whole track" }];
@@ -283,6 +293,8 @@
       <div class="mfoot">
       <button type="button" class="btn primary dl" disabled={!okOf(timing) || !chosen.length} onclick={download}>{chosen.length ? `Download ${chosenText} · ${rangeText(rangePick)}${layout === "zip" ? " (.zip)" : ""}` : "Tick a part to download"}</button>
       <button type="button" class="btn" onclick={copyChords}>Copy this section's chord names</button>
+      <button type="button" class="btn" onclick={copyChordTiming}>Copy chords with times</button>
+      <button type="button" class="btn" onclick={saveChordCsv}>Save chord list (.csv)</button>
       </div>
     </Popover>
   </div>

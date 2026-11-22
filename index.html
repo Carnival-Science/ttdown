@@ -2536,6 +2536,25 @@ function chordNamesText(a, sec) {
     const here = sp.filter(x => x.s < hi && x.e > lo).map(x => x.c).filter((c, i, A) => i === 0 || c !== A[i - 1]); out.push(here.length ? here.join(" ") : "N.C."); }
   return out.join(" | ");
 }
+/* The chords of a section WITH their timing, for pasting into a DAW's marker or note list and for a .csv. Rows: { bar, beat (1-based; 3.5 is
+   the "and" of beat 3), s (16th steps from bar 1), t0, t1 (seconds in the audio's own timing), c }, one per chord, cut to the section (a chord
+   that began before it starts at its first bar line). grid = the TimeMap grid (gridOf(a)); a chord's start is its detected time when it has one
+   (a chord region), else its place on the grid. Nothing is quantized to a tempo: these are the same times the roll shows. */
+function chordTimingRows(a, sec, grid) {
+  const lo = sec.startBar * 16, hi = (sec.startBar + sec.bars) * 16, at = q => { const b = Math.floor(q / 16), s0 = grid.barStart(b), s1 = grid.barStart(b + 1); return s0 + (q - b * 16) / 16 * (s1 - s0); };
+  return chordSpans(a, grid).filter(x => x.s < hi && x.e > lo).map(x => { const s = Math.max(x.s, lo), e = Math.min(x.e, hi);
+    return { bar: Math.floor(s / 16) + 1, beat: 1 + (s % 16) / 4, s, t0: s === x.s && x.t0 != null ? x.t0 : at(s), t1: e === x.e && x.t1 != null ? x.t1 : at(e), c: x.c }; });
+}
+const clockOf = t => { const ms = Math.round(Math.max(0, t) * 1000), m = Math.floor(ms / 60000); return `${m}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}.${String(ms % 1000).padStart(3, "0")}`; };
+const beatText = b => Number.isInteger(b) ? String(b) : b.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+/* One line per chord: "Bar 2 beat 4 · 0:03.145 · F#dim7". */
+function chordTimingText(a, sec, grid) {
+  return chordTimingRows(a, sec, grid).map(r => `Bar ${r.bar} beat ${beatText(r.beat)} · ${clockOf(r.t0)} · ${r.c}`).join("\n");
+}
+/* The same rows as a .csv: bar, beat, start_s, end_s, chord, notes (the notes of the chord's name, one octave-free pitch class each). */
+function chordTimingCsv(a, sec, grid) {
+  return ["bar,beat,start_s,end_s,chord,notes", ...chordTimingRows(a, sec, grid).map(r => [r.bar, beatText(r.beat), r.t0.toFixed(3), r.t1.toFixed(3), r.c, chordNotes(r.c).replace(/ · /g, " ")].join(","))].join("\n") + "\n";
+}
 /* True when no kick and no snare was found anywhere (the main pattern or any section's pattern). Says nothing about vocals or other
    instruments; callers use it to stop offering drum tools for a track that has none to show, never to delete anything. */
 function noDrumsFound(a) {
@@ -3021,7 +3040,7 @@ const EXAMPLE = {
   sections: [{ label: "Intro", startBar: 0, bars: 16 }, { label: "Build", startBar: 16, bars: 8 }, { label: "Drop", startBar: 24, bars: 32 }, { label: "Breakdown", startBar: 56, bars: 16 }, { label: "Build", startBar: 72, bars: 8 }, { label: "Drop", startBar: 80, bars: 24 }, { label: "Outro", startBar: 104, bars: 15 }].map(s => Object.assign(s, { start: +(s.startBar * 1.92).toFixed(1), end: +((s.startBar + s.bars) * 1.92).toFixed(1) })),
   barSec: 1.92, nBars: 119, balance: [17, 33, 19, 15, 10, 6], width: 0.31, loudRms: -8.9, crest: 8.2, peakDb: -0.3
 };
-return Object.freeze({ transcriptionFromNotes, chordRegionsFromNotes, chordParse, chordFromName, chordSpans, transcribedSteps, partMidi, midiModes, allPartsMidi, smfFile, refTempo, chordNamesText, noDrumsFound, drumsAbsence, exportGate, recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
+return Object.freeze({ transcriptionFromNotes, chordRegionsFromNotes, chordParse, chordFromName, chordSpans, transcribedSteps, partMidi, midiModes, allPartsMidi, smfFile, refTempo, chordNamesText, chordTimingRows, chordTimingText, chordTimingCsv, noDrumsFound, drumsAbsence, exportGate, recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
 });
 /* END src/domain.js */
 </script>

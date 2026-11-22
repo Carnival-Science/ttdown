@@ -155,3 +155,6 @@ Reproduce: capture once with `app-chord-check.js capture`, then `node bench/amt/
 - A chord that lasts one beat (an 8th plus change cost) is only read when its notes are strong; test 13 uses two beats.
 - Still not read: dominant, minor and major sevenths, half-diminished, sus, inversions, ninths and other extensions. The annotation's F13, Gm7, Gm11 and similar remain Gm/F-triads. Enharmonic spelling (E♭ for D♯) is a separate step.
 - The audio detector (used when there are no notes) is unchanged: major and minor only.
+
+## Chord list with times
+The roll's popover has "Copy chords with times" and "Save chord list (.csv)" next to "Copy this section's chord names" (`chordTimingText` / `chordTimingCsv` in `src/domain.js`, built on `chordSpans`). One row per chord in the selected section: bar and beat (1-based, `3.5` is the "and" of beat 3), the start time as `m:ss.mmm`, and for the .csv also the end time in seconds and the chord's notes. Times are the audio's own timing (a chord region's detected time, else its place on the tracked grid), not quantized to a tempo. A chord that began before the section starts at the section's first bar line. Tested in `tests/chord-regions.test.js` (3b). Not verified: how a particular DAW reads the pasted text; the clipboard and file save are exercised by hand only, not by an automated browser test.

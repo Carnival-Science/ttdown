@@ -60,6 +60,16 @@ function synth() {
   // ---- 3. built on the spans
   x = base();
   check(D.chordNamesText(x, { startBar: 0, bars: 4 }) === "C G | G | Am | F", `3: the chord names text lists a bar's chords in order ("${D.chordNamesText(x, { startBar: 0, bars: 4 })}")`);
+  // 3b. the same chords with their times (docs/SYMBOLIC_CHORDS.md; "Copy chords with times" and the .csv in the roll)
+  { const T = D.chordTimingText(x, { startBar: 0, bars: 4 }, grid).split("\n"), want = ["Bar 1 beat 1 · 0:00.000 · C", "Bar 1 beat 3 · 0:01.000 · G", "Bar 3 beat 1 · 0:04.000 · Am", "Bar 4 beat 1 · 0:06.000 · F"];
+    check(JSON.stringify(T) === JSON.stringify(want), `3b: each chord is listed with its bar, beat and time (${JSON.stringify(T)})`);
+    const cut = D.chordTimingText(x, { startBar: 1, bars: 1 }, grid);
+    check(cut === "Bar 2 beat 1 · 0:02.000 · G", `3b: a chord that began before the section starts at the section's first bar line, not at its own start ("${cut}")`);
+    const csv = D.chordTimingCsv(x, { startBar: 0, bars: 4 }, grid).split("\n");
+    check(csv[0] === "bar,beat,start_s,end_s,chord,notes" && csv[1] === "1,1,0.000,1.000,C,C E G" && csv[2] === "1,3,1.000,4.000,G,G B D" && csv[4] === "4,1,6.000,7.500,F,F A C" && csv[5] === "", `3b: the .csv has bar, beat, start and end seconds, the chord and its notes (${JSON.stringify(csv)})`);
+    const y = base(); y.chordRegions.regions = [{ t0: 1.25, t1: 4, bar: 0, beat: 2.5, endBar: 2, endBeat: 0, c: "G" }];
+    check(D.chordTimingText(y, { startBar: 0, bars: 2 }, grid) === "Bar 1 beat 3.5 · 0:01.250 · G", "3b: a chord on the 'and' of a beat says so (beat 3.5)");
+    check(D.chordTimingText(x, { startBar: 9, bars: 2 }, grid) === "" && D.chordTimingCsv(x, { startBar: 9, bars: 2 }, grid) === "bar,beat,start_s,end_s,chord,notes\n", "3b: a section with no chords gives no rows (empty text; the csv has its header only)"); }
   const m = D.partMidi(x, "chords", { section: { startBar: 0, bars: 2 }, tempo: 120 }), d = decodeMidi(m.data), on = [...new Set(d.notes.map(n => n.onTick / d.division))].sort((p, q) => p - q);
   check(JSON.stringify(on) === "[0,2]" && d.notes.length === 6, `3: the quantized chords MIDI changes chord on beat 3 of bar 1 (onsets at beats ${on}, ${d.notes.length} notes)`);
   check(d.notes.filter(n => n.onTick === 0).every(n => n.offTick <= 2 * d.division) && d.notes.filter(n => n.onTick > 0).some(n => n.offTick >= 7 * d.division), "3: C lasts two beats; G holds through bar 2, as the region does");
