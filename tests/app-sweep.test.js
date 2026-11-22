@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // The reveal sweep after an analysis (app/src/lib/ui/sweep.ts): a WebGL band crosses the window and the workspace is uncovered behind
-// it. Checks that the band is drawn and the workspace is clipped while it runs, that both are gone afterwards (nothing stays hidden),
-// that the page is usable during it, that reopening a saved teardown does not sweep, and that prefers-reduced-motion skips it.
+// it, and the workspace's parts rise in (app/src/lib/ui/entrance.ts). Checks that the band is drawn and the workspace is clipped while it
+// runs, that both are gone afterwards (nothing stays hidden), that the parts rise and then sit still, that opening a saved teardown from
+// the empty stage plays the same entrance, that swapping one open teardown for another rises without the band, and that
+// prefers-reduced-motion skips all of it.
 // Run through tests/run-app-tests.js (TT_APP_URL). The bench build sweeps only with window.__ttSweep = true, set here before load. TT_SWEEP_SHOTS=<dir> also saves screenshots mid-sweep and after.
 const path = require('path');
 const { chromium } = require('playwright');
@@ -15,7 +17,9 @@ const SHOTS = process.env.TT_SWEEP_SHOTS;
   const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   let failed = 0;
   const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'} ${msg}`); if (!ok) failed++; };
-  const state = p => p.evaluate(() => ({ canvas: !!document.querySelector('canvas.tt-sweep'), clip: document.querySelector('#out')?.style.clipPath || '' }));
+  // rising: the workspace parts with a running entrance animation (the Web Animations API leaves nothing in the DOM afterwards)
+  const state = p => p.evaluate(() => ({ canvas: !!document.querySelector('canvas.tt-sweep'), clip: document.querySelector('#out')?.style.clipPath || '',
+    rising: document.getAnimations().filter(a => a.id === 'tt-enter' && a.playState !== 'finished').length }));
 
   for (const motion of ['no-preference', 'reduce']) {
     const ctx = await b.newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: motion });
@@ -35,16 +39,17 @@ const SHOTS = process.env.TT_SWEEP_SHOTS;
       check(samples.some(s => s.canvas), `the band is drawn while the analysis is revealed (${samples.filter(s => s.canvas).length}/6 samples)`);
       check(samples.some(s => /^inset\(0(px)? [1-9]/.test(s.clip)), 'the workspace is uncovered behind the band (clipped mid-sweep)');
       check(await p.locator('#out .workspace').count() === 1, 'the workspace is in the DOM during the sweep');
+      check(samples.some(s => s.rising >= 4), `the workspace's parts rise in with it (${Math.max(...samples.map(s => s.rising))} parts animating at most)`);
     } else {
-      check(samples.every(s => !s.canvas && !s.clip), 'prefers-reduced-motion: no band and no clipping');
+      check(samples.every(s => !s.canvas && !s.clip && !s.rising), 'prefers-reduced-motion: no band, no clipping, no rise');
     }
     await p.waitForTimeout(1800);
     const end = await state(p);
-    check(!end.canvas && !end.clip, `${motion}: afterwards the band is removed and nothing is clipped`);
+    check(!end.canvas && !end.clip && !end.rising, `${motion}: afterwards the band is removed, nothing is clipped and nothing is still moving`);
     if (SHOTS && motion === 'no-preference') await p.screenshot({ path: path.join(SHOTS, 'sweep-end.png') });
 
     if (motion === 'no-preference') {
-      // Reopening a saved teardown is not an analysis finishing: no sweep.
+      // Opening a saved teardown from the empty stage arrives the same way: band and rise.
       await p.reload(); await p.waitForTimeout(400);
       await p.click('#recent-btn'); await p.waitForTimeout(200);
       const open = p.locator('#hist .h-open').first();
@@ -54,7 +59,14 @@ const SHOTS = process.env.TT_SWEEP_SHOTS;
         await p.waitForFunction(() => !!document.querySelector('#out.has-result'), null, { timeout: 30000 });
         const seen = [];
         for (let i = 0; i < 5; i++) { seen.push(await state(p)); await p.waitForTimeout(100); }
-        check(seen.every(s => !s.canvas && !s.clip), 'opening a saved teardown does not sweep');
+        check(seen.some(s => s.canvas) && seen.some(s => s.rising >= 4), `opening a saved teardown from the empty stage sweeps and rises (band in ${seen.filter(s => s.canvas).length}/5 samples, up to ${Math.max(...seen.map(s => s.rising))} parts rising)`);
+        await p.waitForTimeout(1800);
+        // Swapping the open teardown for a saved one: the parts rise again, without the band.
+        await p.click('#recent-btn'); await p.waitForTimeout(200); await p.locator('#hist .h-open').first().click();
+        const swap = []; for (let i = 0; i < 4; i++) { swap.push(await state(p)); await p.waitForTimeout(80); }
+        check(swap.every(s => !s.canvas && !s.clip) && swap.some(s => s.rising >= 4), `swapping one open teardown for another rises without the band (up to ${Math.max(...swap.map(s => s.rising))} parts rising)`);
+        await p.waitForTimeout(900);
+        check((await state(p)).rising === 0, 'after the swap nothing is still moving');
       }
     }
     if (motion === 'no-preference') {
@@ -63,7 +75,7 @@ const SHOTS = process.env.TT_SWEEP_SHOTS;
       await q.goto(URL); await q.waitForTimeout(300); await q.setInputFiles('#file', SONG);
       await q.waitForFunction(() => !!document.querySelector('#out.has-result'), null, { timeout: 120000 });
       const off = []; for (let i = 0; i < 4; i++) { off.push(await state(q)); await q.waitForTimeout(100); }
-      check(off.every(s => !s.canvas && !s.clip), 'bench build without window.__ttSweep: no sweep');
+      check(off.every(s => !s.canvas && !s.clip && !s.rising), 'bench build without window.__ttSweep: no sweep and no rise');
       await q.context().close();
     }
     check(errs.length === 0, `${motion}: no page errors${errs.length ? ': ' + errs.join(' | ').slice(0, 300) : ''}`);

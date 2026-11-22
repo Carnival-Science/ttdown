@@ -38,12 +38,19 @@ function bundleChecks(build) {
   const lines = man.files.map(f => { const h = createHash("sha256").update(readFileSync(path.join(dir, f.path))).digest("hex"); check(h === f.sha256, `${build}: ${f.path} hash differs from manifest`); return `${h}  ${f.path}\n`; });
   check(createHash("sha256").update(lines.join("")).digest("hex") === man.bundleSha256, `${build}: bundleSha256 does not match the files`);
   for (const [k, v] of Object.entries(SHARED)) check(man[k] === v, `${build}: manifest ${k}`);
-  // exactly one copy of each shared module: distinctive strings of the source appear once in the bundle
+  // exactly one copy of each shared module PER EXECUTION CONTEXT: distinctive strings of the source appear once in the page's bundle and
+  // once in the analysis worker's (it runs the same engine and TimeMap off the main thread; a worker cannot share the page's chunks), and
+  // never in another worker. A stale or forked copy anywhere shows up as a second occurrence.
+  const files = readdirSync(path.join(dir, "assets")).filter(f => f.endsWith(".js"));
+  const read = fs => fs.map(f => readFileSync(path.join(dir, "assets", f), "utf8")).join("\n");
+  const ctx = { page: read(files.filter(f => !/\.worker-/.test(f))), "analysis worker": read(files.filter(f => /^analysis\.worker-/.test(f))), "other workers": read(files.filter(f => /\.worker-/.test(f) && !/^analysis\.worker-/.test(f))) };
+  check(ctx["analysis worker"].length > 0, `${build}: the analysis worker is in the bundle`);
+  const once = (l, what) => { for (const [c, text] of Object.entries(ctx)) { const k = text.split(l).length - 1, want = c === "other workers" ? 0 : 1; check(k === want, `${build}: ${what} "${l.slice(0, 40)}" appears ${k}x in the ${c} bundle (want ${want})`); } };
   { const src = readFileSync(path.join(ROOT, "src", "timemap.js"), "utf8");
     const lits = [...new Set([...src.matchAll(/"([A-Za-z0-9 ,.:'%/-]{24,})"/g)].map(m => m[1]))].filter(l => src.split(`"${l}"`).length === 2).slice(0, 12);
     check(lits.length >= 4, `${build}: too few timemap.js literals to check`);
-    for (const l of lits) { const k = js.split(l).length - 1; check(k === 1, `${build}: timemap.js literal "${l.slice(0, 40)}" appears ${k}x in the bundle (want 1)`); } }
-  for (const l of ["That file is empty.", "Decoding audio", "Checking the file", "dp-tracker (too few beats; downbeats not chosen)"]) { const k = js.split(l).length - 1; check(k === 1, `${build}: engine string "${l.slice(0, 40)}" appears ${k}x in the bundle (want 1)`); }
+    for (const l of lits) once(l, "timemap.js literal"); }
+  for (const l of ["That file is empty.", "Decoding audio", "Checking the file", "dp-tracker (too few beats; downbeats not chosen)"]) once(l, "engine string");
   const hooks = js.includes("__analysisStats");
   check(build === "bench" ? hooks : !hooks, `${build}: test hooks ${hooks ? "present" : "absent"} in the bundle`);
   check(!/fonts\.googleapis|fonts\.gstatic/.test(js + readFileSync(path.join(dir, "index.html"), "utf8")), `${build}: no third-party font host`);

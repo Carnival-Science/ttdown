@@ -8,6 +8,8 @@ export interface AnalysisStats { checkpoints: number; aborted: number }
 export interface Forced { bpm?: number; downbeatShift?: number }
 export interface Engine {
   analyze(file: File, onProgress: (pct: number, msg: string) => void, compare?: boolean, signal?: AbortSignal, forced?: Forced): Promise<AnalysisResult>;
+  /** Check a file against the input limits and decode it (needs a page). analyze() is decode() then analyzeDecoded(). */
+  decode(file: File, onProgress: (pct: number, msg: string) => void, signal?: AbortSignal): Promise<AudioBuffer>;
   /** The analysis of audio that is already decoded: used to analyse again, with `forced`, after a correction. */
   analyzeDecoded(buffer: AudioBuffer, onProgress: (pct: number, msg: string) => void, compare?: boolean, signal?: AbortSignal, forced?: Forced): Promise<AnalysisResult>;
   tick(): Promise<void>;

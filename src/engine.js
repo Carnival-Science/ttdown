@@ -331,7 +331,7 @@ function checkDuration(sec) {
 const ANALYSIS_STATS = { checkpoints: 0, aborted: 0 }; // the page exposes it as window.__analysisStats
 /* `signal` (optional AbortSignal) is honoured at every checkpoint: between decoding and each analysis stage, and every
    few percent inside the long arrangement pass. The stages themselves are synchronous, so a cancel takes effect at the next
-   checkpoint, not instantly (moving the work to a Web Worker is a separate, later change). */
+   checkpoint, not instantly. (The Svelte app runs analyzeDecoded() in a Web Worker and stops it by ending the worker.) */
 /* ---- Version B: one constant tempo for the whole recording, fitted from onset evidence ----
    `tot` is onset evidence per frame (low + mid + half of high band, each scaled to its own 98th percentile). A constant tempo is a comb of
    equally spaced beats: score(bpm, phase) = the mean evidence at beat positions t_n = phase + n*period (the strongest of the 3 nearest frames, so a
@@ -378,8 +378,12 @@ function fitConstantTempo(tot, fps, bpm0, locked) {
    sections, chords, notes) is derived from those values exactly as it is from detected ones: the result IS a fresh analysis at those values,
    not a patch of an old one. Without `forced` nothing below differs from the detected path. */
 async function analyze(file, onProg, opts_compare, signal, forced) {
+  return analyzeDecoded(await decode(file, onProg, signal), onProg, opts_compare, signal, forced);
+}
+/* Check a file against the limits and decode it (the browser's decoder; needs a page, not a worker). analyze() is decode() then
+   analyzeDecoded(); the Svelte app runs the two apart, analyzeDecoded() in a Web Worker so the page keeps drawing. */
+async function decode(file, onProg, signal) {
   const stopIfAborted = () => { if (signal && signal.aborted) { ANALYSIS_STATS.aborted++; throw new DOMException("Analysis cancelled", "AbortError"); } };
-  const gate = async () => { await tick(); ANALYSIS_STATS.checkpoints++; stopIfAborted(); };
   stopIfAborted();
   if (file.size > LIMITS.maxFileBytes) throw new InputLimitError(`That file is ${(file.size / 1048576).toFixed(0)} MB. The limit is ${LIMITS.maxFileBytes / 1048576} MB.`);
   if (file.size === 0) throw new InputLimitError("That file is empty.");
@@ -391,7 +395,7 @@ async function analyze(file, onProg, opts_compare, signal, forced) {
   const ctx = new OfflineAudioContext(2, 44100, 44100);
   const ab = await ctx.decodeAudioData(raw); stopIfAborted();
   checkDuration(ab.duration); // authoritative: the header can be missing or wrong
-  return analyzeDecoded(ab, onProg, opts_compare, signal, forced);
+  return ab;
 }
 /* The analysis of audio that is already decoded (an AudioBuffer). analyze() decodes a file and calls this; the app calls it again, with
    `forced`, when the user corrects the tempo or the first downbeat. */
@@ -840,5 +844,5 @@ async function analyzeDecoded(ab, onProg, opts_compare, signal, forced) {
   return result;
 }
 
-return Object.freeze({ analyze, analyzeDecoded, drumEvidence, transcribe, transcribeTrack, fitConstantTempo, tick, mag, detrend, acfAt, NAMES, CAM_MAJ, CAM_MIN, LIMITS, InputLimitError, fmtLen, ANALYSIS_STATS });
+return Object.freeze({ analyze, decode, analyzeDecoded, drumEvidence, transcribe, transcribeTrack, fitConstantTempo, tick, mag, detrend, acfAt, NAMES, CAM_MAJ, CAM_MIN, LIMITS, InputLimitError, fmtLen, ANALYSIS_STATS });
 });

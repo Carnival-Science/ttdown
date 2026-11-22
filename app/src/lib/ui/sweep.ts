@@ -62,5 +62,8 @@ export function sweepReveal(target: HTMLElement | null | undefined): Promise<voi
   return handle.done.then(() => { clearTimeout(safety); finish(); });
 }
 
+/** A sweep is crossing the window now. */
+export function sweeping(): boolean { return !!active; }
+
 /** Ends a running sweep at once and shows the content (a new track dropped mid-sweep, the view torn down). */
 export function stopSweep(): void { finish(); }
