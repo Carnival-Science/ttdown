@@ -113,15 +113,15 @@ Reproduce the table: dump the notes of the page (`window.__td.transcription`, be
 
 | | main (1775c8b) | this change |
 |---|---|---|
-| root (120 steps in the annotated ranges) | 88.3% | 93.3% |
-| root + triad | 79.8% | 82.8% |
-| chord-change F1 within ±150 ms (P / R) | 55.0% (65 / 48) | 76.9% (94 / 65) |
+| root (120 steps in the annotated ranges) | 88.3% | 92.5% |
+| root + triad | 79.8% | 81.8% |
+| chord-change F1 within ±150 ms (P / R) | 55.0% (65 / 48) | 71.8% (88 / 61) |
 | annotated changes with a boundary within 300 ms | 16 of 23 | 15 of 23 |
-| of those: more than 20 ms early / late / within 20 ms | 4 / 1 / 11 | 0 / 0 / 15 |
-| mean absolute boundary error (of the matched ones) | 96 ms | 13 ms |
-| boundaries with no annotated change near them | 3 | 1 |
+| of those: more than 20 ms early / late / within 20 ms | 4 / 1 / 11 | 1 / 0 / 14 |
+| mean absolute boundary error (of the matched ones) | 96 ms | 30 ms |
+| boundaries with no annotated change near them | 3 | 2 |
 
-The 13 ms that is left is the annotation's own offset from the beat grid (every on-time boundary reads +12 to +14 ms), not an error of the reading. Not measured: any other track, with or without a chord annotation.
+The 13 ms that most boundaries still show is the annotation's own offset from the beat grid (every on-time boundary reads +12 to +14 ms), not an error of the reading. One boundary is still an 8th early (the Dm7 of bar 3, annotated 3.4.5, 273 ms early, as on main): the reading has no bass or other evidence there that tells Gm from Dm. Not measured: any other track, with or without a chord annotation.
 
 A synthetic check with a known answer agrees: every bar of the fixture in `tests/chords-from-notes.test.js` (check 10) changes A to F♯m at 2.5 beats; main put every F♯m at beat 3 or 4 (250 to 300 ms early at 120 and 100 BPM); it is now at 2.5 beats, within 10 ms, at 100, 120 and 140 BPM. The chord names are unchanged in all of those cases.
 
