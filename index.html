@@ -2259,9 +2259,9 @@ function songMidiFiles(a, opts) {
    chords follows. Major and minor triads only, like the audio detector, because every consumer builds triads from the name; the research
    reader (bench/amt/symbolic-chords.js) also knows sevenths and sus chords. Constants are the research reader's, not tuned on anything
    since. notes: [{ on, off, midi }] in audio seconds; G = TimeMap.forAnalysis(a). Returns null when there is nothing to read. */
-const CFN = { win: 0.5, other: 0.5, rootBass: 0.35, change: 0.9, offbeat: 0.5, nc: 0.25, minW: 0.05, bassW: 1.6 };
+const CFN = { win: 0.5, other: 0.5, rootBass: 0.35, change: 0.9, offbeat: 0.5, nc: 0.25, minW: 0.05, bassW: 1.6, refine: true, attack: 2, jitter: 0.04, anchor: 0.3, refineMargin: 0.05 };
 const CFN_CH = []; for (let r = 0; r < 12; r++) for (const m of [0, 1]) CFN_CH.push({ name: NAMES[r] + (m ? "m" : ""), root: r, tones: [r, (r + (m ? 3 : 4)) % 12, (r + 7) % 12] });
-function chordRegionsFromNotes(a, G, notes) {
+function chordRegionsFromNotes(a, G, notes, opts) {   // opts.refine === false: the names' own boundaries, without the re-placement (tests and benchmarks)
   try {
     const nBars = a.nBars || Math.floor(a.duration / a.barSec); if (!G || !G.tracked || !(nBars > 0) || !notes || !notes.length) return null;
     const steps = [], dur = a.duration;
@@ -2296,6 +2296,22 @@ function chordRegionsFromNotes(a, G, notes) {
     for (let q = 1; q < n; q++) { const cost = CFN.change + (steps[q].i % 2 ? CFN.offbeat : 0), cur = new Float64Array(K); let bk = 0; for (let k = 1; k < K; k++) if (prev[k] > prev[bk]) bk = k;
       for (let k = 0; k < K; k++) { const stay = prev[k], sw = prev[bk] - cost; if (stay >= sw || bk === k) { cur[k] = stay + emit[q][k]; back[q][k] = k; } else { cur[k] = sw + emit[q][k]; back[q][k] = bk; } } prev = cur; }
     let k = 0; for (let j = 1; j < K; j++) if (prev[j] > prev[k]) k = j; const path = new Array(n); for (let q = n - 1; q >= 0; q--) { path[q] = k; k = back[q][k]; }
+    // Boundary placement (docs/SYMBOLIC_CHORDS.md, "Chord boundaries"). The one-beat window above is right for NAMING a chord (an arpeggio's
+    // notes all count) but it also lets the next chord's notes vote before they sound, so a change tends to land an 8th early. Each change is
+    // therefore re-placed by at most one 8th, either way, using only what sounds INSIDE each 8th: a note that begins in it (within 40 ms of its edges, for the note model's onset jitter) counts double, a
+    // held-over note once, so the new chord's attack decides where it starts and the old chord's sustain does not hold it back; where an 8th has no evidence either way, the change goes to the first 8th in which a bass note (below C3) of the new chord is struck (a small bonus). The names
+    // are not touched, and a region never collapses or swaps places with its neighbour.
+    const narrow = (st, k) => { if (k === NC) return 0; const c = CFN_CH[k], w = new Array(12).fill(0); let low = null, tot = 0;
+      for (const x of srt) { if (x.on >= st.t1 - CFN.jitter) break; const o = Math.min(x.off, st.t1) - Math.max(x.on, st.t0); if (o <= 0) continue; const wt = o * (x.midi < 48 ? CFN.bassW : 1) * (x.midi < 48 && x.on >= st.t0 - CFN.jitter ? CFN.attack : 1); w[((x.midi % 12) + 12) % 12] += wt; tot += wt; if (low === null || x.midi < low) low = x.midi; }
+      if (tot < CFN.minW) return 0; let on = 0, off = 0; w.forEach((v, pc) => { if (c.tones.includes(pc)) on += v; else off += v; });
+      return (on - CFN.other * off) / tot + (!st.pedal && low != null && ((low % 12) + 12) % 12 === c.root ? CFN.rootBass : 0); };
+    const attacks = (st, k, not) => { const c = CFN_CH[k], o = CFN_CH[not]; for (const x of srt) { if (x.on >= st.t1 - CFN.jitter) break; const pc = ((x.midi % 12) + 12) % 12; if (x.on >= st.t0 - CFN.jitter && x.midi < 48 && c.tones.includes(pc) && !o.tones.includes(pc)) return true; } return false; };   // a bass tone the old chord does not have: a held pedal note shared by both is no evidence of the change
+    const orig = path.slice();   // each change is re-placed ONCE, from where the decoding put it: a change moved forward must not be met again as the loop goes on
+    if (CFN.refine && !(opts && opts.refine === false)) for (let q = 1; q < n; q++) { const A = orig[q - 1], B = orig[q]; if (A === B || A === NC || B === NC) continue;
+      let lo = q - 1; while (lo > 0 && path[lo - 1] === A) lo--; let hi = q; while (hi + 1 < n && path[hi + 1] === B) hi++;   // A covers lo..q-1, B covers q..hi
+      const fit = p => { let v = 0; for (let j = Math.max(lo, q - 2); j <= Math.min(hi, q + 1); j++) v += narrow(steps[j], j < p ? A : B); return v + (attacks(steps[p], B, A) && !attacks(steps[p - 1], B, A) ? CFN.anchor : 0); };   // the same four 8ths for every candidate, so the scores compare
+      let bestP = q, bestV = fit(q) + CFN.refineMargin; for (const p of [q - 1, q + 1]) { if (p <= lo || p > hi) continue; const v = fit(p); if (v > bestV) { bestV = v; bestP = p; } }
+      if (bestP < q) for (let j = bestP; j < q; j++) path[j] = B; else if (bestP > q) for (let j = q; j < bestP; j++) path[j] = A; }
     const out = []; path.forEach((k, q) => { const c = k === NC ? "–" : CFN_CH[k].name, st = steps[q], last = out[out.length - 1], endBar = st.i === 7 ? st.b + 1 : st.b, endBeat = st.i === 7 ? 0 : (st.i + 1) / 2;
       if (last && last.c === c && Math.abs(last.t1 - st.t0) < 1e-6) { last.t1 = st.t1; last.endBar = endBar; last.endBeat = endBeat; } else out.push({ t0: st.t0, t1: st.t1, bar: st.b, beat: st.i / 2, endBar, endBeat, c }); });
     return { method: "chords-from-notes-v1", regions: out.map(r => ({ t0: +r.t0.toFixed(3), t1: +r.t1.toFixed(3), bar: r.bar, beat: r.beat, endBar: r.endBar, endBeat: r.endBeat, c: r.c })) };
