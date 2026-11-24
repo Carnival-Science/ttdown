@@ -172,7 +172,7 @@ function buildPlan(a, gk) {
     place(bassName, 5, dropBars)
   ]), midi: MP(bassName, bL), c: `With the reference unmuted, the ${bassName} sounds in tune with the song and moves with the kick.`, ask: sub ? "How do I make my 808 hit harder and glide like trap 808s?" : "How do I write a bassline that grooves with the kick?" });
   L.push({ t: "Chords", m: 10, s: newPart("Chords", "in the Channel Rack click + → FL Keys (piano) or FLEX (pads).").concat([
-    ...(oneChord ? [`⚠ The app heard only one chord (${chNames[0]}) for all 4 bars. Some songs really sit on one chord, but it's also a sign the key might be ${chNames[0].replace(/m$/, "")} ${/m$/.test(chNames[0]) ? "minor" : "major"} rather than ${a.key}. In Overview, play the song and compare ▶ ${a.key} with ▶ ${chNames[0].replace(/m$/, "")} ${/m$/.test(chNames[0]) ? "minor" : "major"}; keep the one that sounds at home.`] : []),
+    ...(oneChord ? [`⚠ The app heard only one chord (${spellChord(chNames[0], a.key)}) for all 4 bars. Some songs really sit on one chord, but it's also a sign the key might be ${chNames[0].replace(/m$/, "")} ${/m$/.test(chNames[0]) ? "minor" : "major"} rather than ${a.key}. In Overview, play the song and compare ▶ ${a.key} with ▶ ${chNames[0].replace(/m$/, "")} ${/m$/.test(chNames[0]) ? "minor" : "major"}; keep the one that sounds at home.`] : []),
     `Draw one chord per bar, matching the MIDI picture below: ${chUse.map(c => c && c !== "–" ? `${c} (${chordNotes(c)})` : "no chord (leave the bar empty)").join(" → ")}. Each chord is 3 notes stacked on top of each other.`,
     "Make each chord last until the next one: Ctrl+A, then small arrow → Tools → Quick legato. Drag the last chord's right edge to the end of bar 4.",
     "Lower the velocity to about 80% so the chords sit behind the drums.",
@@ -760,7 +760,7 @@ function chordNamesText(a, sec) {
   // one group per bar; a bar with more than one chord (chord regions) lists them in order
   const bars = (a.chords && a.chords.bars) || [], sp = chordSpans(a, null), out = [];
   for (let k = 0; k < sec.bars && sec.startBar + k < bars.length; k++) { const b = sec.startBar + k, lo = b * 16, hi = lo + 16;
-    const here = sp.filter(x => x.s < hi && x.e > lo).map(x => x.c).filter((c, i, A) => i === 0 || c !== A[i - 1]); out.push(here.length ? here.join(" ") : "N.C."); }
+    const here = sp.filter(x => x.s < hi && x.e > lo).map(x => x.c).filter((c, i, A) => i === 0 || c !== A[i - 1]); out.push(here.length ? here.map(c => spellChord(c, a.key)).join(" ") : "N.C."); }
   return out.join(" | ");
 }
 /* The chords of a section WITH their timing, for pasting into a DAW's marker or note list and for a .csv. Rows: { bar, beat (1-based; 3.5 is
@@ -778,11 +778,11 @@ const clockOf = t => { const ms = Math.round(Math.max(0, t) * 1000), m = Math.fl
 const beatText = b => Number.isInteger(b) ? String(b) : b.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
 /* One line per chord: "Bar 2 beat 4 · 0:03.145 · F#dim7". */
 function chordTimingText(a, sec, grid) {
-  return chordTimingRows(a, sec, grid).map(r => `Bar ${r.bar} beat ${beatText(r.beat)} · ${clockOf(r.t0)} · ${r.c}`).join("\n");
+  return chordTimingRows(a, sec, grid).map(r => `Bar ${r.bar} beat ${beatText(r.beat)} · ${clockOf(r.t0)} · ${spellChord(r.c, a.key)}`).join("\n");
 }
 /* The same rows as a .csv: bar, beat, start_s, end_s, chord, notes (the notes of the chord's name, one octave-free pitch class each). */
 function chordTimingCsv(a, sec, grid) {
-  return ["bar,beat,start_s,end_s,chord,notes", ...chordTimingRows(a, sec, grid).map(r => [r.bar, beatText(r.beat), r.t0.toFixed(3), r.t1.toFixed(3), r.c, chordNotes(r.c).replace(/ · /g, " ")].join(","))].join("\n") + "\n";
+  return ["bar,beat,start_s,end_s,chord,notes", ...chordTimingRows(a, sec, grid).map(r => [r.bar, beatText(r.beat), r.t0.toFixed(3), r.t1.toFixed(3), spellChord(r.c, a.key), chordNotes(r.c, a.key).replace(/ · /g, " ")].join(","))].join("\n") + "\n";
 }
 /* True when no kick and no snare was found anywhere (the main pattern or any section's pattern). Says nothing about vocals or other
    instruments; callers use it to stop offering drum tools for a track that has none to show, never to delete anything. */
@@ -911,7 +911,40 @@ function moodTags(a) {
   if (a.steady) t.push("Hypnotic, one groove");
   return t;
 }
-const chordNotes = c => { if (!c || c === "–") return ""; const p = chordParse(c); return p.root < 0 ? "" : p.intervals.map(d => NAMES[(p.root + d) % 12]).join(" · "); };
+/* ---- Spelling (docs/SYMBOLIC_CHORDS.md, "Spelling"). The app stores and parses every chord and key with sharps ("A#m", "D#"): that never
+   changes, so saved teardowns, corrections and chordParse keep working. What a person READS can follow the key: in G minor the chord
+   the reader stores as "A#" is B♭ and its note D# is E♭, but the leading tone is F#, not G♭. The key (a.key, "G minor") sets the
+   spelling of the 12 pitch classes: its own scale by letter name (G A B♭ C D E♭ F, and the raised 7th of a minor key, F#); every other
+   pitch class is a flat in the flat keys (F, B♭, E♭, A♭, D♭ major; D, G, C, F, B♭, E♭ minor) and a sharp otherwise. A chord's notes
+   are then spelled by interval from its root, one letter per third, so F#dim7 is F# A C E♭, not F# A C D#. Flats are written ♭, sharps stay #.
+   Only the key decides: a chromatic chord (a secondary dominant) gets the key's side, not its own function. */
+const LETTERS = "CDEFGAB", LETTER_PC = [0, 2, 4, 5, 7, 9, 11], MAJOR_TONIC = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"], MINOR_TONIC = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "Bb", "B"];
+const FLAT_MAJOR = new Set([5, 10, 3, 8, 1]), FLAT_MINOR = new Set([2, 7, 0, 5, 10, 3]), ACC_TEXT = { "-2": "♭♭", "-1": "♭", 0: "", 1: "#", 2: "##" };
+const spelled = (L, pc) => { const acc = ((pc - LETTER_PC[L] + 18) % 12) - 6; return { L, pc, acc: Math.max(-2, Math.min(2, acc)) }; };
+const spellText = n => LETTERS[n.L] + ACC_TEXT[n.acc];
+const simple = n => n.acc >= 2 ? spelled((n.L + 1) % 7, n.pc) : n.acc <= -2 ? spelled((n.L + 6) % 7, n.pc) : n;   // a double sharp or flat, written as the plain neighbour (B♭♭ as A)
+function keySpelling(key) {
+  const m = /^([A-G]#?) (major|minor)$/.exec(key || ""); if (!m) return null;
+  const root = NAMES.indexOf(m[1]), minor = m[2] === "minor", tonic = (minor ? MINOR_TONIC : MAJOR_TONIC)[root], L0 = LETTERS.indexOf(tonic[0]);
+  const flatSide = (minor ? FLAT_MINOR : FLAT_MAJOR).has(root), table = [];
+  (minor ? [0, 2, 3, 5, 7, 8, 10] : [0, 2, 4, 5, 7, 9, 11]).forEach((d, i) => { const pc = (root + d) % 12; table[pc] = spelled((L0 + i) % 7, pc); });
+  if (minor) table[(root + 11) % 12] = spelled((L0 + 6) % 7, (root + 11) % 12);
+  for (let pc = 0; pc < 12; pc++) if (!table[pc]) { const nm = (flatSide ? ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"] : NAMES)[pc]; table[pc] = spelled(LETTERS.indexOf(nm[0]), pc); }
+  return table;
+}
+/* The spelled root of a chord in a key (null without a usable key or name). When the key's own spelling would put a double sharp or flat in
+   the chord's notes (A# in A minor: A# C## E#), the enharmonic root is used instead (B♭ D F); a double accidental that no root avoids (Cdim7's B♭♭) is written as its plain neighbour (A). */
+const THIRD_STEP = { 0: 0, 3: 2, 4: 2, 6: 4, 7: 4, 8: 4, 9: 6 };
+function chordRoot(p, key) {
+  const t = p.root < 0 ? null : keySpelling(key); if (!t) return null;
+  const clean = r => p.intervals.every(d => Math.abs(spelled((r.L + THIRD_STEP[d]) % 7, (p.root + d) % 12).acc) < 2), r = t[p.root];
+  if (clean(r) || r.acc === 0) return r;
+  const alt = spelled((r.L + (r.acc > 0 ? 1 : 6)) % 7, p.root); return clean(alt) ? alt : r;
+}
+/* The name to show for a stored chord name ("A#m" -> "B♭m" in G minor); anything else comes back as it was. */
+function spellChord(c, key) { const p = chordParse(c), r = chordRoot(p, key); return r ? spellText(r) + c.replace(/^[A-G]#?/, "") : c; }
+function chordNotes(c, key) { if (!c || c === "–") return ""; const p = chordParse(c); if (p.root < 0) return ""; const r = chordRoot(p, key);
+  return p.intervals.map(d => r ? spellText(simple(spelled((r.L + THIRD_STEP[d]) % 7, (p.root + d) % 12))) : NAMES[(p.root + d) % 12]).join(" · "); }
 function keyChords(key) { const r = NAMES.indexOf(key.split(" ")[0]), mi = /minor/.test(key), n = (d, m) => NAMES[(r + d) % 12] + (m ? "m" : "");
   return new Set(mi ? [n(0, 1), n(3), n(5, 1), n(7, 1), n(7), n(8), n(10)] : [n(0), n(2, 1), n(4, 1), n(5), n(7), n(9, 1), n(10)]); } // incl. the common borrowed chord (bVII / major V)
 function compress(list) { const out = []; list.forEach(c => { const last = out[out.length - 1]; if (last && last.c === c) last.n++; else out.push({ c, n: 1 }); }); return out.map(o => o.n > 1 ? `${o.c} ×${o.n}` : o.c).join("  ·  ") || "–"; }
@@ -1269,5 +1302,5 @@ const EXAMPLE = {
   sections: [{ label: "Intro", startBar: 0, bars: 16 }, { label: "Build", startBar: 16, bars: 8 }, { label: "Drop", startBar: 24, bars: 32 }, { label: "Breakdown", startBar: 56, bars: 16 }, { label: "Build", startBar: 72, bars: 8 }, { label: "Drop", startBar: 80, bars: 24 }, { label: "Outro", startBar: 104, bars: 15 }].map(s => Object.assign(s, { start: +(s.startBar * 1.92).toFixed(1), end: +((s.startBar + s.bars) * 1.92).toFixed(1) })),
   barSec: 1.92, nBars: 119, balance: [17, 33, 19, 15, 10, 6], width: 0.31, loudRms: -8.9, crest: 8.2, peakDb: -0.3
 };
-return Object.freeze({ transcriptionFromNotes, chordRegionsFromNotes, chordParse, chordFromName, chordSpans, transcribedSteps, partMidi, midiModes, allPartsMidi, smfFile, refTempo, chordNamesText, chordTimingRows, chordTimingText, chordTimingCsv, noDrumsFound, drumsAbsence, exportGate, recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
+return Object.freeze({ transcriptionFromNotes, chordRegionsFromNotes, chordParse, chordFromName, chordSpans, transcribedSteps, partMidi, midiModes, allPartsMidi, smfFile, refTempo, chordNamesText, spellChord, chordTimingRows, chordTimingText, chordTimingCsv, noDrumsFound, drumsAbsence, exportGate, recordCorrection, forcedOf, staleReasons, applyMeter, chance, BANDS, REF, genreOf, GENRES, COLORS, MIX_EX, MIX_SHEET, mixNotes, hatFeel, posOf, posList, stepsText, fmtT, fixSectionTimes, rnd, flNote, B16, idxOf, keyInfo, is808, chordFromDegree, genChords, genDrums, SNARE_EX, genBass, genMelody, genChop, genArrangement, drumBar, midiBytes, zipStore, ideaMidiFiles, noteList, IDEAS, STYLES, wText, KIT, KIT_SLOTS, KIND_NAME, makeIdeas, alignedWav, songMidiFiles, PART_NAMES, partScores, recomputeLoop, loudestIdx, swingText, shareData, LIB, sampleList, SECTION_HOW, moodTags, chordNotes, keyChords, compress, applyKey, applyTempo, compare, coachData, COACH_SETUP, STYPES, SFOLDER, STIP, suggestName, keyFit, shelfId, K, SHORTCUTS, dayStr, logStats, tdId, EXAMPLE, songNotes, buildPlan, CAMPAIGN, analyzeSample, reviewHtml });
 });

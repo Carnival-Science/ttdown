@@ -28,7 +28,10 @@
 
   let { index }: { index: number } = $props();
   const D = domain as any;
-  const { partMidi, keyChords, chordNotes, keyInfo, chordFromDegree, recomputeLoop, recordCorrection, chordNamesText, chordTimingText, chordTimingCsv } = D;
+  const { partMidi, keyChords, chordNotes, keyInfo, chordFromDegree, recomputeLoop, recordCorrection, chordNamesText, chordTimingText, chordTimingCsv, spellChord } = D;
+  // what a person reads follows the key (E♭ and B♭ in G minor); the stored names stay sharps
+  const lab = (c: string): string => spellChord(c, a.key);
+  const notesOf = (c: string): string => chordNotes(c, a.key);
   const a = $derived(teardown.result as any);
   const s = $derived(a.sections[index] as any);
   const G = $derived(gridOf(a));
@@ -107,8 +110,8 @@
     id: "chords", label: "Chord", selected: curKey,
     items: spans.map((sp): Annotation => {
       const sh = shaky(sp.c), where = posText(sp);
-      return { key: String(sp.s), start: sp.t0, end: sp.t1, text: sp.c + (sh ? "?" : ""), tone: [sh ? "shaky" : "", sp.corrected ? "fixed" : "", checks[sp.bar] || ""].filter(Boolean).join(" "),
-        title: `${where}: ${sp.c} (${chordNotes(sp.c)})${sh ? " · shaky guess" : ""}${sp.corrected ? " · your correction" : ""}.${sp.bar >= 0 ? ` Click to check or correct bar ${sp.bar + 1}.` : ""}`,
+      return { key: String(sp.s), start: sp.t0, end: sp.t1, text: lab(sp.c) + (sh ? "?" : ""), tone: [sh ? "shaky" : "", sp.corrected ? "fixed" : "", checks[sp.bar] || ""].filter(Boolean).join(" "),
+        title: `${where}: ${lab(sp.c)} (${notesOf(sp.c)})${sh ? " · shaky guess" : ""}${sp.corrected ? " · your correction" : ""}.${sp.bar >= 0 ? ` Click to check or correct bar ${sp.bar + 1}.` : ""}`,
         attrs: { "data-bar": String(sp.bar), "data-step": String(sp.s) } };
     }),
     onpick: it => { const b = +(it.attrs?.["data-bar"] ?? -1); if (b < 0) return; cur = b; curKey = String(it.key); },
@@ -245,7 +248,7 @@
       {#snippet trigger()}<Icon name="info" />{/snippet}
       <p class="small">{#if source === "full" && poly}Notes are transcribed by Spotify's Basic Pitch, run in this browser ({full?.method}): every note it hears, with the notes below C3 shown as Bass and the rest as Notes. It is a general model, checked so far on one clean synthesized track only: expect wrong, missing and extra notes, and rough lengths.{:else if source === "full"}Melody and bass are read from the whole mix ({full?.method}). Rough: dense mixes make them hard to hear, and this has not been checked against real recordings.{:else}Melody and bass are a 4-bar phrase read from one section and folded into a loop, so they are not the song's notes bar by bar. {#if !full}This teardown was made before whole-track notes existed; analyse the track again to get them.{/if}{/if}
         The grey outlined notes are suggested voicings: plain triads built from the chord names (major or minor only), not notes heard in the audio. {#if a.chordRegions?.method === "chords-from-notes-v1"}The chord names are read from the transcribed notes above (checked on one piece only; where the notes are wrong the chords will be too).{:else}The chord names are detected from the audio.{/if}{#if regions} Each chord starts where the analysis hears the harmony change, which can be inside a bar.{/if}
-        {#if a.chords?.loop}Most repeated 4-bar chord loop: <b class="mono">{a.chords.loop.join(" · ")}</b> (heard {a.chords.loopCount}×).{/if}
+        {#if a.chords?.loop}Most repeated 4-bar chord loop: <b class="mono">{a.chords.loop.map(lab).join(" · ")}</b> (heard {a.chords.loopCount}×).{/if}
         Scroll with Shift + wheel or by dragging, zoom with Ctrl/⌘ + wheel or the buttons. Use "Check by ear" to hear the parts over the song.</p>
       <ul class="key" aria-label="How each mark on the roll is known" data-provenance-key>
         <li><i class="kk heard"></i><span><b>{poly ? "Notes" : "Melody"}</b>: heard by the analyzer. Estimated: expect wrong, missing and extra notes.</span></li>
@@ -322,10 +325,10 @@
     </div>
     {#if cur != null}
       <div class="fix" role="group" aria-label={`Bar ${cur + 1} chord`}>
-        <b>Bar {cur + 1}: {inBar.length ? inBar.join(" → ") : "no clear chord"}</b>{#if inBar.length === 1}<span class="small dim">({chordNotes(inBar[0])})</span>{:else if inBar.length > 1}<span class="small dim">A correction sets one chord for the whole bar.</span>{/if}
+        <b>Bar {cur + 1}: {inBar.length ? inBar.map(lab).join(" → ") : "no clear chord"}</b>{#if inBar.length === 1}<span class="small dim">({notesOf(inBar[0]!)})</span>{:else if inBar.length > 1}<span class="small dim">A correction sets one chord for the whole bar.</span>{/if}
         <button class="btn" type="button" onclick={sounds}><Icon name="check" /> Sounds right</button>
         <select class="isel" aria-label="Change this bar's chord" value="" onchange={e => { const v = e.currentTarget.value; if (v) setChord(v, "fixed"); e.currentTarget.value = ""; }}>
-          <option value="">Change chord…</option>{#each opts as o (o)}<option value={o}>{o}</option>{/each}<option value="–">No chord</option>
+          <option value="">Change chord…</option>{#each opts as o (o)}<option value={o}>{lab(o)}</option>{/each}<option value="–">No chord</option>
         </select>
         {#if playable}<button class="btn" type="button" onclick={() => hear(cur!)}><Icon name="play" /> Hear this bar with the chord</button>{/if}
         <button class="btn close" type="button" aria-label="Close the chord correction" onclick={() => { cur = null; curKey = null; }}><Icon name="close" /></button>
