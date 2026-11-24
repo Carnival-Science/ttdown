@@ -60,6 +60,30 @@ function synth() {
   // ---- 3. built on the spans
   x = base();
   check(D.chordNamesText(x, { startBar: 0, bars: 4 }) === "C G | G | Am | F", `3: the chord names text lists a bar's chords in order ("${D.chordNamesText(x, { startBar: 0, bars: 4 })}")`);
+  // 3b. the same chords with their times (docs/SYMBOLIC_CHORDS.md; "Copy chords with times" and the .csv in the roll)
+  { const T = D.chordTimingText(x, { startBar: 0, bars: 4 }, grid).split("\n"), want = ["Bar 1 beat 1 · 0:00.000 · C", "Bar 1 beat 3 · 0:01.000 · G", "Bar 3 beat 1 · 0:04.000 · Am", "Bar 4 beat 1 · 0:06.000 · F"];
+    check(JSON.stringify(T) === JSON.stringify(want), `3b: each chord is listed with its bar, beat and time (${JSON.stringify(T)})`);
+    const cut = D.chordTimingText(x, { startBar: 1, bars: 1 }, grid);
+    check(cut === "Bar 2 beat 1 · 0:02.000 · G", `3b: a chord that began before the section starts at the section's first bar line, not at its own start ("${cut}")`);
+    const csv = D.chordTimingCsv(x, { startBar: 0, bars: 4 }, grid).split("\n");
+    check(csv[0] === "bar,beat,start_s,end_s,chord,notes" && csv[1] === "1,1,0.000,1.000,C,C E G" && csv[2] === "1,3,1.000,4.000,G,G B D" && csv[4] === "4,1,6.000,7.500,F,F A C" && csv[5] === "", `3b: the .csv has bar, beat, start and end seconds, the chord and its notes (${JSON.stringify(csv)})`);
+    const y = base(); y.chordRegions.regions = [{ t0: 1.25, t1: 4, bar: 0, beat: 2.5, endBar: 2, endBeat: 0, c: "G" }];
+    check(D.chordTimingText(y, { startBar: 0, bars: 2 }, grid) === "Bar 1 beat 3.5 · 0:01.250 · G", "3b: a chord on the 'and' of a beat says so (beat 3.5)");
+    check(D.chordTimingText(x, { startBar: 9, bars: 2 }, grid) === "" && D.chordTimingCsv(x, { startBar: 9, bars: 2 }, grid) === "bar,beat,start_s,end_s,chord,notes\n", "3b: a section with no chords gives no rows (empty text; the csv has its header only)"); }
+  // 3c. the times stay inside the audio (PR #71 review: nominal bar lines outside the recording gave end_s past the duration and a negative start_s)
+  { const old = () => ({ duration: 8.1, chords: { bars: ["C", "G", "Am", "F"] } }), g = off => ({ barStart: b => off + 2 * b }), sec = { startBar: 0, bars: 4 };
+    const inside = (a, gr) => D.chordTimingRows(a, sec, gr).every(r => r.t0 >= 0 && r.t1 <= a.duration && r.t1 > r.t0);
+    const last = D.chordTimingRows(old(), sec, g(0.5)).pop();
+    check(last.c === "F" && Math.abs(last.t1 - 8.1) < 1e-9, `3c: a final partial bar ends at the audio's end, 8.1 s, not at the nominal bar line 8.5 s (F ends ${last.t1})`);
+    check(D.chordTimingCsv(old(), sec, g(0.5)).split("\n").filter(Boolean).slice(1).every(l => +l.split(",")[3] <= 8.1), "3c: and so does the .csv");
+    const first = D.chordTimingRows(old(), sec, g(-0.25))[0];
+    check(first.t0 === 0 && D.chordTimingCsv(old(), sec, g(-0.25)).split("\n")[1].split(",")[2] === "0.000" && D.chordTimingText(old(), sec, g(-0.25)).startsWith("Bar 1 beat 1 · 0:00.000"), `3c: a negative first downbeat starts at 0, in the rows, the .csv and the text alike (${first.t0})`);
+    const gone = { duration: 6.2, chords: { bars: ["C", "G", "Am", "F"] } };
+    check(D.chordTimingRows(gone, sec, g(0.5)).map(r => r.c).join() === "C,G,Am" && inside(gone, g(0.5)), "3c: a chord that starts after the audio ends is left out");
+    const fixed = old(); D.recordCorrection(fixed, { type: "chord", bar: 3, from: "F", to: "Em" }); fixed.chords.bars[3] = "Em";
+    check(inside(fixed, g(0.5)) && D.chordTimingRows(fixed, sec, g(0.5)).pop().c === "Em", "3c: a corrected last bar is cut at the audio's end too");
+    const reg = { duration: 8.1, chords: { bars: ["C"] }, chordRegions: { regions: [{ t0: 7, t1: 8.5, bar: 3, beat: 2, endBar: 4, endBeat: 0, c: "C" }] } };
+    check(inside(reg, g(0.5)), "3c: a chord region that runs past the end is cut at the audio's end"); }
   const m = D.partMidi(x, "chords", { section: { startBar: 0, bars: 2 }, tempo: 120 }), d = decodeMidi(m.data), on = [...new Set(d.notes.map(n => n.onTick / d.division))].sort((p, q) => p - q);
   check(JSON.stringify(on) === "[0,2]" && d.notes.length === 6, `3: the quantized chords MIDI changes chord on beat 3 of bar 1 (onsets at beats ${on}, ${d.notes.length} notes)`);
   check(d.notes.filter(n => n.onTick === 0).every(n => n.offTick <= 2 * d.division) && d.notes.filter(n => n.onTick > 0).some(n => n.offTick >= 7 * d.division), "3: C lasts two beats; G holds through bar 2, as the region does");
