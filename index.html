@@ -2539,11 +2539,13 @@ function chordNamesText(a, sec) {
 /* The chords of a section WITH their timing, for pasting into a DAW's marker or note list and for a .csv. Rows: { bar, beat (1-based; 3.5 is
    the "and" of beat 3), s (16th steps from bar 1), t0, t1 (seconds in the audio's own timing), c }, one per chord, cut to the section (a chord
    that began before it starts at its first bar line). grid = the TimeMap grid (gridOf(a)); a chord's start is its detected time when it has one
-   (a chord region), else its place on the grid. Nothing is quantized to a tempo: these are the same times the roll shows. */
+   (a chord region), else its place on the grid; every row lies inside the recording, [0, a.duration], and a chord with nothing left there is dropped. Nothing is quantized to a tempo: these are the same times the roll shows. */
 function chordTimingRows(a, sec, grid) {
-  const lo = sec.startBar * 16, hi = (sec.startBar + sec.bars) * 16, at = q => { const b = Math.floor(q / 16), s0 = grid.barStart(b), s1 = grid.barStart(b + 1); return s0 + (q - b * 16) / 16 * (s1 - s0); };
+  const end = a.duration > 0 ? a.duration : Infinity, lo = sec.startBar * 16, hi = (sec.startBar + sec.bars) * 16, at = q => { const b = Math.floor(q / 16), s0 = grid.barStart(b), s1 = grid.barStart(b + 1); return s0 + (q - b * 16) / 16 * (s1 - s0); };
   return chordSpans(a, grid).filter(x => x.s < hi && x.e > lo).map(x => { const s = Math.max(x.s, lo), e = Math.min(x.e, hi);
-    return { bar: Math.floor(s / 16) + 1, beat: 1 + (s % 16) / 4, s, t0: s === x.s && x.t0 != null ? x.t0 : at(s), t1: e === x.e && x.t1 != null ? x.t1 : at(e), c: x.c }; });
+    return { bar: Math.floor(s / 16) + 1, beat: 1 + (s % 16) / 4, s, t0: s === x.s && x.t0 != null ? x.t0 : at(s), t1: e === x.e && x.t1 != null ? x.t1 : at(e), c: x.c }; })
+    // only the part inside the recording: the nominal bar lines run past its end and, with a late or negative first downbeat, before its start (PR #71 review)
+    .map(r => ({ ...r, t0: Math.max(0, r.t0), t1: Math.min(end, r.t1) })).filter(r => r.t1 > r.t0);
 }
 const clockOf = t => { const ms = Math.round(Math.max(0, t) * 1000), m = Math.floor(ms / 60000); return `${m}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}.${String(ms % 1000).padStart(3, "0")}`; };
 const beatText = b => Number.isInteger(b) ? String(b) : b.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
